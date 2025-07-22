@@ -1,3 +1,29 @@
+/**
+ * Data Storage System
+ * 
+ * This file implements the localStorage-based data persistence system for the Kidoers application.
+ * All application data is stored in browser localStorage (demo/prototype mode).
+ * 
+ * For complete documentation, see: docs/PROJECT_SPECIFICATIONS.md
+ * 
+ * Storage Keys:
+ * - kidoers_user - Current user data
+ * - kidoers_family - Family information  
+ * - kidoers_members - Family members list
+ * - kidoers_chores - Chores/tasks
+ * - kidoers_activities - Calendar activities
+ * - kidoers_rewards - Family rewards
+ * 
+ * Implemented Functions (14 total):
+ * - User: getUser(), setUser(), removeUser()
+ * - Family: getFamily(), setFamily()
+ * - Members: getMembers(), setMembers()
+ * - Chores: getChores(), setChores()
+ * - Activities: getActivities(), setActivities()
+ * - Rewards: getRewards(), setRewards()
+ * - Utility: clearAll()
+ */
+
 // Local storage utilities for persisting data
 export const storage = {
   // User data

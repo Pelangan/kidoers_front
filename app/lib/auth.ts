@@ -1,3 +1,20 @@
+/**
+ * Authentication System
+ * 
+ * This file implements the mock authentication system for the Kidoers application.
+ * All functions use localStorage for data persistence (demo/prototype mode).
+ * 
+ * For complete documentation, see: docs/PROJECT_SPECIFICATIONS.md
+ * 
+ * Implemented Functions:
+ * - signUp(email, password) - User registration
+ * - signIn(email, password) - User login  
+ * - signInWithGoogle() - OAuth simulation
+ * - signOut() - User logout
+ * - resetPassword(email) - Password reset
+ * - getCurrentUser() - Get current user
+ */
+
 import { storage } from "./storage"
 import { shouldLoadDemoData } from "./demoData"
 
