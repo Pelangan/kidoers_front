@@ -1,0 +1,30 @@
+# Kidoers - Family Task Management Application
+
+## Important: Always Read Project Documentation
+
+**Before helping with any task, ALWAYS read and reference the project documentation:**
+
+1. **Start with**: `docs/README.md` for quick overview and navigation
+2. **Then read**: `docs/PROJECT_SPECIFICATIONS.md` for complete project details
+3. **Keep documentation updated**: When making changes, update the relevant documentation files
+
+## Quick Context
+This is a Next.js-based family task management application using localStorage for data persistence (demo/prototype mode). All data is client-side with mock authentication.
+
+## Key Architecture
+- **Framework**: Next.js 15.2.4 (App Router)
+- **Language**: TypeScript 5
+- **Styling**: Tailwind CSS + shadcn/ui
+- **Data Storage**: Browser localStorage (no backend)
+- **Authentication**: Mock system (accepts any email/password)
+
+## Documentation Structure
+- `docs/README.md` - Documentation index and quick reference
+- `docs/PROJECT_SPECIFICATIONS.md` - Complete project specifications and implemented functions
+
+## When Helping
+- **ALWAYS read the documentation first** before providing assistance
+- **Reference specific sections** of the documentation in your responses
+- **Update documentation** when making architectural or functional changes
+- **Maintain consistency** with the established patterns and data models
+- **Consider the demo/prototype nature** of the application 
