@@ -1,0 +1,64 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { getCurrentUser } from "../lib/auth"
+import { storage } from "../lib/storage"
+import type { User } from "../lib/auth"
+import { shouldLoadDemoData, loadDemoData } from "../lib/demoData"
+import SignIn from "../components/auth/SignIn"
+import AuthLayout from "../components/layout/AuthLayout"
+import { useRouter } from "next/navigation"
+
+export default function SignInPage() {
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
+  const router = useRouter()
+
+  useEffect(() => {
+    // Check for existing user
+    const currentUser = getCurrentUser()
+    setUser(currentUser)
+
+    // Load demo data if no data exists
+    if (shouldLoadDemoData()) {
+      loadDemoData()
+    }
+
+    setLoading(false)
+  }, [])
+
+  const handleSignIn = (user: User) => {
+    setUser(user)
+    const family = storage.getFamily()
+    if (family) {
+      router.push("/dashboard")
+    } else {
+      router.push("/onboarding")
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-soft flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
+
+  if (user) {
+    const family = storage.getFamily()
+    if (family) {
+      router.push("/dashboard")
+      return null
+    } else {
+      router.push("/onboarding")
+      return null
+    }
+  }
+
+  return (
+    <AuthLayout>
+      <SignIn onSignIn={handleSignIn} />
+    </AuthLayout>
+  )
+} 
