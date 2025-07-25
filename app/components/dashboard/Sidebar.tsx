@@ -80,13 +80,19 @@ export default function Sidebar({ currentView, setCurrentView, isOpen, setIsOpen
                 <button
                   key={item.id}
                   onClick={() => setCurrentView(item.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 ${
+                  className={`w-full flex items-center gap-3 rounded-lg transition-all duration-200 ${
+                    isOpen ? "px-3 py-3" : "pl-1 pr-1 py-3"
+                  } ${
                     isActive
-                      ? "bg-gradient-warm text-white shadow-button"
+                      ? isOpen 
+                        ? "bg-gradient-warm text-white shadow-button"
+                        : "text-primary"
                       : "hover:bg-muted text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  <Icon className="h-5 w-5 flex-shrink-0" />
+                  <Icon className={`flex-shrink-0 transition-all duration-200 ${
+                    isActive && !isOpen ? "h-6 w-6" : "h-5 w-5"
+                  }`} />
                   {isOpen && (
                     <div className="text-left">
                       <div className="font-medium">{item.label}</div>
@@ -106,7 +112,9 @@ export default function Sidebar({ currentView, setCurrentView, isOpen, setIsOpen
           <button
             onClick={handleSignOut}
             disabled={loading}
-            className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-50`}
+            className={`w-full flex items-center gap-3 rounded-lg transition-colors hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-50 ${
+              isOpen ? "px-3 py-3" : "pl-1 pr-1 py-3"
+            }`}
           >
             <LogOut className="h-5 w-5 flex-shrink-0" />
             {isOpen && <span className="font-medium">{loading ? "Signing out..." : "Sign Out"}</span>}

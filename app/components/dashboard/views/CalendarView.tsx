@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Calendar, Plus, Clock } from "lucide-react"
+import { Calendar, Plus, Clock, ChevronLeft, ChevronRight } from "lucide-react"
 import { storage } from "../../../lib/storage"
 
 interface Activity {
@@ -10,34 +10,48 @@ interface Activity {
   description?: string
   scheduled_date: string
   depends_on_chores: boolean
+  assignedTo?: string
+  completed?: boolean
+}
+
+interface FamilyMember {
+  id: string
+  name: string
+  role: "parent" | "child"
 }
 
 export default function CalendarView() {
   const [activities, setActivities] = useState<Activity[]>([])
+  const [members, setMembers] = useState<FamilyMember[]>([])
   const [loading, setLoading] = useState(true)
   const [currentDate, setCurrentDate] = useState(new Date())
 
   useEffect(() => {
-    fetchActivities()
+    fetchData()
   }, [])
 
-  const fetchActivities = () => {
+  const fetchData = () => {
     try {
       const activitiesData = storage.getActivities()
+      const membersData = storage.getMembers()
       setActivities(activitiesData || [])
+      setMembers(membersData || [])
     } catch (error) {
-      console.error("Error fetching activities:", error)
+      console.error("Error fetching data:", error)
     } finally {
       setLoading(false)
     }
   }
 
   const getWeekDays = () => {
+    // Start from Thursday to match the design
     const startOfWeek = new Date(currentDate)
-    startOfWeek.setDate(currentDate.getDate() - currentDate.getDay())
+    const dayOfWeek = startOfWeek.getDay()
+    const daysToSubtract = dayOfWeek >= 4 ? dayOfWeek - 4 : dayOfWeek + 3
+    startOfWeek.setDate(startOfWeek.getDate() - daysToSubtract)
 
     const days = []
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 5; i++) { // Show 5 days: Thu, Fri, Sat, Sun, Mon
       const day = new Date(startOfWeek)
       day.setDate(startOfWeek.getDate() + i)
       days.push(day)
@@ -59,8 +73,52 @@ export default function CalendarView() {
     })
   }
 
+  const getTimeSlots = () => {
+    return [
+      "12 am", "1 am", "2 am", "3 am", "4 am", "5 am", "6 am", "7 am", "8 am", "9 am", "10 am", "11 am",
+      "12 pm", "1 pm", "2 pm", "3 pm", "4 pm", "5 pm", "6 pm", "7 pm", "8 pm", "9 pm", "10 pm", "11 pm"
+    ]
+  }
+
+  const getActivityColor = (activity: Activity) => {
+    const title = activity.title.toLowerCase()
+    
+    // Food/Meal related activities
+    if (title.includes('tacos') || title.includes('pizza') || title.includes('lunch') || 
+        title.includes('spaghetti') || title.includes('flag football')) {
+      return 'bg-orange-200 border-orange-300 text-orange-800'
+    }
+    
+    // Lessons/Parties
+    if (title.includes('piano') || title.includes('slumber party')) {
+      return 'bg-pink-200 border-pink-300 text-pink-800'
+    }
+    
+    // Personal care/Lessons
+    if (title.includes('haircut') || title.includes('violin')) {
+      return 'bg-purple-200 border-purple-300 text-purple-800'
+    }
+    
+    // General activities
+    return 'bg-blue-200 border-blue-300 text-blue-800'
+  }
+
+  const getMemberInitial = (memberId: string) => {
+    const member = members.find(m => m.id === memberId)
+    return member ? member.name.charAt(0).toUpperCase() : '?'
+  }
+
+  const getActivityStatus = (activity: Activity) => {
+    return activity.completed || false
+  }
+
+  const getCompletedCount = () => {
+    return activities.filter(activity => activity.completed).length
+  }
+
   const weekDays = getWeekDays()
-  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+  const timeSlots = getTimeSlots()
+  const dayNames = ["Thu", "Fri", "Sat", "Sun", "Mon"]
 
   if (loading) {
     return (
@@ -91,9 +149,10 @@ export default function CalendarView() {
             newDate.setDate(currentDate.getDate() - 7)
             setCurrentDate(newDate)
           }}
-          className="btn-secondary"
+          className="btn-secondary flex items-center gap-2"
         >
-          ← Previous Week
+          <ChevronLeft className="h-4 w-4" />
+          Previous Week
         </button>
 
         <h3 className="text-lg font-semibold">
@@ -106,48 +165,96 @@ export default function CalendarView() {
             newDate.setDate(currentDate.getDate() + 7)
             setCurrentDate(newDate)
           }}
-          className="btn-secondary"
+          className="btn-secondary flex items-center gap-2"
         >
-          Next Week →
+          Next Week
+          <ChevronRight className="h-4 w-4" />
         </button>
       </div>
 
-      {/* Calendar Grid */}
-      <div className="grid grid-cols-7 gap-4">
-        {weekDays.map((day, index) => {
-          const dayActivities = getActivitiesForDate(day)
-          const isToday = day.toDateString() === new Date().toDateString()
-
-          return (
-            <div key={index} className="card min-h-[200px]">
-              <div
-                className={`text-center pb-3 mb-3 border-b border-border ${
-                  isToday ? "text-primary font-semibold" : "text-foreground"
-                }`}
-              >
-                <div className="text-sm text-muted-foreground">{dayNames[index]}</div>
-                <div className="text-lg">{day.getDate()}</div>
-              </div>
-
-              <div className="space-y-2">
-                {dayActivities.map((activity) => (
-                  <div key={activity.id} className="p-2 rounded-lg bg-gradient-warm text-white text-sm">
-                    <div className="font-medium truncate">{activity.title}</div>
-                    <div className="flex items-center gap-1 text-xs opacity-90">
-                      <Clock className="h-3 w-3" />
-                      {formatTime(activity.scheduled_date)}
-                    </div>
-                    {activity.depends_on_chores && <div className="text-xs opacity-75 mt-1">Depends on chores</div>}
+            {/* Calendar Container */}
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        {/* Frozen Header Row */}
+        <div className="grid grid-cols-6 border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
+          <div className="p-3 bg-gray-50 border-r border-gray-200"></div>
+          {weekDays.map((day, index) => {
+            const isToday = day.toDateString() === new Date().toDateString()
+            return (
+              <div key={index} className="p-3 bg-gray-50 border-r border-gray-200 last:border-r-0">
+                <div className="text-center">
+                  <div className="text-sm text-gray-600 font-medium">{dayNames[index]}</div>
+                  <div className={`text-lg font-bold ${isToday ? 'text-red-600' : 'text-gray-900'}`}>
+                    {day.getDate()}
                   </div>
-                ))}
-
-                {dayActivities.length === 0 && (
-                  <div className="text-center py-4 text-muted-foreground text-sm">No activities</div>
-                )}
+                </div>
               </div>
+            )
+          })}
+        </div>
+
+        {/* Scrollable Time Grid */}
+        <div className="max-h-[600px] overflow-y-auto">
+          {timeSlots.map((timeSlot, timeIndex) => (
+            <div key={timeIndex} className="grid grid-cols-6 border-b border-gray-200 last:border-b-0">
+              {/* Time Column */}
+              <div className="p-2 bg-gray-50 border-r border-gray-200 flex items-center sticky left-0 z-5">
+                <span className="text-xs text-gray-600 font-medium">{timeSlot}</span>
+              </div>
+              
+              {/* Day Columns */}
+              {weekDays.map((day, dayIndex) => {
+                const dayActivities = getActivitiesForDate(day)
+                const activitiesInTimeSlot = dayActivities.filter(activity => {
+                  const activityTime = new Date(activity.scheduled_date)
+                  const hour = activityTime.getHours()
+                  return hour === timeIndex
+                })
+
+                return (
+                  <div key={dayIndex} className="p-1 border-r border-gray-200 last:border-r-0 min-h-[50px] relative">
+                    {activitiesInTimeSlot.map((activity) => (
+                      <div
+                        key={activity.id}
+                        className={`p-1 rounded border text-xs mb-1 relative ${getActivityColor(activity)}`}
+                      >
+                        <div className="font-medium truncate text-xs">{activity.title}</div>
+                        <div className="text-xs opacity-80">
+                          {formatTime(activity.scheduled_date)}
+                        </div>
+                        
+                        {/* Status Indicator */}
+                        <div className={`absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
+                          getActivityStatus(activity) 
+                            ? 'bg-green-500 text-white' 
+                            : 'bg-gray-400 text-white'
+                        }`}>
+                          {getMemberInitial(activity.assignedTo || '')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })}
             </div>
-          )
-        })}
+          ))}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between mt-6 p-4 bg-gray-50 rounded-lg">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded-full bg-green-500"></div>
+            <span className="text-sm text-gray-600">Completed</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded-full bg-gray-400"></div>
+            <span className="text-sm text-gray-600">Pending</span>
+          </div>
+        </div>
+        <div className="text-sm text-gray-600">
+          {getCompletedCount()} of {activities.length} activities completed
+        </div>
       </div>
 
       {activities.length === 0 && (

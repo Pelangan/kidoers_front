@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import ChoresView from "./views/ChoresView"
+import CalendarView from "./views/CalendarView"
 import { CheckSquare, Calendar, Gift, LogOut, Menu } from "lucide-react"
 import { signOut } from "../../lib/auth"
 
@@ -49,13 +50,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
       case "chores":
         return <ChoresView />
       case "calendar":
-        return (
-          <div className="text-center py-12">
-            <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h3 className="text-lg font-medium mb-2">Calendar View</h3>
-            <p className="text-muted-foreground">Coming soon!</p>
-          </div>
-        )
+        return <CalendarView />
       case "rewards":
         return (
           <div className="text-center py-12">
@@ -110,13 +105,19 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
                   <button
                     key={item.id}
                     onClick={() => setCurrentView(item.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 ${
+                    className={`w-full flex items-center gap-3 rounded-lg transition-all duration-200 ${
+                      sidebarOpen ? "px-3 py-3" : "pl-1 pr-1 py-3"
+                    } ${
                       isActive
-                        ? "bg-gradient-warm text-white shadow-button"
+                        ? sidebarOpen 
+                          ? "bg-gradient-warm text-white shadow-button"
+                          : "text-primary"
                         : "hover:bg-muted text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    <Icon className="h-5 w-5 flex-shrink-0" />
+                    <Icon className={`flex-shrink-0 transition-all duration-200 ${
+                      isActive && !sidebarOpen ? "h-6 w-6" : "h-5 w-5"
+                    }`} />
                     {sidebarOpen && (
                       <div className="text-left">
                         <div className="font-medium">{item.label}</div>
@@ -136,7 +137,9 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
             <button
               onClick={handleSignOut}
               disabled={loading}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-50`}
+              className={`w-full flex items-center gap-3 rounded-lg transition-colors hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-50 ${
+                sidebarOpen ? "px-3 py-3" : "pl-1 pr-1 py-3"
+              }`}
             >
               <LogOut className="h-5 w-5 flex-shrink-0" />
               {sidebarOpen && <span className="font-medium">{loading ? "Signing out..." : "Sign Out"}</span>}
@@ -147,53 +150,8 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
 
       {/* Main Content */}
       <div className={`flex-1 transition-all duration-300 ${sidebarOpen ? "ml-64" : "ml-16"}`}>
-        {/* Header */}
-        <header className="bg-card border-b border-border px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="p-2 hover:bg-muted rounded-lg transition-colors lg:hidden"
-              >
-                <Menu className="h-5 w-5" />
-              </button>
-              <div>
-                <h1 className="text-xl font-semibold text-foreground capitalize">{currentView}</h1>
-                <p className="text-sm text-muted-foreground">
-                  {currentView === "chores" && "Manage daily tasks for your family"}
-                  {currentView === "calendar" && "View scheduled activities and events"}
-                  {currentView === "rewards" && "Track progress toward family rewards"}
-                </p>
-              </div>
-            </div>
-          </div>
-        </header>
-
         {/* Content */}
         <main className="p-6">
-          {/* Welcome Message */}
-          <div className="bg-gradient-warm p-6 rounded-lg shadow-soft text-white mb-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-white/20 rounded-lg">
-                <CheckSquare className="h-6 w-6" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">Welcome to Kidoers!</h2>
-                <p className="text-white/90">Your demo family is ready to explore</p>
-              </div>
-            </div>
-
-            <div className="bg-white/10 rounded-lg p-4">
-              <h3 className="font-semibold mb-2">Try these features:</h3>
-              <ul className="text-sm space-y-1 text-white/90">
-                <li>• Toggle chores as complete/incomplete</li>
-                <li>• Check different family members' tasks</li>
-                <li>• See progress with The Johnson Family demo data</li>
-                <li>• Explore the sidebar navigation</li>
-              </ul>
-            </div>
-          </div>
-
           {renderView()}
         </main>
       </div>
