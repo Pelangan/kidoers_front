@@ -161,15 +161,11 @@ export default function CalendarView() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Family Calendar</h2>
           <p className="text-muted-foreground">Scheduled activities and events</p>
         </div>
-        <button className="btn-primary flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          Add Activity
-        </button>
       </div>
 
       {/* Week Navigation */}
@@ -336,12 +332,13 @@ export default function CalendarView() {
           <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
           <h3 className="text-lg font-medium mb-2">No activities scheduled</h3>
           <p className="text-muted-foreground mb-4">Add family activities and events to see them here.</p>
-          <button className="btn-primary">
-            <Plus className="h-4 w-4 mr-2" />
-            Add First Activity
-          </button>
         </div>
       )}
+
+      {/* Floating Action Button */}
+      <button className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center z-50">
+        <Plus className="h-6 w-6" />
+      </button>
     </div>
   )
 } 

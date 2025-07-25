@@ -164,15 +164,11 @@ export default function ChoresView() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Today's Chores</h2>
           <p className="text-muted-foreground">Track daily tasks for each family member</p>
         </div>
-        <button className="btn-primary flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          Add Chore
-        </button>
       </div>
 
       {/* Group By Controls */}
@@ -304,6 +300,11 @@ export default function ChoresView() {
           <p className="text-muted-foreground">Complete the onboarding process to add family members and chores.</p>
         </div>
       )}
+
+      {/* Floating Action Button */}
+      <button className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center z-50">
+        <Plus className="h-6 w-6" />
+      </button>
     </div>
   )
 }
