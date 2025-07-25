@@ -8,8 +8,11 @@ interface Activity {
   id: string
   title: string
   description?: string
-  scheduled_date: string
-  depends_on_chores: boolean
+  time?: string
+  daysOfWeek?: string[]
+  frequency?: string
+  scheduled_date?: string
+  depends_on_chores?: boolean
   assignedTo?: string
   completed?: boolean
 }
@@ -62,7 +65,21 @@ export default function CalendarView() {
 
   const getActivitiesForDate = (date: Date) => {
     const dateStr = date.toISOString().split("T")[0]
-    return activities.filter((activity) => activity.scheduled_date.startsWith(dateStr))
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'short' })
+    
+    return activities.filter((activity) => {
+      // Handle activities with scheduled_date (legacy format)
+      if (activity.scheduled_date) {
+        return activity.scheduled_date.startsWith(dateStr)
+      }
+      
+      // Handle activities with daysOfWeek (new format from onboarding)
+      if (activity.daysOfWeek && activity.daysOfWeek.length > 0) {
+        return activity.daysOfWeek.includes(dayName)
+      }
+      
+      return false
+    })
   }
 
   const formatTime = (dateStr: string) => {
@@ -202,7 +219,7 @@ export default function CalendarView() {
             {/* Calendar Container */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         {/* Frozen Header Row */}
-        <div className="grid grid-cols-8 border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
+        <div className="grid grid-cols-8 border-b border-gray-200 bg-gray-50 sticky top-0 z-10" style={{ gridTemplateColumns: '64px repeat(7, 1fr)' }}>
           <div className="p-2 bg-gray-50 border-r border-blue-200 w-16">
             <div className="text-center">
               <div className="text-xs text-gray-500 font-medium">GMT+02</div>
@@ -211,7 +228,7 @@ export default function CalendarView() {
           {weekDays.map((day, index) => {
             const isToday = day.toDateString() === new Date().toDateString()
             return (
-              <div key={index} className="p-3 bg-gray-50 border-r border-gray-200 last:border-r-0">
+              <div key={index} className="p-3 bg-gray-50 border-r border-gray-200 last:border-r-0 w-full">
                 <div className="text-center">
                   <div className="text-sm text-gray-600 font-medium">{dayNames[index]}</div>
                   <div className={`text-lg font-bold ${isToday ? 'text-red-600' : 'text-gray-900'}`}>
@@ -231,7 +248,7 @@ export default function CalendarView() {
             const isCurrentDay = currentTime.dayIndex === 0 // First day in our 5-day view
             
             return (
-              <div key={timeIndex} className="grid grid-cols-8 border-b border-gray-200 last:border-b-0 relative">
+              <div key={timeIndex} className="grid grid-cols-8 border-b border-gray-200 last:border-b-0 relative" style={{ gridTemplateColumns: '64px repeat(7, 1fr)' }}>
                 {/* Time Column */}
                 <div className="px-1 py-2 bg-white border-r border-blue-200 flex items-center justify-center sticky left-0 z-5 w-16">
                   <span className="text-xs text-gray-700 font-medium">{timeSlot}</span>
@@ -241,23 +258,34 @@ export default function CalendarView() {
                 {weekDays.map((day, dayIndex) => {
                   const dayActivities = getActivitiesForDate(day)
                   const activitiesInTimeSlot = dayActivities.filter(activity => {
-                    const activityTime = new Date(activity.scheduled_date)
-                    const hour = activityTime.getHours()
-                    return hour === timeIndex
+                    // Handle activities with scheduled_date (legacy format)
+                    if (activity.scheduled_date) {
+                      const activityTime = new Date(activity.scheduled_date)
+                      const hour = activityTime.getHours()
+                      return hour === timeIndex
+                    }
+                    
+                    // Handle activities with time (new format from onboarding)
+                    if (activity.time) {
+                      const [hours] = activity.time.split(':').map(Number)
+                      return hours === timeIndex
+                    }
+                    
+                    return false
                   })
 
                   const isCurrentDay = currentTime.isToday && currentTime.dayIndex === dayIndex
 
                   return (
-                    <div key={dayIndex} className="p-1 border-r border-gray-200 last:border-r-0 min-h-[50px] relative">
+                    <div key={dayIndex} className="p-1 border-r border-gray-200 last:border-r-0 min-h-[50px] relative w-full">
                       {activitiesInTimeSlot.map((activity) => (
                         <div
                           key={activity.id}
-                          className={`p-1 rounded border text-xs mb-1 relative ${getActivityColor(activity)}`}
+                          className={`p-1 rounded border text-xs mb-1 relative ${getActivityColor(activity)} max-w-full overflow-hidden`}
                         >
                           <div className="font-medium truncate text-xs">{activity.title}</div>
-                          <div className="text-xs opacity-80">
-                            {formatTime(activity.scheduled_date)}
+                          <div className="text-xs opacity-80 truncate">
+                            {activity.scheduled_date ? formatTime(activity.scheduled_date) : activity.time}
                           </div>
                           
                           {/* Status Indicator */}

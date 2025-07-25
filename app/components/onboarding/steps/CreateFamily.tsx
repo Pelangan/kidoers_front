@@ -2,16 +2,21 @@
 
 import type React from "react"
 import { useState } from "react"
-import { Users, Calendar, Gift, Sparkles } from "lucide-react"
+import { Users, Plus, X } from "lucide-react"
+import type { FamilyMember } from "../OnboardingWizard"
 
 interface CreateFamilyProps {
   familyName: string
   setFamilyName: (name: string) => void
+  members: FamilyMember[]
+  setMembers: (members: FamilyMember[]) => void
   onNext: () => void
 }
 
-export default function CreateFamily({ familyName, setFamilyName, onNext }: CreateFamilyProps) {
+export default function CreateFamily({ familyName, setFamilyName, members, setMembers, onNext }: CreateFamilyProps) {
   const [error, setError] = useState("")
+  const [newMemberName, setNewMemberName] = useState("")
+  const [newMemberRole, setNewMemberRole] = useState<"parent" | "child">("parent")
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -19,97 +24,159 @@ export default function CreateFamily({ familyName, setFamilyName, onNext }: Crea
       setError("Please enter a family name")
       return
     }
+    if (members.length === 0) {
+      setError("Please add at least one family member")
+      return
+    }
     setError("")
     onNext()
   }
 
-  const features = [
-    {
-      icon: Users,
-      title: "Add Family Members",
-      description: "Include everyone and set personalized preferences",
-      color: "bg-blue-100 text-blue-600",
-    },
-    {
-      icon: Sparkles,
-      title: "Create Collaborative Tasks",
-      description: "Build tasks everyone can contribute to",
-      color: "bg-purple-100 text-purple-600",
-    },
-    {
-      icon: Gift,
-      title: "Unlock Family Rewards",
-      description: "Earn real-life rewards like pizza nights together",
-      color: "bg-green-100 text-green-600",
-    },
-    {
-      icon: Calendar,
-      title: "Smart Scheduling",
-      description: "See all your family tasks in a beautiful calendar",
-      color: "bg-orange-100 text-orange-600",
-    },
-  ]
+  const addMember = () => {
+    if (!newMemberName.trim()) return
+    
+    const newMember: FamilyMember = {
+      id: Date.now().toString(),
+      name: newMemberName.trim(),
+      role: newMemberRole,
+      calmMode: false,
+      textToSpeech: false,
+    }
+    
+    setMembers([...members, newMember])
+    setNewMemberName("")
+  }
+
+  const addParent = () => {
+    setNewMemberRole("parent")
+    setNewMemberName("")
+  }
+
+  const addChild = () => {
+    setNewMemberRole("child")
+    setNewMemberName("")
+  }
+
+  const removeMember = (id: string) => {
+    setMembers(members.filter(member => member.id !== id))
+  }
 
   return (
     <div className="text-center">
+      {/* Progress Indicator */}
+      <div className="flex items-center justify-center gap-2 mb-8">
+        <div className="w-8 h-1 bg-primary rounded-full" />
+        <div className="w-2 h-1 bg-muted rounded-full" />
+        <div className="w-2 h-1 bg-muted rounded-full" />
+        <div className="w-2 h-1 bg-muted rounded-full" />
+        <span className="text-sm text-muted-foreground ml-2">1/4</span>
+      </div>
+
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-foreground mb-4">
-          Let's create your family's collaborative task space and start building better routines together
+          Create Your Family
         </h1>
-        <div className="flex items-center justify-center gap-2 text-muted-foreground">
-          <div className="w-8 h-1 bg-primary rounded-full" />
-          <div className="w-2 h-1 bg-muted rounded-full" />
-          <span className="text-sm">Step 1 of 1</span>
-        </div>
+        <p className="text-muted-foreground">
+          Let's start by setting up your family profile
+        </p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-8 items-start">
-        {/* Left Column - Form */}
-        <div className="card text-left">
-          <h2 className="text-xl font-bold mb-2">Create Your Family</h2>
-          <p className="text-muted-foreground mb-6">Give your family circle a name to get started</p>
-
-          <form onSubmit={handleSubmit}>
-            <div className="mb-6">
-              <label htmlFor="familyName" className="block text-sm font-medium mb-2">
-                Family Name
-              </label>
-              <input
-                id="familyName"
-                type="text"
-                value={familyName}
-                onChange={(e) => setFamilyName(e.target.value)}
-                placeholder="Enter your family name"
-                className="input"
-                autoFocus
-              />
-              {error && <p className="text-red-600 text-sm mt-2">{error}</p>}
-            </div>
-
-            <button type="submit" className="btn-primary w-full">
-              Continue →
-            </button>
-          </form>
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Family Name */}
+        <div className="text-left">
+          <label htmlFor="familyName" className="block text-sm font-medium mb-2">
+            Family Name
+          </label>
+          <input
+            id="familyName"
+            type="text"
+            value={familyName}
+            onChange={(e) => setFamilyName(e.target.value)}
+            placeholder="The Smith Family"
+            className="input w-full"
+            autoFocus
+          />
         </div>
 
-        {/* Right Column - Features Preview */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold mb-4">What's coming next?</h3>
-          <p className="text-muted-foreground mb-6">Here's what you'll be able to do with Kidoers:</p>
-
-          {features.map((feature, index) => (
-            <div key={index} className="flex items-start gap-3 p-3 rounded-lg bg-card/50">
-              <div className={`p-2 rounded-lg ${feature.color}`}>
-                <feature.icon className="h-5 w-5" />
+        {/* Family Members */}
+        <div className="text-left">
+          <label className="block text-sm font-medium mb-2">
+            Family Members
+          </label>
+          
+          {/* Existing Members */}
+          {members.map((member) => (
+            <div key={member.id} className="flex items-center gap-3 mb-3 p-3 bg-card rounded-lg">
+              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                <Users className="h-4 w-4 text-primary" />
               </div>
-              <div>
-                <h4 className="font-medium text-foreground">{feature.title}</h4>
-                <p className="text-sm text-muted-foreground">{feature.description}</p>
-              </div>
+              <span className="flex-1 text-left">{member.name}</span>
+              <span className={`text-xs px-2 py-1 rounded-full capitalize ${
+                member.role === "parent" 
+                  ? "bg-blue-100 text-blue-800" 
+                  : "bg-green-100 text-green-800"
+              }`}>
+                {member.role}
+              </span>
+              <button
+                type="button"
+                onClick={() => removeMember(member.id)}
+                className="p-1 hover:bg-muted rounded"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
           ))}
+
+          {/* Add New Member */}
+          <div className="flex items-center gap-3 p-3 bg-card rounded-lg">
+            <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+              <Users className="h-4 w-4 text-primary" />
+            </div>
+            <input
+              type="text"
+              value={newMemberName}
+              onChange={(e) => setNewMemberName(e.target.value)}
+              placeholder={newMemberRole === "parent" ? "Parent name" : "Child name"}
+              className="flex-1 input bg-transparent border-none p-0 focus:ring-0"
+            />
+            <button
+              type="button"
+              onClick={addMember}
+              disabled={!newMemberName.trim()}
+              className="p-1 hover:bg-muted rounded disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Add Member Buttons */}
+          <div className="flex gap-2 mt-3">
+            <button
+              type="button"
+              onClick={addParent}
+              className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg hover:bg-muted"
+            >
+              <Plus className="h-4 w-4" />
+              Add Parent
+            </button>
+            <button
+              type="button"
+              onClick={addChild}
+              className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg hover:bg-muted"
+            >
+              <Plus className="h-4 w-4" />
+              Add Child
+            </button>
+          </div>
         </div>
-      </div>
+
+        {error && <p className="text-red-600 text-sm">{error}</p>}
+
+        <button type="submit" className="btn-primary w-full">
+          Continue
+        </button>
+      </form>
     </div>
   )
 }

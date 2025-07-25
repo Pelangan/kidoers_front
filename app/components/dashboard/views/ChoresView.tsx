@@ -11,6 +11,8 @@ interface Chore {
   completed: boolean
   assignedTo: string
   frequency: "daily" | "weekly" | "weekends"
+  category?: string
+  timeOfDay?: "morning" | "afternoon" | "evening"
 }
 
 interface FamilyMember {
@@ -102,7 +104,12 @@ export default function ChoresView() {
   }
 
   const getTimeOfDay = (chore: Chore) => {
-    // Simple logic to assign time of day based on chore title or frequency
+    // Use the timeOfDay property from onboarding if available
+    if (chore.timeOfDay) {
+      return chore.timeOfDay.charAt(0).toUpperCase() + chore.timeOfDay.slice(1)
+    }
+    
+    // Fallback to title-based logic for legacy data
     const title = chore.title.toLowerCase()
     if (title.includes('breakfast') || title.includes('bed') || title.includes('morning')) {
       return 'Morning'
@@ -137,6 +144,21 @@ export default function ChoresView() {
       grouped[timeOfDay].push(chore)
     })
     
+    return grouped
+  }
+
+  const groupChoresByCategory = (memberId: string) => {
+    const memberChores = getChoresByMember(memberId)
+    const grouped: { [key: string]: Chore[] } = {}
+
+    memberChores.forEach(chore => {
+      const category = chore.category || "No Category"
+      if (!grouped[category]) {
+        grouped[category] = []
+      }
+      grouped[category].push(chore)
+    })
+
     return grouped
   }
 
@@ -207,7 +229,7 @@ export default function ChoresView() {
           const progress = getProgressPercentage(member.id)
           const memberChores = getChoresByMember(member.id)
           const completedCount = memberChores.filter(chore => chore.completed).length
-          const groupedChores = groupChoresByTime(member.id)
+          const groupedChores = groupBy === "time" ? groupChoresByTime(member.id) : groupChoresByCategory(member.id)
 
           return (
             <div key={member.id} className={`bg-white rounded-lg border-2 ${theme.border} p-6 shadow-sm`}>
@@ -246,16 +268,18 @@ export default function ChoresView() {
                 </div>
               </div>
 
-              {/* Chores by Time of Day */}
+              {/* Chores by Time of Day or Categories */}
               <div className="space-y-4">
-                {Object.entries(groupedChores).map(([timeOfDay, timeChores]) => (
-                  <div key={timeOfDay}>
+                {Object.entries(groupedChores).map(([groupName, groupChores]) => (
+                  <div key={groupName}>
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-sm">{getTimeIcon(timeOfDay)}</span>
-                      <h4 className="text-sm font-semibold text-foreground">{timeOfDay}</h4>
+                      <span className="text-sm">
+                        {groupBy === "time" ? getTimeIcon(groupName) : "📁"}
+                      </span>
+                      <h4 className="text-sm font-semibold text-foreground">{groupName}</h4>
                     </div>
                     <div className="space-y-2">
-                      {timeChores.map((chore) => (
+                      {groupChores.map((chore) => (
                         <div
                           key={chore.id}
                           className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all duration-200 ${theme.taskBg} ${theme.taskBorder} hover:shadow-sm`}

@@ -3,6 +3,9 @@
 import { useState } from "react"
 import { storage } from "../../lib/storage"
 import CreateFamily from "./steps/CreateFamily"
+import AddChores from "./steps/AddChores"
+import AddActivities from "./steps/AddActivities"
+import AddRewards from "./steps/AddRewards"
 
 export type FamilyMember = {
   id: string
@@ -17,6 +20,23 @@ export type Chore = {
   title: string
   description: string
   frequency: "daily" | "weekly" | "weekends"
+  timeOfDay: "morning" | "afternoon" | "evening"
+  category?: string
+  assignedTo: string
+  points: number
+  completed: boolean
+}
+
+export type Activity = {
+  id: string
+  title: string
+  description: string
+  location?: string
+  time: string
+  duration: number
+  frequency: "daily" | "weekly" | "monthly"
+  daysOfWeek: string[]
+  icon: string
   assignedTo: string
   completed: boolean
 }
@@ -25,7 +45,11 @@ export type Reward = {
   id: string
   title: string
   description: string
-  threshold: number
+  type: "complete_tasks" | "complete_categories" | "complete_time_slots" | "specific_tasks" | "streak" | "mixed"
+  conditions: any
+  icon: string
+  availableTo: string
+  threshold?: number
 }
 
 interface OnboardingWizardProps {
@@ -37,24 +61,84 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   const [familyName, setFamilyName] = useState("")
   const [members, setMembers] = useState<FamilyMember[]>([])
   const [chores, setChores] = useState<Chore[]>([])
+  const [activities, setActivities] = useState<Activity[]>([])
   const [rewards, setRewards] = useState<Reward[]>([])
 
-  const totalSteps = 1 // Simplified for preview
+  const totalSteps = 4
 
   const nextStep = () => {
-    // Complete onboarding - save all data to localStorage
-    const family = {
-      id: Date.now().toString(),
-      name: familyName,
-      createdAt: new Date().toISOString(),
+    if (currentStep < totalSteps) {
+      setCurrentStep(currentStep + 1)
+    } else {
+      // Complete onboarding - save all data to localStorage
+      const family = {
+        id: Date.now().toString(),
+        name: familyName,
+        createdAt: new Date().toISOString(),
+      }
+
+      storage.setFamily(family)
+      storage.setMembers(members)
+      storage.setChores(chores)
+      storage.setActivities(activities)
+      storage.setRewards(rewards)
+
+      onComplete()
     }
+  }
 
-    storage.setFamily(family)
-    storage.setMembers(members)
-    storage.setChores(chores)
-    storage.setRewards(rewards)
+  const prevStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1)
+    }
+  }
 
-    onComplete()
+  const renderStep = () => {
+    switch (currentStep) {
+      case 1:
+        return (
+          <CreateFamily
+            familyName={familyName}
+            setFamilyName={setFamilyName}
+            members={members}
+            setMembers={setMembers}
+            onNext={nextStep}
+          />
+        )
+      case 2:
+        return (
+          <AddChores
+            chores={chores}
+            setChores={setChores}
+            members={members}
+            onNext={nextStep}
+            onBack={prevStep}
+          />
+        )
+      case 3:
+        return (
+          <AddActivities
+            activities={activities}
+            setActivities={setActivities}
+            members={members}
+            onNext={nextStep}
+            onBack={prevStep}
+          />
+        )
+      case 4:
+        return (
+          <AddRewards
+            rewards={rewards}
+            setRewards={setRewards}
+            members={members}
+            chores={chores}
+            onNext={nextStep}
+            onBack={prevStep}
+          />
+        )
+      default:
+        return null
+    }
   }
 
   return (
@@ -80,7 +164,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
 
         {/* Step Content */}
         <div className="max-w-2xl mx-auto">
-          <CreateFamily familyName={familyName} setFamilyName={setFamilyName} onNext={nextStep} />
+          {renderStep()}
         </div>
       </div>
     </div>
