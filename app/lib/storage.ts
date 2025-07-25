@@ -2,7 +2,7 @@
  * Data Storage System
  * 
  * This file implements the localStorage-based data persistence system for the Kidoers application.
- * All application data is stored in browser localStorage (demo/prototype mode).
+ * All application data is stored in browser localStorage (prototype mode).
  * 
  * For complete documentation, see: docs/PROJECT_SPECIFICATIONS.md
  * 

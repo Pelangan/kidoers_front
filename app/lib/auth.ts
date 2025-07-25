@@ -2,7 +2,7 @@
  * Authentication System
  * 
  * This file implements the mock authentication system for the Kidoers application.
- * All functions use localStorage for data persistence (demo/prototype mode).
+ * All functions use localStorage for data persistence (prototype mode).
  * 
  * For complete documentation, see: docs/PROJECT_SPECIFICATIONS.md
  * 
@@ -16,7 +16,7 @@
  */
 
 import { storage } from "./storage"
-import { shouldLoadDemoData } from "./demoData"
+
 
 export interface User {
   id: string
@@ -107,17 +107,5 @@ export const resetPassword = async (email: string): Promise<{ error?: string }> 
 }
 
 export const getCurrentUser = (): User | null => {
-  let user = storage.getUser()
-
-  // Create demo user if none exists and demo data should be loaded
-  if (!user && shouldLoadDemoData()) {
-    user = {
-      id: "demo-user-001",
-      email: "demo@kidoers.app",
-      name: "Demo User",
-    }
-    storage.setUser(user)
-  }
-
-  return user
+  return storage.getUser()
 }

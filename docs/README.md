@@ -12,7 +12,7 @@ This folder contains comprehensive documentation for the Kidoers family task man
   - Task management (chores)
   - Activity management
   - Reward system
-  - Demo data system (2 functions)
+  
   - Data storage system (14 localStorage functions)
   - UI components (15+ components)
   - Technical implementation details
@@ -24,7 +24,7 @@ This folder contains comprehensive documentation for the Kidoers family task man
 - TypeScript 5
 - Tailwind CSS 3.4.17
 - Radix UI + shadcn/ui
-- localStorage (Demo/Prototype)
+- localStorage (Prototype)
 - Mock authentication system
 
 ### 🔧 Key Implementation Details
@@ -46,9 +46,7 @@ This folder contains comprehensive documentation for the Kidoers family task man
 - `storage.getRewards()` / `storage.setRewards()`
 - `storage.clearAll()` - Clear all data
 
-#### Demo Data Functions
-- `loadDemoData()` - Load comprehensive demo data
-- `shouldLoadDemoData()` - Check if demo data should be loaded
+
 
 ### 📁 Project Structure
 
@@ -58,7 +56,7 @@ kidoers_front/
 │   ├── components/               # UI components
 │   │   ├── auth/                # Authentication
 │   │   ├── dashboard/           # Dashboard
-│   │   ├── demo/                # Demo data
+
 │   │   ├── layout/              # Layout
 │   │   └── onboarding/          # Onboarding
 │   ├── dashboard/               # Dashboard pages
@@ -94,14 +92,14 @@ kidoers_front/
 
 1. **Read the full specifications**: [PROJECT_SPECIFICATIONS.md](./PROJECT_SPECIFICATIONS.md)
 2. **Understand the architecture**: Review the technology stack and project structure
-3. **Explore the functions**: Check the implemented authentication, storage, and demo data functions
+3. **Explore the functions**: Check the implemented authentication and storage functions
 4. **Review UI components**: Understand the component hierarchy and relationships
 
 ### 📝 Development Guidelines
 
-- **All data uses localStorage** (demo/prototype mode)
+- **All data uses localStorage** (prototype mode)
 - **Mock authentication** system (no real backend)
-- **Demo data** automatically loads for new users
+
 - **TypeScript** for type safety
 - **Next.js App Router** for routing
 - **Tailwind CSS** for styling

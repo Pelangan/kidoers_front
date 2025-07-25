@@ -6,7 +6,7 @@ import { useState } from "react"
 import { signUp, signInWithGoogle } from "../../lib/auth"
 import type { User } from "../../lib/auth"
 import { Mail, Lock, Eye, EyeOff } from "lucide-react"
-import DemoDataManager from "../demo/DemoDataManager"
+
 import Link from "next/link"
 
 interface SignUpProps {
@@ -124,10 +124,7 @@ export default function SignUp({ onSignUp }: SignUpProps) {
         </button>
       </form>
 
-      {/* Demo Data Manager */}
-      <div className="mt-6">
-        <DemoDataManager />
-      </div>
+
 
       <div className="mt-6">
         <div className="relative">

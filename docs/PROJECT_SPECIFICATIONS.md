@@ -12,7 +12,7 @@
 - **Styling**: Tailwind CSS 3.4.17
 - **UI Components**: Radix UI + shadcn/ui
 - **Package Manager**: pnpm
-- **Data Storage**: Browser localStorage (Demo/Prototype)
+- **Data Storage**: Browser localStorage (Prototype)
 - **Authentication**: Mock authentication system
 - **Database**: Supabase (configured but not actively used)
 
@@ -23,7 +23,7 @@ kidoers_front/
 │   ├── components/               # Reusable UI components
 │   │   ├── auth/                # Authentication components
 │   │   ├── dashboard/           # Dashboard components
-│   │   ├── demo/                # Demo data components
+
 │   │   ├── layout/              # Layout components
 │   │   └── onboarding/          # Onboarding components
 │   ├── dashboard/               # Dashboard pages
@@ -53,13 +53,13 @@ kidoers_front/
   - Returns user object or error
 
 - **`signIn(email, password)`**: Authenticates existing user
-  - Accepts any email/password combination (demo mode)
+  - Accepts any email/password combination (mock mode)
   - Stores user session in localStorage
   - Returns user object or error
 
 - **`signInWithGoogle()`**: Google OAuth simulation
   - Mock Google authentication
-  - Creates demo user account
+  - Creates mock user account
   - Returns user object or error
 
 - **`signOut()`**: Logs out current user
@@ -73,7 +73,6 @@ kidoers_front/
 
 - **`getCurrentUser()`**: Retrieves current user
   - Gets user from localStorage
-  - Creates demo user if none exists and demo mode is active
   - Returns user object or null
 
 ### User Interface
@@ -214,28 +213,7 @@ interface Reward {
   - Visual progress indicators
   - Reward status (locked/unlocked)
 
-## 🎯 Demo Data System
 
-### Implemented Functions
-
-#### Demo Data Management
-- **`loadDemoData()`**: Loads comprehensive demo data into localStorage
-  - Creates demo family with 4 members (2 parents, 2 children)
-  - Adds 12 sample chores with various frequencies
-  - Creates 6 scheduled activities
-  - Sets up 5 reward tiers with different thresholds
-
-- **`shouldLoadDemoData()`**: Determines if demo data should be loaded
-  - Checks localStorage for existing data
-  - Loads demo data only if no existing data is found
-  - Prevents overwriting user data
-
-### Demo Data Content
-- **Family**: "The Johnson Family"
-- **Members**: Sarah & Mike (parents), Emma & Jack (children)
-- **Chores**: 12 realistic family chores (breakfast, homework, shopping, etc.)
-- **Activities**: 6 scheduled activities (doctor appointments, playdates, etc.)
-- **Rewards**: 5 reward tiers (screen time, pizza night, ice cream, movies, theme park)
 
 ## 💾 Data Storage System
 
@@ -292,9 +270,7 @@ interface Reward {
 ### Layout Components
 - **`AuthLayout.tsx`**: Layout wrapper for authentication pages
 
-### Demo Components
-- **`DemoDataManager.tsx`**: Demo data management interface
-- **`WelcomeMessage.tsx`**: Welcome message for demo users
+
 
 ## 🚀 Application Flow
 
@@ -302,7 +278,6 @@ interface Reward {
 - User visits application
 - System checks for existing user
 - Redirects to sign-in if no user exists
-- Loads demo data if appropriate
 
 ### 2. Authentication
 - User signs in or creates account
@@ -324,7 +299,6 @@ interface Reward {
 ### 5. Data Persistence
 - All changes saved to localStorage
 - Data persists between sessions
-- Demo data available for testing
 
 ## 🔧 Technical Implementation
 

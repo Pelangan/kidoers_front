@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { getCurrentUser } from "../lib/auth"
 import { storage } from "../lib/storage"
 import type { User } from "../lib/auth"
-import { shouldLoadDemoData, loadDemoData } from "../lib/demoData"
+
 import SignUp from "../components/auth/SignUp"
 import AuthLayout from "../components/layout/AuthLayout"
 import { useRouter } from "next/navigation"
@@ -18,11 +18,6 @@ export default function SignUpPage() {
     // Check for existing user
     const currentUser = getCurrentUser()
     setUser(currentUser)
-
-    // Load demo data if no data exists
-    if (shouldLoadDemoData()) {
-      loadDemoData()
-    }
 
     setLoading(false)
   }, [])

@@ -4,7 +4,7 @@ import type React from "react"
 import { useState } from "react"
 import { signIn, signInWithGoogle } from "../../lib/auth"
 import type { User } from "../../lib/auth"
-import { Mail, Lock, Eye, EyeOff, Sparkles } from "lucide-react"
+import { Mail, Lock, Eye, EyeOff } from "lucide-react"
 import Link from "next/link"
 
 interface SignInProps {
@@ -45,17 +45,7 @@ export default function SignIn({ onSignIn }: SignInProps) {
     setLoading(false)
   }
 
-  const handleDemoSignIn = async () => {
-    setLoading(true)
-    // Create demo user and sign in
-    const demoUser = {
-      id: "demo-user-001",
-      email: "demo@kidoers.app",
-      name: "Demo User",
-    }
-    onSignIn(demoUser)
-    setLoading(false)
-  }
+
 
   return (
     <div className="w-full max-w-md mx-auto">
@@ -144,14 +134,7 @@ export default function SignIn({ onSignIn }: SignInProps) {
           Continue with Google
         </button>
 
-        <button
-          onClick={handleDemoSignIn}
-          disabled={loading}
-          className="mt-2 w-full btn-primary flex items-center justify-center gap-2"
-        >
-          <Sparkles className="w-5 h-5" />
-          Try Demo Family
-        </button>
+
       </div>
 
       <div className="mt-6 text-center space-y-2">
