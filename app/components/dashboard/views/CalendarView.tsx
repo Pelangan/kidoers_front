@@ -44,14 +44,15 @@ export default function CalendarView() {
   }
 
   const getWeekDays = () => {
-    // Start from Thursday to match the design
+    // Start from Monday (standard week start)
     const startOfWeek = new Date(currentDate)
     const dayOfWeek = startOfWeek.getDay()
-    const daysToSubtract = dayOfWeek >= 4 ? dayOfWeek - 4 : dayOfWeek + 3
+    // Convert Sunday (0) to 7, then subtract to get Monday
+    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1
     startOfWeek.setDate(startOfWeek.getDate() - daysToSubtract)
 
     const days = []
-    for (let i = 0; i < 5; i++) { // Show 5 days: Thu, Fri, Sat, Sun, Mon
+    for (let i = 0; i < 7; i++) { // Show 7 days: Mon, Tue, Wed, Thu, Fri, Sat, Sun
       const day = new Date(startOfWeek)
       day.setDate(startOfWeek.getDate() + i)
       days.push(day)
@@ -116,9 +117,39 @@ export default function CalendarView() {
     return activities.filter(activity => activity.completed).length
   }
 
+  const getCurrentTimePosition = () => {
+    const now = new Date()
+    const currentHour = now.getHours()
+    const currentMinute = now.getMinutes()
+    
+    // Calculate position within the current hour (0-1)
+    const minutePosition = currentMinute / 60
+    
+    // Find the current day index
+    const currentDayIndex = weekDays.findIndex(day => 
+      day.toDateString() === now.toDateString()
+    )
+    
+    console.log('Current time position:', {
+      now: now.toDateString(),
+      currentHour,
+      currentMinute,
+      minutePosition,
+      currentDayIndex,
+      weekDays: weekDays.map(d => d.toDateString())
+    })
+    
+    return {
+      hour: currentHour,
+      minutePosition,
+      dayIndex: currentDayIndex,
+      isToday: currentDayIndex !== -1
+    }
+  }
+
   const weekDays = getWeekDays()
   const timeSlots = getTimeSlots()
-  const dayNames = ["Thu", "Fri", "Sat", "Sun", "Mon"]
+  const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
   if (loading) {
     return (
@@ -175,8 +206,12 @@ export default function CalendarView() {
             {/* Calendar Container */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         {/* Frozen Header Row */}
-        <div className="grid grid-cols-6 border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
-          <div className="p-3 bg-gray-50 border-r border-gray-200"></div>
+        <div className="grid grid-cols-8 border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
+          <div className="p-2 bg-gray-50 border-r border-blue-200 w-16">
+            <div className="text-center">
+              <div className="text-xs text-gray-500 font-medium">GMT+02</div>
+            </div>
+          </div>
           {weekDays.map((day, index) => {
             const isToday = day.toDateString() === new Date().toDateString()
             return (
@@ -193,50 +228,89 @@ export default function CalendarView() {
         </div>
 
         {/* Scrollable Time Grid */}
-        <div className="max-h-[600px] overflow-y-auto">
-          {timeSlots.map((timeSlot, timeIndex) => (
-            <div key={timeIndex} className="grid grid-cols-6 border-b border-gray-200 last:border-b-0">
-              {/* Time Column */}
-              <div className="p-2 bg-gray-50 border-r border-gray-200 flex items-center sticky left-0 z-5">
-                <span className="text-xs text-gray-600 font-medium">{timeSlot}</span>
-              </div>
-              
-              {/* Day Columns */}
-              {weekDays.map((day, dayIndex) => {
-                const dayActivities = getActivitiesForDate(day)
-                const activitiesInTimeSlot = dayActivities.filter(activity => {
-                  const activityTime = new Date(activity.scheduled_date)
-                  const hour = activityTime.getHours()
-                  return hour === timeIndex
-                })
+        <div className="max-h-[800px] overflow-y-auto relative">
+          {timeSlots.map((timeSlot, timeIndex) => {
+            const currentTime = getCurrentTimePosition()
+            const isCurrentHour = currentTime.hour === timeIndex
+            const isCurrentDay = currentTime.dayIndex === 0 // First day in our 5-day view
+            
+            return (
+              <div key={timeIndex} className="grid grid-cols-8 border-b border-gray-200 last:border-b-0 relative">
+                {/* Time Column */}
+                <div className="px-1 py-2 bg-white border-r border-blue-200 flex items-center justify-center sticky left-0 z-5 w-16">
+                  <span className="text-xs text-gray-700 font-medium">{timeSlot}</span>
+                </div>
+                
+                {/* Day Columns */}
+                {weekDays.map((day, dayIndex) => {
+                  const dayActivities = getActivitiesForDate(day)
+                  const activitiesInTimeSlot = dayActivities.filter(activity => {
+                    const activityTime = new Date(activity.scheduled_date)
+                    const hour = activityTime.getHours()
+                    return hour === timeIndex
+                  })
 
-                return (
-                  <div key={dayIndex} className="p-1 border-r border-gray-200 last:border-r-0 min-h-[50px] relative">
-                    {activitiesInTimeSlot.map((activity) => (
-                      <div
-                        key={activity.id}
-                        className={`p-1 rounded border text-xs mb-1 relative ${getActivityColor(activity)}`}
-                      >
-                        <div className="font-medium truncate text-xs">{activity.title}</div>
-                        <div className="text-xs opacity-80">
-                          {formatTime(activity.scheduled_date)}
+                  const isCurrentDay = currentTime.isToday && currentTime.dayIndex === dayIndex
+
+                  return (
+                    <div key={dayIndex} className="p-1 border-r border-gray-200 last:border-r-0 min-h-[50px] relative">
+                      {activitiesInTimeSlot.map((activity) => (
+                        <div
+                          key={activity.id}
+                          className={`p-1 rounded border text-xs mb-1 relative ${getActivityColor(activity)}`}
+                        >
+                          <div className="font-medium truncate text-xs">{activity.title}</div>
+                          <div className="text-xs opacity-80">
+                            {formatTime(activity.scheduled_date)}
+                          </div>
+                          
+                          {/* Status Indicator */}
+                          <div className={`absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
+                            getActivityStatus(activity) 
+                              ? 'bg-green-500 text-white' 
+                              : 'bg-gray-400 text-white'
+                          }`}>
+                            {getMemberInitial(activity.assignedTo || '')}
+                          </div>
                         </div>
-                        
-                        {/* Status Indicator */}
-                        <div className={`absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
-                          getActivityStatus(activity) 
-                            ? 'bg-green-500 text-white' 
-                            : 'bg-gray-400 text-white'
-                        }`}>
-                          {getMemberInitial(activity.assignedTo || '')}
+                      ))}
+                      
+                      {/* Current Time Line for this specific day */}
+                      {isCurrentHour && isCurrentDay && (
+                        <div 
+                          className="absolute left-0 right-0 z-10 pointer-events-none"
+                          style={{ 
+                            top: `${currentTime.minutePosition * 100}%`,
+                            transform: 'translateY(-50%)'
+                          }}
+                        >
+                          <div className="flex items-center">
+                            {/* Red dot at the left end of the line */}
+                            <div className="w-2 h-2 bg-red-500 rounded-full -ml-1"></div>
+                            {/* Red line extending to the right */}
+                            <div className="flex-1 h-0.5 bg-red-500"></div>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      )}
+                    </div>
+                  )
+                })}
+                
+                {/* Current Time Indicator - Red dot in time column */}
+                {isCurrentHour && currentTime.isToday && (
+                  <div 
+                    className="absolute left-0 z-10 pointer-events-none"
+                    style={{ 
+                      top: `${currentTime.minutePosition * 100}%`,
+                      transform: 'translateY(-50%)'
+                    }}
+                  >
+                    <div className="w-3 h-3 bg-red-500 rounded-full -ml-1.5"></div>
                   </div>
-                )
-              })}
-            </div>
-          ))}
+                )}
+              </div>
+            )
+          })}
         </div>
       </div>
 
