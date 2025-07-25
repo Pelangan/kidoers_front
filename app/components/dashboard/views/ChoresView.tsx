@@ -3,23 +3,9 @@
 import { useState, useEffect } from "react"
 import { Plus, Check, CheckSquare, Clock, Folder } from "lucide-react"
 import { storage } from "../../../lib/storage"
+import AddChoreModal from "../../chores/AddChoreModal"
 
-interface Chore {
-  id: string
-  title: string
-  description?: string
-  completed: boolean
-  assignedTo: string
-  frequency: "daily" | "weekly" | "weekends"
-  category?: string
-  timeOfDay?: "morning" | "afternoon" | "evening"
-}
-
-interface FamilyMember {
-  id: string
-  name: string
-  role: "parent" | "child"
-}
+import type { Chore, FamilyMember } from "../../onboarding/OnboardingWizard"
 
 type GroupByType = "time" | "categories"
 
@@ -28,6 +14,7 @@ export default function ChoresView() {
   const [members, setMembers] = useState<FamilyMember[]>([])
   const [loading, setLoading] = useState(true)
   const [groupBy, setGroupBy] = useState<GroupByType>("time")
+  const [isAddChoreModalOpen, setIsAddChoreModalOpen] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -50,6 +37,12 @@ export default function ChoresView() {
   const toggleChore = (choreId: string, completed: boolean) => {
     const updatedChores = chores.map((chore) => (chore.id === choreId ? { ...chore, completed: !completed } : chore))
 
+    setChores(updatedChores)
+    storage.setChores(updatedChores)
+  }
+
+  const handleAddChore = (newChore: Chore) => {
+    const updatedChores = [...chores, newChore]
     setChores(updatedChores)
     storage.setChores(updatedChores)
   }
@@ -326,9 +319,21 @@ export default function ChoresView() {
       )}
 
       {/* Floating Action Button */}
-      <button className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center z-50">
+      <button 
+        onClick={() => setIsAddChoreModalOpen(true)}
+        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center z-50"
+      >
         <Plus className="h-6 w-6" />
       </button>
+
+      {/* Add Chore Modal */}
+      <AddChoreModal
+        isOpen={isAddChoreModalOpen}
+        onClose={() => setIsAddChoreModalOpen(false)}
+        onSave={handleAddChore}
+        members={members}
+        existingChores={chores}
+      />
     </div>
   )
 }

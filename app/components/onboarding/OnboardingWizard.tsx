@@ -32,13 +32,15 @@ export type Activity = {
   title: string
   description: string
   location?: string
-  time: string
-  duration: number
-  frequency: "daily" | "weekly" | "monthly"
-  daysOfWeek: string[]
-  icon: string
-  assignedTo: string
+  time?: string
+  duration?: number
+  frequency?: "daily" | "weekly" | "monthly"
+  daysOfWeek?: string[]
+  icon?: string
+  assignedTo?: string
   completed: boolean
+  scheduled_date?: string
+  depends_on_chores?: boolean
 }
 
 export type Reward = {

@@ -3,31 +3,16 @@
 import { useState, useEffect } from "react"
 import { Calendar, Plus, Clock, ChevronLeft, ChevronRight } from "lucide-react"
 import { storage } from "../../../lib/storage"
+import AddActivityModal from "../../activities/AddActivityModal"
 
-interface Activity {
-  id: string
-  title: string
-  description?: string
-  time?: string
-  daysOfWeek?: string[]
-  frequency?: string
-  scheduled_date?: string
-  depends_on_chores?: boolean
-  assignedTo?: string
-  completed?: boolean
-}
-
-interface FamilyMember {
-  id: string
-  name: string
-  role: "parent" | "child"
-}
+import type { Activity, FamilyMember } from "../../onboarding/OnboardingWizard"
 
 export default function CalendarView() {
   const [activities, setActivities] = useState<Activity[]>([])
   const [members, setMembers] = useState<FamilyMember[]>([])
   const [loading, setLoading] = useState(true)
   const [currentDate, setCurrentDate] = useState(new Date())
+  const [isAddActivityModalOpen, setIsAddActivityModalOpen] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -44,6 +29,12 @@ export default function CalendarView() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleAddActivity = (newActivity: Activity) => {
+    const updatedActivities = [...activities, newActivity]
+    setActivities(updatedActivities)
+    storage.setActivities(updatedActivities)
   }
 
   const getWeekDays = () => {
@@ -364,9 +355,21 @@ export default function CalendarView() {
       )}
 
       {/* Floating Action Button */}
-      <button className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center z-50">
+      <button 
+        onClick={() => setIsAddActivityModalOpen(true)}
+        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center z-50"
+      >
         <Plus className="h-6 w-6" />
       </button>
+
+      {/* Add Activity Modal */}
+      <AddActivityModal
+        isOpen={isAddActivityModalOpen}
+        onClose={() => setIsAddActivityModalOpen(false)}
+        onSave={handleAddActivity}
+        members={members}
+        existingActivities={activities}
+      />
     </div>
   )
 } 
