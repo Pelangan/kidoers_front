@@ -4,6 +4,7 @@ import type React from "react"
 import { useState } from "react"
 import { Users, Plus, X } from "lucide-react"
 import type { FamilyMember } from "../OnboardingWizard"
+import ColorPicker, { softColors } from "../../ui/ColorPicker"
 
 interface CreateFamilyProps {
   familyName: string
@@ -17,6 +18,7 @@ export default function CreateFamily({ familyName, setFamilyName, members, setMe
   const [error, setError] = useState("")
   const [newMemberName, setNewMemberName] = useState("")
   const [newMemberRole, setNewMemberRole] = useState<"parent" | "child">("parent")
+  const [newMemberColor, setNewMemberColor] = useState("blue")
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,6 +41,7 @@ export default function CreateFamily({ familyName, setFamilyName, members, setMe
       id: Date.now().toString(),
       name: newMemberName.trim(),
       role: newMemberRole,
+      color: newMemberColor,
       calmMode: false,
       textToSpeech: false,
     }
@@ -105,34 +108,41 @@ export default function CreateFamily({ familyName, setFamilyName, members, setMe
           </label>
           
           {/* Existing Members */}
-          {members.map((member) => (
-            <div key={member.id} className="flex items-center gap-3 mb-3 p-3 bg-card rounded-lg">
-              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                <Users className="h-4 w-4 text-primary" />
+          {members.map((member) => {
+            const colorData = softColors.find(c => c.value === member.color) || softColors[0]
+            return (
+              <div key={member.id} className="flex items-center gap-3 mb-3 p-3 bg-card rounded-lg">
+                <div className={`w-8 h-8 ${colorData.bg} rounded-full flex items-center justify-center`}>
+                  <span className={`text-sm font-bold ${colorData.text}`}>
+                    {member.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <span className="flex-1 text-left">{member.name}</span>
+                <span className={`text-xs px-2 py-1 rounded-full capitalize ${
+                  member.role === "parent" 
+                    ? "bg-blue-100 text-blue-800" 
+                    : "bg-green-100 text-green-800"
+                }`}>
+                  {member.role}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeMember(member.id)}
+                  className="p-1 hover:bg-muted rounded"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <span className="flex-1 text-left">{member.name}</span>
-              <span className={`text-xs px-2 py-1 rounded-full capitalize ${
-                member.role === "parent" 
-                  ? "bg-blue-100 text-blue-800" 
-                  : "bg-green-100 text-green-800"
-              }`}>
-                {member.role}
-              </span>
-              <button
-                type="button"
-                onClick={() => removeMember(member.id)}
-                className="p-1 hover:bg-muted rounded"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          ))}
+            )
+          })}
 
           {/* Add New Member */}
           <div className="flex items-center gap-3 p-3 bg-card rounded-lg">
-            <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-              <Users className="h-4 w-4 text-primary" />
-            </div>
+            <ColorPicker
+              selectedColor={newMemberColor}
+              onColorChange={setNewMemberColor}
+              className="w-32"
+            />
             <input
               type="text"
               value={newMemberName}

@@ -10,9 +10,15 @@ import type { Activity, FamilyMember } from "../../onboarding/OnboardingWizard"
 export default function CalendarView() {
   const [activities, setActivities] = useState<Activity[]>([])
   const [members, setMembers] = useState<FamilyMember[]>([])
+  const [familyName, setFamilyName] = useState("")
   const [loading, setLoading] = useState(true)
   const [currentDate, setCurrentDate] = useState(new Date())
   const [isAddActivityModalOpen, setIsAddActivityModalOpen] = useState(false)
+
+  // Helper function to capitalize the first letter of each word
+  const capitalizeWords = (str: string) => {
+    return str.replace(/\b\w/g, char => char.toUpperCase());
+  };
 
   useEffect(() => {
     fetchData()
@@ -22,8 +28,10 @@ export default function CalendarView() {
     try {
       const activitiesData = storage.getActivities()
       const membersData = storage.getMembers()
+      const familyData = storage.getFamily()
       setActivities(activitiesData || [])
       setMembers(membersData || [])
+      setFamilyName(familyData?.name || "My Family")
     } catch (error) {
       console.error("Error fetching data:", error)
     } finally {
@@ -171,7 +179,7 @@ export default function CalendarView() {
     <div>
       <div className="mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Family Calendar</h2>
+          <h2 className="text-2xl font-bold text-foreground">{capitalizeWords(familyName)} Family</h2>
           <p className="text-muted-foreground">Scheduled activities and events</p>
         </div>
       </div>
@@ -237,7 +245,7 @@ export default function CalendarView() {
         </div>
 
         {/* Scrollable Time Grid */}
-        <div className="max-h-[800px] overflow-y-auto relative">
+        <div className="max-h-[calc(100vh-425px)] overflow-y-auto relative">
           {timeSlots.map((timeSlot, timeIndex) => {
             const currentTime = getCurrentTimePosition()
             const isCurrentHour = currentTime.hour === timeIndex
@@ -352,7 +360,7 @@ export default function CalendarView() {
       </div>
 
       {activities.length === 0 && (
-        <div className="text-center py-12 mt-8">
+        <div className="text-center py-6 mt-4">
           <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
           <h3 className="text-lg font-medium mb-2">No activities scheduled</h3>
           <p className="text-muted-foreground mb-4">Add family activities and events to see them here.</p>

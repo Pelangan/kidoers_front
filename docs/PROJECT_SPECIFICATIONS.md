@@ -41,6 +41,56 @@ kidoers_front/
 └── [config files]               # Configuration files
 ```
 
+## 🎨 Design System & Color Palette
+
+### **Color Palette (HSL Format)**
+
+#### **Light Mode Colors:**
+- **Background**: `20 30% 98%` (warm off-white)
+- **Foreground**: `15 25% 15%` (dark brown)
+- **Primary**: `12 85% 65%` (warm coral)
+- **Primary Foreground**: `0 0% 100%` (white)
+- **Secondary**: `260 30% 92%` (soft lavender)
+- **Secondary Foreground**: `260 30% 25%` (dark lavender)
+- **Accent**: `140 30% 90%` (soft mint)
+- **Accent Foreground**: `140 40% 25%` (dark mint)
+- **Muted**: `30 40% 95%` (gentle cream)
+- **Muted Foreground**: `30 15% 45%` (medium brown)
+- **Card**: `25 40% 97%` (warm card background)
+- **Card Foreground**: `15 25% 15%` (dark text)
+- **Border/Input**: `25 20% 88%` (soft border)
+
+#### **Custom Design Tokens:**
+- **Gradients**:
+  - `-gradient-warm`: `linear-gradient(135deg, hsl(12 85% 65%), hsl(25 85% 70%))`
+  - `-gradient-soft`: `linear-gradient(180deg, hsl(260 30% 98%), hsl(140 30% 96%))`
+  - `-gradient-card`: `linear-gradient(145deg, hsl(25 40% 98%), hsl(30 40% 96%))`
+- **Shadows**:
+  - `-shadow-soft`: `0 4px 20px hsla(12, 35%, 70%, 0.15)`
+  - `-shadow-card`: `0 2px 12px hsla(12, 25%, 60%, 0.1)`
+  - `-shadow-button`: `0 3px 15px hsla(12, 65%, 65%, 0.25)`
+- **Transitions**:
+  - `-transition-smooth`: `all 0.3s cubic-bezier(0.4, 0, 0.2, 1)`
+  - `-transition-bounce`: `all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55)`
+- **Border Radius**: `--radius: 0.5rem`
+
+#### **Dark Mode Support:**
+Complete dark mode variants are defined with cooler tones and proper contrast ratios.
+
+#### **Usage in Tailwind:**
+Use semantic class names like `bg-primary`, `text-foreground`, `bg-gradient-warm`, `shadow-soft`, etc. All colors are HSL-based for consistent theming.
+
+### **Family Member Colors:**
+For family member personalization, use these soft colors:
+- **Blue**: `bg-blue-100`, `border-blue-300`, `text-blue-700`
+- **Green**: `bg-green-100`, `border-green-300`, `text-green-700`
+- **Yellow**: `bg-yellow-100`, `border-yellow-300`, `text-yellow-700`
+- **Orange**: `bg-orange-100`, `border-orange-300`, `text-orange-700`
+- **Purple**: `bg-purple-100`, `border-purple-300`, `text-purple-700`
+- **Pink**: `bg-pink-100`, `border-pink-300`, `text-pink-700`
+- **Teal**: `bg-teal-100`, `border-teal-300`, `text-teal-700`
+- **Indigo**: `bg-indigo-100`, `border-indigo-300`, `text-indigo-700`
+
 ## 🔐 Authentication System
 
 ### Implemented Functions
@@ -128,10 +178,21 @@ interface Chore {
   title: string
   description: string
   frequency: "daily" | "weekly" | "weekends"
+  timeOfDay: "morning" | "afternoon" | "evening"
+  category?: string
   assignedTo: string
+  points: number
   completed: boolean
 }
 ```
+
+### Multiple Assignment Feature
+When assigning chores to multiple family members:
+- **Individual Instances**: Each member gets their own chore instance
+- **Unique IDs**: Chores use timestamp + member ID for uniqueness
+- **Independent Tracking**: Each member can complete their own chore independently
+- **Visual Feedback**: Selected members show their assigned colors
+- **Bulk Creation**: Single form submission creates multiple chore instances
 
 ### Implemented Functions
 
@@ -139,6 +200,7 @@ interface Chore {
 - **`storage.getChores()`**: Retrieves all chores from localStorage
 - **`storage.setChores(chores)`**: Stores chores data in localStorage
 - **Chore Creation**: Add new chores with title, description, frequency, and assignment
+- **Multiple Assignment**: Assign the same chore to multiple family members simultaneously
 - **Chore Completion**: Mark chores as completed/incomplete
 - **Chore Assignment**: Assign chores to specific family members
 - **Chore Filtering**: Filter by frequency, assignment, and completion status
@@ -150,6 +212,7 @@ interface Chore {
   - Mark chores as complete/incomplete
   - Filter and sort chores
   - Assign chores to family members
+  - Multiple member assignment with individual chore instances
 
 ## 📅 Activity Management
 

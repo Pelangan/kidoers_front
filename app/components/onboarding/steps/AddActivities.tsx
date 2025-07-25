@@ -4,6 +4,7 @@ import type React from "react"
 import { useState } from "react"
 import { ArrowLeft, Plus, X, Calendar, Clock, MapPin, Star, Monitor } from "lucide-react"
 import type { Activity, FamilyMember } from "../OnboardingWizard"
+import { softColors } from "../../ui/ColorPicker"
 
 interface AddActivitiesProps {
   activities: Activity[]
@@ -229,20 +230,23 @@ export default function AddActivities({ activities, setActivities, members, onNe
         <div>
           <label className="block text-sm font-medium mb-2">Assign to</label>
           <div className="flex gap-2">
-            {members.map((member) => (
-              <button
-                key={member.id}
-                type="button"
-                onClick={() => setAssignedTo(member.id)}
-                className={`px-4 py-2 rounded-lg border transition-colors ${
-                  assignedTo === member.id
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background text-foreground border-border hover:bg-muted"
-                }`}
-              >
-                {member.name}
-              </button>
-            ))}
+            {members.map((member) => {
+              const colorData = softColors.find(c => c.value === member.color) || softColors[0]
+              return (
+                <button
+                  key={member.id}
+                  type="button"
+                  onClick={() => setAssignedTo(member.id)}
+                  className={`px-4 py-2 rounded-lg border transition-colors ${
+                    assignedTo === member.id
+                      ? `${colorData.bg} ${colorData.text} ${colorData.border}`
+                      : `bg-background ${colorData.text} ${colorData.border} hover:${colorData.bg.replace('bg-', 'bg-')}`
+                  }`}
+                >
+                  {member.name}
+                </button>
+              )
+            })}
           </div>
         </div>
 

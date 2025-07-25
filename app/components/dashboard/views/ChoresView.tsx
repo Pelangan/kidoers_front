@@ -12,9 +12,15 @@ type GroupByType = "time" | "categories"
 export default function ChoresView() {
   const [chores, setChores] = useState<Chore[]>([])
   const [members, setMembers] = useState<FamilyMember[]>([])
+  const [familyName, setFamilyName] = useState("")
   const [loading, setLoading] = useState(true)
   const [groupBy, setGroupBy] = useState<GroupByType>("time")
   const [isAddChoreModalOpen, setIsAddChoreModalOpen] = useState(false)
+
+  // Helper function to capitalize the first letter of each word
+  const capitalizeWords = (str: string) => {
+    return str.replace(/\b\w/g, char => char.toUpperCase());
+  };
   const [currentDate, setCurrentDate] = useState(new Date())
 
   useEffect(() => {
@@ -25,9 +31,11 @@ export default function ChoresView() {
     try {
       const membersData = storage.getMembers()
       const choresData = storage.getChores()
+      const familyData = storage.getFamily()
 
       setMembers(membersData || [])
       setChores(choresData || [])
+      setFamilyName(familyData?.name || "My Family")
     } catch (error) {
       console.error("Error fetching data:", error)
     } finally {
@@ -48,13 +56,61 @@ export default function ChoresView() {
     storage.setChores(updatedChores)
   }
 
+  const handleAddMultipleChores = (newChores: Chore[]) => {
+    const updatedChores = [...chores, ...newChores]
+    setChores(updatedChores)
+    storage.setChores(updatedChores)
+  }
+
   const getChoresByMember = (memberId: string) => {
     return chores.filter((chore) => chore.assignedTo === memberId)
   }
 
-  const getMemberTheme = (index: number) => {
-    const themes = [
-      {
+  const getMemberTheme = (memberId: string) => {
+    const member = members.find(m => m.id === memberId)
+    if (!member) {
+      // Fallback to index-based theme for backward compatibility
+      const themes = [
+        {
+          border: "border-blue-300",
+          progress: "text-blue-600",
+          progressBg: "bg-blue-100",
+          taskBg: "bg-blue-50",
+          taskText: "text-blue-700",
+          taskBorder: "border-blue-200"
+        },
+        {
+          border: "border-green-300",
+          progress: "text-green-600",
+          progressBg: "bg-green-100",
+          taskBg: "bg-green-50",
+          taskText: "text-green-700",
+          taskBorder: "border-green-200"
+        },
+        {
+          border: "border-yellow-300",
+          progress: "text-yellow-600",
+          progressBg: "bg-yellow-100",
+          taskBg: "bg-yellow-50",
+          taskText: "text-yellow-700",
+          taskBorder: "border-yellow-200"
+        },
+        {
+          border: "border-orange-300",
+          progress: "text-orange-600",
+          progressBg: "bg-orange-100",
+          taskBg: "bg-orange-50",
+          taskText: "text-orange-700",
+          taskBorder: "border-orange-200"
+        }
+      ]
+      const memberIndex = members.findIndex(m => m.id === memberId)
+      return themes[memberIndex % themes.length]
+    }
+
+    // Use member's assigned color
+    const colorMap: { [key: string]: any } = {
+      blue: {
         border: "border-blue-300",
         progress: "text-blue-600",
         progressBg: "bg-blue-100",
@@ -62,7 +118,7 @@ export default function ChoresView() {
         taskText: "text-blue-700",
         taskBorder: "border-blue-200"
       },
-      {
+      green: {
         border: "border-green-300",
         progress: "text-green-600",
         progressBg: "bg-green-100",
@@ -70,7 +126,7 @@ export default function ChoresView() {
         taskText: "text-green-700",
         taskBorder: "border-green-200"
       },
-      {
+      yellow: {
         border: "border-yellow-300",
         progress: "text-yellow-600",
         progressBg: "bg-yellow-100",
@@ -78,16 +134,49 @@ export default function ChoresView() {
         taskText: "text-yellow-700",
         taskBorder: "border-yellow-200"
       },
-      {
+      orange: {
         border: "border-orange-300",
         progress: "text-orange-600",
         progressBg: "bg-orange-100",
         taskBg: "bg-orange-50",
         taskText: "text-orange-700",
         taskBorder: "border-orange-200"
+      },
+      purple: {
+        border: "border-purple-300",
+        progress: "text-purple-600",
+        progressBg: "bg-purple-100",
+        taskBg: "bg-purple-50",
+        taskText: "text-purple-700",
+        taskBorder: "border-purple-200"
+      },
+      pink: {
+        border: "border-pink-300",
+        progress: "text-pink-600",
+        progressBg: "bg-pink-100",
+        taskBg: "bg-pink-50",
+        taskText: "text-pink-700",
+        taskBorder: "border-pink-200"
+      },
+      teal: {
+        border: "border-teal-300",
+        progress: "text-teal-600",
+        progressBg: "bg-teal-100",
+        taskBg: "bg-teal-50",
+        taskText: "text-teal-700",
+        taskBorder: "border-teal-200"
+      },
+      indigo: {
+        border: "border-indigo-300",
+        progress: "text-indigo-600",
+        progressBg: "bg-indigo-100",
+        taskBg: "bg-indigo-50",
+        taskText: "text-indigo-700",
+        taskBorder: "border-indigo-200"
       }
-    ]
-    return themes[index % themes.length]
+    }
+
+    return colorMap[member.color] || colorMap.blue
   }
 
   const getProgressPercentage = (memberId: string) => {
@@ -182,7 +271,7 @@ export default function ChoresView() {
       {/* Header */}
       <div className="mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Today's Chores</h2>
+          <h2 className="text-2xl font-bold text-foreground">{capitalizeWords(familyName)} Family</h2>
           <p className="text-muted-foreground">Track daily tasks for each family member</p>
         </div>
       </div>
@@ -255,7 +344,7 @@ export default function ChoresView() {
       {/* Member Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {members.map((member, index) => {
-          const theme = getMemberTheme(index)
+          const theme = getMemberTheme(member.id)
           const progress = getProgressPercentage(member.id)
           const memberChores = getChoresByMember(member.id)
           const completedCount = memberChores.filter(chore => chore.completed).length
@@ -368,6 +457,7 @@ export default function ChoresView() {
         isOpen={isAddChoreModalOpen}
         onClose={() => setIsAddChoreModalOpen(false)}
         onSave={handleAddChore}
+        onSaveMultiple={handleAddMultipleChores}
         members={members}
         existingChores={chores}
       />

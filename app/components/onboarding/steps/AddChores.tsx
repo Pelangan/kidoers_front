@@ -4,6 +4,7 @@ import type React from "react"
 import { useState } from "react"
 import { ArrowLeft, Plus, X, Calendar, Clock, Users, Folder } from "lucide-react"
 import type { Chore, FamilyMember } from "../OnboardingWizard"
+import { softColors } from "../../ui/ColorPicker"
 
 interface AddChoresProps {
   chores: Chore[]
@@ -19,43 +20,42 @@ export default function AddChores({ chores, setChores, members, onNext, onBack }
   const [frequency, setFrequency] = useState<"daily" | "weekly" | "weekends">("daily")
   const [timeOfDay, setTimeOfDay] = useState<"morning" | "afternoon" | "evening">("morning")
   const [category, setCategory] = useState("")
-  const [assignedTo, setAssignedTo] = useState("")
+  const [assignedTo, setAssignedTo] = useState<string[]>([])
   const [points, setPoints] = useState(1)
   const [showNewCategory, setShowNewCategory] = useState(false)
   const [newCategory, setNewCategory] = useState("")
 
   const categories = [
     "No Category",
-    "Morning Routine",
     "Before School",
-    "After School",
-    "Kitchen",
+    "Arriving Home",
     "Cleaning",
-    "Outdoor",
-    "Before Bed",
-    "Weekend Activities"
+    "Kitchen",
+    "Before Bed"
   ]
 
   const addChore = () => {
-    if (!choreName.trim() || !assignedTo) return
+    if (!choreName.trim() || assignedTo.length === 0) return
 
-    const newChore: Chore = {
-      id: Date.now().toString(),
+    // Create a separate chore for each assigned member
+    const newChores: Chore[] = assignedTo.map(memberId => ({
+      id: Date.now().toString() + "_" + memberId,
       title: choreName.trim(),
       description: description.trim(),
       frequency,
       timeOfDay,
       category: category === "No Category" ? undefined : category,
-      assignedTo,
+      assignedTo: memberId,
       points,
       completed: false,
-    }
+    }))
 
-    setChores([...chores, newChore])
+    setChores([...chores, ...newChores])
+
     setChoreName("")
     setDescription("")
     setCategory("")
-    setAssignedTo("")
+    setAssignedTo([])
     setPoints(1)
   }
 
@@ -211,20 +211,30 @@ export default function AddChores({ chores, setChores, members, onNext, onBack }
         <div>
           <label className="block text-sm font-medium mb-2">Assign to</label>
           <div className="flex gap-2">
-            {members.map((member) => (
-              <button
-                key={member.id}
-                type="button"
-                onClick={() => setAssignedTo(member.id)}
-                className={`px-4 py-2 rounded-lg border transition-colors ${
-                  assignedTo === member.id
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background text-foreground border-border hover:bg-muted"
-                }`}
-              >
-                {member.name}
-              </button>
-            ))}
+            {members.map((member) => {
+              const colorData = softColors.find(c => c.value === member.color) || softColors[0]
+              const isSelected = assignedTo.includes(member.id)
+              return (
+                <button
+                  key={member.id}
+                  type="button"
+                  onClick={() => {
+                    if (isSelected) {
+                      setAssignedTo(assignedTo.filter(id => id !== member.id))
+                    } else {
+                      setAssignedTo([...assignedTo, member.id])
+                    }
+                  }}
+                  className={`px-4 py-2 rounded-lg border transition-colors ${
+                    isSelected
+                      ? `${colorData.bg} ${colorData.text} ${colorData.border}`
+                      : `bg-background ${colorData.text} ${colorData.border} hover:${colorData.bg.replace('bg-', 'bg-')}`
+                  }`}
+                >
+                  {member.name}
+                </button>
+              )
+            })}
           </div>
         </div>
 
@@ -244,7 +254,7 @@ export default function AddChores({ chores, setChores, members, onNext, onBack }
         <button
           type="button"
           onClick={addChore}
-          disabled={!choreName.trim() || !assignedTo}
+          disabled={!choreName.trim() || assignedTo.length === 0}
           className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg disabled:opacity-50"
         >
           <Plus className="h-4 w-4" />

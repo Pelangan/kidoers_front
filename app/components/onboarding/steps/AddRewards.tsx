@@ -39,7 +39,7 @@ export default function AddRewards({ rewards, setRewards, members, chores, onNex
     { id: "target", icon: Target, label: "Target" }
   ]
 
-  const categories = ["Morning Routine", "Before School", "After School", "Kitchen", "Cleaning", "Outdoor", "Before Bed", "Weekend Activities"]
+  const categories = ["Before School", "Arriving Home", "Cleaning", "Kitchen", "Before Bed"]
   const timeSlots = ["Morning", "Afternoon", "Evening"]
 
   const addReward = () => {
