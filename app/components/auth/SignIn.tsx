@@ -17,6 +17,10 @@ export default function SignIn({ onSignIn }: SignInProps) {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState("")
+  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false)
+  const [forgotPasswordMessage, setForgotPasswordMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -44,6 +48,26 @@ export default function SignIn({ onSignIn }: SignInProps) {
       window.location.href = url
     }
     setLoading(false)
+  }
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setForgotPasswordLoading(true)
+    setForgotPasswordMessage(null)
+
+    const { error } = await auth.resetPassword(forgotPasswordEmail)
+    
+    if (error) {
+      setForgotPasswordMessage({ type: "error", text: error })
+    } else {
+      setForgotPasswordMessage({ 
+        type: "success", 
+        text: "Password reset email sent! Check your inbox." 
+      })
+      setForgotPasswordEmail("")
+    }
+    
+    setForgotPasswordLoading(false)
   }
 
 
@@ -91,6 +115,16 @@ export default function SignIn({ onSignIn }: SignInProps) {
             className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground"
           >
             {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+          </button>
+        </div>
+
+        <div className="text-right">
+          <button
+            type="button"
+            onClick={() => setShowForgotPassword(true)}
+            className="text-sm text-primary hover:underline"
+          >
+            Forgot password?
           </button>
         </div>
 
@@ -146,6 +180,70 @@ export default function SignIn({ onSignIn }: SignInProps) {
           </Link>
         </p>
       </div>
+
+      {/* Forgot Password Modal */}
+      {showForgotPassword && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="text-xl font-semibold text-foreground">Reset Password</h2>
+              <button
+                onClick={() => {
+                  setShowForgotPassword(false)
+                  setForgotPasswordMessage(null)
+                }}
+                className="p-2 hover:bg-muted rounded-lg transition-colors"
+              >
+                <span className="text-2xl">&times;</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleForgotPassword} className="p-6 space-y-4">
+              {forgotPasswordMessage && (
+                <div className={`p-3 rounded-lg text-sm ${
+                  forgotPasswordMessage.type === "success" 
+                    ? "bg-green-100 text-green-800" 
+                    : "bg-red-100 text-red-800"
+                }`}>
+                  {forgotPasswordMessage.text}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Email Address</label>
+                <input
+                  type="email"
+                  value={forgotPasswordEmail}
+                  onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                  placeholder="Enter your email address"
+                  className="input w-full"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForgotPassword(false)
+                    setForgotPasswordMessage(null)
+                  }}
+                  className="flex-1 px-4 py-2 border border-border rounded-lg hover:bg-muted transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={forgotPasswordLoading}
+                  className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {forgotPasswordLoading ? "Sending..." : "Send Reset Email"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

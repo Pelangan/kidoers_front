@@ -177,34 +177,39 @@ export default function CalendarView() {
       </div>
 
       {/* Week Navigation */}
-      <div className="flex items-center justify-between mb-6">
-        <button
-          onClick={() => {
-            const newDate = new Date(currentDate)
-            newDate.setDate(currentDate.getDate() - 7)
-            setCurrentDate(newDate)
-          }}
-          className="btn-secondary flex items-center gap-2"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Previous Week
-        </button>
+      <div className="flex items-center justify-end mb-6">
+        <div className="flex items-center rounded-lg border border-gray-200 overflow-hidden">
+          <button
+            onClick={() => {
+              const newDate = new Date(currentDate)
+              newDate.setDate(currentDate.getDate() - 7)
+              setCurrentDate(newDate)
+            }}
+            className="p-3 bg-white hover:bg-gray-50 transition-colors border-r border-gray-200"
+          >
+            <ChevronLeft className="h-4 w-4 text-gray-700" />
+          </button>
 
-        <h3 className="text-lg font-semibold">
-          {weekDays[0].toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-        </h3>
+          <button
+            onClick={() => {
+              setCurrentDate(new Date())
+            }}
+            className="px-4 py-3 bg-white hover:bg-gray-50 transition-colors border-r border-gray-200"
+          >
+            <span className="text-sm font-semibold text-gray-900">This Week</span>
+          </button>
 
-        <button
-          onClick={() => {
-            const newDate = new Date(currentDate)
-            newDate.setDate(currentDate.getDate() + 7)
-            setCurrentDate(newDate)
-          }}
-          className="btn-secondary flex items-center gap-2"
-        >
-          Next Week
-          <ChevronRight className="h-4 w-4" />
-        </button>
+          <button
+            onClick={() => {
+              const newDate = new Date(currentDate)
+              newDate.setDate(currentDate.getDate() + 7)
+              setCurrentDate(newDate)
+            }}
+            className="p-3 bg-white hover:bg-gray-50 transition-colors"
+          >
+            <ChevronRight className="h-4 w-4 text-gray-700" />
+          </button>
+        </div>
       </div>
 
             {/* Calendar Container */}

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import type { ViewType } from "./Dashboard"
-import { CheckSquare, Calendar, Gift, ChevronLeft, ChevronRight, LogOut } from "lucide-react"
+import { CheckSquare, Calendar, Gift, ChevronLeft, ChevronRight, LogOut, Settings } from "lucide-react"
 
 interface SidebarProps {
   currentView: ViewType
@@ -40,6 +40,12 @@ export default function Sidebar({ currentView, setCurrentView, isOpen, setIsOpen
       icon: Gift,
       description: "Family rewards",
     },
+    {
+      id: "settings" as ViewType,
+      label: "Settings",
+      icon: Settings,
+      description: "Account & preferences",
+    },
   ]
 
   return (
@@ -52,7 +58,7 @@ export default function Sidebar({ currentView, setCurrentView, isOpen, setIsOpen
         {/* Header */}
         <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between">
-            {isOpen && (
+            {isOpen ? (
               <div className="flex items-center gap-2">
                 <img
                   src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/kidoers_noBgColor-lp4nzseFjByx9uxSzOyiqX4zqX77pn.png"
@@ -60,10 +66,28 @@ export default function Sidebar({ currentView, setCurrentView, isOpen, setIsOpen
                   className="h-8"
                 />
               </div>
+            ) : (
+              <div className="flex items-center">
+                <img
+                  src="/symbol_kidoers.png"
+                  alt="Kidoers"
+                  className="h-8 w-8 object-contain"
+                  style={{ minWidth: '32px', minHeight: '32px' }}
+                  onError={(e) => {
+                    console.error('Failed to load symbol_kidoers.png, trying SVG fallback');
+                    e.currentTarget.src = '/symbol.svg';
+                  }}
+                />
+                <button onClick={() => setIsOpen(!isOpen)} className="p-1 hover:bg-muted rounded-lg transition-colors -ml-1">
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </div>
             )}
-            <button onClick={() => setIsOpen(!isOpen)} className="p-2 hover:bg-muted rounded-lg transition-colors">
-              {isOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            </button>
+            {isOpen && (
+              <button onClick={() => setIsOpen(!isOpen)} className="p-2 hover:bg-muted rounded-lg transition-colors">
+                <ChevronLeft className="h-6 w-6" />
+              </button>
+            )}
           </div>
         </div>
 

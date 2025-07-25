@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Plus, Check, CheckSquare, Clock, Folder } from "lucide-react"
+import { Plus, Check, CheckSquare, Clock, Folder, ChevronLeft, ChevronRight } from "lucide-react"
 import { storage } from "../../../lib/storage"
 import AddChoreModal from "../../chores/AddChoreModal"
 
@@ -15,6 +15,7 @@ export default function ChoresView() {
   const [loading, setLoading] = useState(true)
   const [groupBy, setGroupBy] = useState<GroupByType>("time")
   const [isAddChoreModalOpen, setIsAddChoreModalOpen] = useState(false)
+  const [currentDate, setCurrentDate] = useState(new Date())
 
   useEffect(() => {
     fetchData()
@@ -183,6 +184,42 @@ export default function ChoresView() {
         <div>
           <h2 className="text-2xl font-bold text-foreground">Today's Chores</h2>
           <p className="text-muted-foreground">Track daily tasks for each family member</p>
+        </div>
+      </div>
+
+      {/* Day Navigation */}
+      <div className="flex items-center justify-end mb-6">
+        <div className="flex items-center rounded-lg border border-gray-200 overflow-hidden">
+          <button
+            onClick={() => {
+              const newDate = new Date(currentDate)
+              newDate.setDate(currentDate.getDate() - 1)
+              setCurrentDate(newDate)
+            }}
+            className="p-3 bg-white hover:bg-gray-50 transition-colors border-r border-gray-200"
+          >
+            <ChevronLeft className="h-4 w-4 text-gray-700" />
+          </button>
+
+          <button
+            onClick={() => {
+              setCurrentDate(new Date())
+            }}
+            className="px-4 py-3 bg-white hover:bg-gray-50 transition-colors border-r border-gray-200"
+          >
+            <span className="text-sm font-semibold text-gray-900">Today</span>
+          </button>
+
+          <button
+            onClick={() => {
+              const newDate = new Date(currentDate)
+              newDate.setDate(currentDate.getDate() + 1)
+              setCurrentDate(newDate)
+            }}
+            className="p-3 bg-white hover:bg-gray-50 transition-colors"
+          >
+            <ChevronRight className="h-4 w-4 text-gray-700" />
+          </button>
         </div>
       </div>
 
