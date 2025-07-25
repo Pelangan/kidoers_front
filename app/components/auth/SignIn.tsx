@@ -2,8 +2,8 @@
 
 import type React from "react"
 import { useState } from "react"
-import { signIn, signInWithGoogle } from "../../lib/auth"
-import type { User } from "../../lib/auth"
+import { auth } from "../../lib/supabase"
+import type { User } from "@supabase/supabase-js"
 import { Mail, Lock, Eye, EyeOff } from "lucide-react"
 import Link from "next/link"
 
@@ -23,7 +23,7 @@ export default function SignIn({ onSignIn }: SignInProps) {
     setLoading(true)
     setError("")
 
-    const { user, error: authError } = await signIn(email, password)
+    const { user, error: authError } = await auth.signIn(email, password)
 
     if (authError) {
       setError(authError)
@@ -36,11 +36,12 @@ export default function SignIn({ onSignIn }: SignInProps) {
 
   const handleGoogleSignIn = async () => {
     setLoading(true)
-    const { user, error: authError } = await signInWithGoogle()
+    const { url, error: authError } = await auth.signInWithGoogle()
     if (authError) {
       setError(authError)
-    } else if (user) {
-      onSignIn(user)
+    } else if (url) {
+      // Redirect to Google OAuth
+      window.location.href = url
     }
     setLoading(false)
   }

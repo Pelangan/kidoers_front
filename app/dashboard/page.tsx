@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { getCurrentUser } from "../lib/auth"
+import { auth } from "../lib/supabase"
 import { storage } from "../lib/storage"
-import type { User } from "../lib/auth"
+import type { User } from "@supabase/supabase-js"
 import Dashboard from "../components/dashboard/Dashboard"
 import { useRouter } from "next/navigation"
 
@@ -14,27 +14,41 @@ export default function DashboardPage() {
 
   useEffect(() => {
     // Check for existing user
-    const currentUser = getCurrentUser()
-    setUser(currentUser)
+    const checkUser = async () => {
+      try {
+        const currentUser = await auth.getCurrentUser()
+        setUser(currentUser)
 
-    if (!currentUser) {
-      router.push("/signin")
-      return
+        if (!currentUser) {
+          router.push("/signin")
+          return
+        }
+
+        // Check if onboarding is completed
+        const family = storage.getFamily()
+        if (!family) {
+          router.push("/onboarding")
+          return
+        }
+
+        setLoading(false)
+      } catch (error) {
+        console.error("Error checking user:", error)
+        router.push("/signin")
+      }
     }
-
-    // Check if onboarding is completed
-    const family = storage.getFamily()
-    if (!family) {
-      router.push("/onboarding")
-      return
-    }
-
-    setLoading(false)
+    
+    checkUser()
   }, [router])
 
-  const handleSignOut = () => {
-    setUser(null)
-    router.push("/signin")
+  const handleSignOut = async () => {
+    try {
+      await auth.signOut()
+      setUser(null)
+      router.push("/signin")
+    } catch (error) {
+      console.error("Error signing out:", error)
+    }
   }
 
   if (loading) {

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
-import { getCurrentUser } from "./lib/auth"
+import { auth } from "./lib/supabase"
 import { storage } from "./lib/storage"
 
 import { useRouter } from "next/navigation"
@@ -11,17 +11,17 @@ export default function Home() {
 
   useEffect(() => {
     // Check for existing user and redirect accordingly
-    const currentUser = getCurrentUser()
-    if (currentUser) {
-      const family = storage.getFamily()
-      if (family) {
-        router.push("/dashboard")
-      } else {
+    const checkUser = async () => {
+      const currentUser = await auth.getCurrentUser()
+      if (currentUser) {
+        // For now, always redirect to onboarding since we're using Supabase
+        // and don't have family data in localStorage yet
         router.push("/onboarding")
+      } else {
+        router.push("/signin")
       }
-    } else {
-      router.push("/signin")
     }
+    checkUser()
   }, [router])
 
   return (

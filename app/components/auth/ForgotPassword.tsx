@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState } from "react"
-import { resetPassword } from "../../lib/auth"
+import { auth } from "../../lib/supabase"
 import { Mail, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 
@@ -18,7 +18,7 @@ export default function ForgotPassword() {
     setLoading(true)
     setError("")
 
-    const { error: authError } = await resetPassword(email)
+    const { error: authError } = await auth.resetPassword(email)
 
     if (authError) {
       setError(authError)

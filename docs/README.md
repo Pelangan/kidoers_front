@@ -7,7 +7,7 @@ This folder contains comprehensive documentation for the Kidoers family task man
 ### 📋 Core Documentation
 
 - **[PROJECT_SPECIFICATIONS.md](./PROJECT_SPECIFICATIONS.md)** - Complete project overview, architecture, and implemented functions
-  - Authentication system (6 functions)
+  - Authentication system (6 Supabase functions)
   - Family management
   - Task management (chores)
   - Activity management
@@ -25,17 +25,17 @@ This folder contains comprehensive documentation for the Kidoers family task man
 - Tailwind CSS 3.4.17
 - Radix UI + shadcn/ui
 - localStorage (Prototype)
-- Mock authentication system
+- Supabase Authentication (JWT + Google OAuth)
 
 ### 🔧 Key Implementation Details
 
 #### Authentication Functions
-- `signUp(email, password)` - User registration
-- `signIn(email, password)` - User login
-- `signInWithGoogle()` - OAuth simulation
-- `signOut()` - User logout
-- `resetPassword(email)` - Password reset
-- `getCurrentUser()` - Get current user
+- `auth.signUp(email, password)` - User registration
+- `auth.signIn(email, password)` - User login
+- `auth.signInWithGoogle()` - OAuth authentication
+- `auth.signOut()` - User logout
+- `auth.resetPassword(email)` - Password reset
+- `auth.getCurrentUser()` - Get current user
 
 #### Storage Functions
 - `storage.getUser()` / `storage.setUser()`

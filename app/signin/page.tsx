@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { getCurrentUser } from "../lib/auth"
+import { auth } from "../lib/supabase"
 import { storage } from "../lib/storage"
-import type { User } from "../lib/auth"
+import type { User } from "@supabase/supabase-js"
 
 import SignIn from "../components/auth/SignIn"
 import AuthLayout from "../components/layout/AuthLayout"
@@ -16,11 +16,34 @@ export default function SignInPage() {
 
   useEffect(() => {
     // Check for existing user
-    const currentUser = getCurrentUser()
-    setUser(currentUser)
-
-    setLoading(false)
+    const checkUser = async () => {
+      try {
+        console.log("Checking for existing user...")
+        const currentUser = await auth.getCurrentUser()
+        console.log("Current user:", currentUser)
+        setUser(currentUser)
+        setLoading(false)
+        
+        // If no user, clear the navigation flag
+        if (!currentUser) {
+          sessionStorage.removeItem('hasNavigatedToOnboarding')
+        }
+      } catch (error) {
+        console.error("Error checking user:", error)
+        setLoading(false)
+      }
+    }
+    checkUser()
   }, [])
+
+  // Handle navigation when user exists
+  useEffect(() => {
+    if (user && !loading) {
+      console.log("User authenticated:", user.email)
+      console.log("Redirecting to onboarding")
+      router.push("/onboarding")
+    }
+  }, [user, loading, router])
 
   const handleSignIn = (user: User) => {
     setUser(user)
@@ -40,15 +63,9 @@ export default function SignInPage() {
     )
   }
 
+  // Don't render anything if user is authenticated - let the redirect happen
   if (user) {
-    const family = storage.getFamily()
-    if (family) {
-      router.push("/dashboard")
-      return null
-    } else {
-      router.push("/onboarding")
-      return null
-    }
+    return null
   }
 
   return (

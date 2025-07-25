@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { getCurrentUser } from "../lib/auth"
+import { auth } from "../lib/supabase"
 import { storage } from "../lib/storage"
-import type { User } from "../lib/auth"
+import type { User } from "@supabase/supabase-js"
 
 import SignUp from "../components/auth/SignUp"
 import AuthLayout from "../components/layout/AuthLayout"
@@ -16,11 +16,29 @@ export default function SignUpPage() {
 
   useEffect(() => {
     // Check for existing user
-    const currentUser = getCurrentUser()
-    setUser(currentUser)
-
-    setLoading(false)
+    const checkUser = async () => {
+      const currentUser = await auth.getCurrentUser()
+      setUser(currentUser)
+      setLoading(false)
+    }
+    checkUser()
   }, [])
+
+  // Handle navigation when user exists
+  useEffect(() => {
+    if (user && !loading) {
+      console.log("User authenticated:", user.email)
+      
+      // Check if we've already navigated in this session
+      const hasNavigatedThisSession = sessionStorage.getItem('hasNavigatedToOnboarding')
+      
+      if (!hasNavigatedThisSession) {
+        console.log("Redirecting to onboarding")
+        sessionStorage.setItem('hasNavigatedToOnboarding', 'true')
+        router.push("/onboarding")
+      }
+    }
+  }, [user, loading, router])
 
   const handleSignUp = (user: User) => {
     setUser(user)
@@ -36,14 +54,11 @@ export default function SignUpPage() {
   }
 
   if (user) {
-    const family = storage.getFamily()
-    if (family) {
-      router.push("/dashboard")
-      return null
-    } else {
-      router.push("/onboarding")
-      return null
-    }
+    return (
+      <div className="min-h-screen bg-gradient-soft flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    )
   }
 
   return (

@@ -4,7 +4,6 @@ import { useState } from "react"
 import ChoresView from "./views/ChoresView"
 import CalendarView from "./views/CalendarView"
 import { CheckSquare, Calendar, Gift, LogOut, Menu } from "lucide-react"
-import { signOut } from "../../lib/auth"
 
 export type ViewType = "chores" | "calendar" | "rewards"
 
@@ -19,8 +18,7 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
 
   const handleSignOut = async () => {
     setLoading(true)
-    await signOut()
-    onSignOut()
+    await onSignOut()
     setLoading(false)
   }
 

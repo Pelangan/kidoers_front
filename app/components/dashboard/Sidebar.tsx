@@ -3,7 +3,6 @@
 import { useState } from "react"
 import type { ViewType } from "./Dashboard"
 import { CheckSquare, Calendar, Gift, ChevronLeft, ChevronRight, LogOut } from "lucide-react"
-import { signOut } from "../../lib/auth"
 
 interface SidebarProps {
   currentView: ViewType
@@ -18,8 +17,7 @@ export default function Sidebar({ currentView, setCurrentView, isOpen, setIsOpen
 
   const handleSignOut = async () => {
     setLoading(true)
-    await signOut()
-    onSignOut()
+    await onSignOut()
     setLoading(false)
   }
 

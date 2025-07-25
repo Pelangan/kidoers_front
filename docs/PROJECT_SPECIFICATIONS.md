@@ -13,8 +13,8 @@
 - **UI Components**: Radix UI + shadcn/ui
 - **Package Manager**: pnpm
 - **Data Storage**: Browser localStorage (Prototype)
-- **Authentication**: Mock authentication system
-- **Database**: Supabase (configured but not actively used)
+- **Authentication**: Supabase Authentication (JWT + Google OAuth)
+- **Database**: Supabase (configured and actively used)
 
 ### Project Structure
 ```
@@ -46,33 +46,32 @@ kidoers_front/
 ### Implemented Functions
 
 #### User Management
-- **`signUp(email, password)`**: Creates new user account
-  - Validates email and password (min 6 characters)
-  - Checks for existing users
-  - Stores user data in localStorage
+- **`auth.signUp(email, password)`**: Creates new user account
+  - Validates email and password
+  - Creates user in Supabase auth.users table
+  - Automatically creates profile via database trigger
   - Returns user object or error
 
-- **`signIn(email, password)`**: Authenticates existing user
-  - Accepts any email/password combination (mock mode)
-  - Stores user session in localStorage
+- **`auth.signIn(email, password)`**: Authenticates existing user
+  - Validates credentials against Supabase
+  - Creates JWT session
   - Returns user object or error
 
-- **`signInWithGoogle()`**: Google OAuth simulation
-  - Mock Google authentication
-  - Creates mock user account
-  - Returns user object or error
+- **`auth.signInWithGoogle()`**: Google OAuth authentication
+  - Redirects to Google OAuth flow
+  - Creates user account if new
+  - Returns redirect URL or error
 
-- **`signOut()`**: Logs out current user
+- **`auth.signOut()`**: Logs out current user
+  - Clears JWT session
   - Removes user data from localStorage
-  - Clears session
 
-- **`resetPassword(email)`**: Password reset functionality
-  - Validates email format
-  - Mock password reset process
+- **`auth.resetPassword(email)`**: Password reset functionality
+  - Sends reset email via Supabase
   - Returns success/error status
 
-- **`getCurrentUser()`**: Retrieves current user
-  - Gets user from localStorage
+- **`auth.getCurrentUser()`**: Retrieves current user
+  - Gets user from Supabase session
   - Returns user object or null
 
 ### User Interface
@@ -233,137 +232,4 @@ interface Reward {
 #### Storage Functions
 - **`storage.getUser()`**: Retrieve user data
 - **`storage.setUser(user)`**: Store user data
-- **`storage.removeUser()`**: Remove user data
-- **`storage.getFamily()`**: Retrieve family data
-- **`storage.setFamily(family)`**: Store family data
-- **`storage.getMembers()`**: Retrieve members data
-- **`storage.setMembers(members)`**: Store members data
-- **`storage.getChores()`**: Retrieve chores data
-- **`storage.setChores(chores)`**: Store chores data
-- **`storage.getActivities()`**: Retrieve activities data
-- **`storage.setActivities(activities)`**: Store activities data
-- **`storage.getRewards()`**: Retrieve rewards data
-- **`storage.setRewards(rewards)`**: Store rewards data
-- **`storage.clearAll()`**: Clear all application data
-
-## 🎨 User Interface Components
-
-### Authentication Components
-- **`SignIn.tsx`**: Sign-in form with email/password and Google OAuth
-- **`SignUp.tsx`**: Registration form with validation
-- **`ForgotPassword.tsx`**: Password reset form
-
-### Dashboard Components
-- **`Dashboard.tsx`**: Main dashboard with navigation
-- **`Sidebar.tsx`**: Navigation sidebar with menu items
-- **`ChoresView.tsx`**: Chores management interface
-- **`CalendarView.tsx`**: Calendar and activities view
-- **`RewardsView.tsx`**: Rewards and progress tracking
-
-### Onboarding Components
-- **`OnboardingWizard.tsx`**: Multi-step onboarding flow
-- **`CreateFamily.tsx`**: Family creation step
-- **`AddMembers.tsx`**: Family members addition step
-- **`AddChores.tsx`**: Initial chores setup step
-- **`AddRewards.tsx`**: Rewards configuration step
-
-### Layout Components
-- **`AuthLayout.tsx`**: Layout wrapper for authentication pages
-
-
-
-## 🚀 Application Flow
-
-### 1. Initial Access
-- User visits application
-- System checks for existing user
-- Redirects to sign-in if no user exists
-
-### 2. Authentication
-- User signs in or creates account
-- System stores user session
-- Redirects to onboarding or dashboard
-
-### 3. Onboarding (First-time users)
-- Create family profile
-- Add family members
-- Set up initial chores
-- Configure rewards system
-
-### 4. Dashboard Usage
-- Manage chores and tasks
-- Schedule activities
-- Track reward progress
-- View family calendar
-
-### 5. Data Persistence
-- All changes saved to localStorage
-- Data persists between sessions
-
-## 🔧 Technical Implementation
-
-### Next.js App Router
-- **File-based routing**: Automatic route generation
-- **Client-side navigation**: `next/link` and `useRouter`
-- **Layout system**: Nested layouts for consistent UI
-- **Server-side rendering**: Optimized performance
-
-### State Management
-- **localStorage**: Primary data persistence
-- **React hooks**: Local component state
-- **Context API**: Global state management (if needed)
-
-### Styling System
-- **Tailwind CSS**: Utility-first styling
-- **shadcn/ui**: Pre-built component library
-- **Radix UI**: Accessible component primitives
-- **Custom CSS**: Global styles and animations
-
-### Type Safety
-- **TypeScript**: Full type safety throughout
-- **Interface definitions**: Clear data contracts
-- **Type checking**: Compile-time error prevention
-
-## 📱 Responsive Design
-
-### Mobile Support
-- **Responsive layouts**: Mobile-first design
-- **Touch-friendly**: Optimized for touch interactions
-- **Mobile navigation**: Collapsible sidebar
-- **Adaptive components**: Responsive UI elements
-
-### Accessibility
-- **ARIA labels**: Screen reader support
-- **Keyboard navigation**: Full keyboard accessibility
-- **Color contrast**: WCAG compliant
-- **Focus management**: Proper focus indicators
-
-## 🔮 Future Enhancements
-
-### Potential Features
-- **Real backend integration**: Replace localStorage with database
-- **User authentication**: Implement real auth system
-- **Data synchronization**: Cross-device data sync
-- **Push notifications**: Reminder notifications
-- **Offline support**: Service worker implementation
-- **Analytics**: Usage tracking and insights
-- **Multi-language support**: Internationalization
-- **Advanced reporting**: Detailed progress reports
-
-### Technical Improvements
-- **Database migration**: Supabase integration
-- **API development**: RESTful API endpoints
-- **Real-time updates**: WebSocket integration
-- **Performance optimization**: Code splitting and lazy loading
-- **Testing**: Unit and integration tests
-- **CI/CD**: Automated deployment pipeline
-
-## 📄 License
-
-This project is a prototype/demo application for family task management. All code and documentation are provided for educational and demonstration purposes.
-
----
-
-**Last Updated**: December 2024  
-**Version**: 0.1.0  
-**Status**: Prototype/Demo 
+- **`
