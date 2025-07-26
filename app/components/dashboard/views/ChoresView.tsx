@@ -219,7 +219,9 @@ export default function ChoresView() {
           progressBg: "bg-blue-100",
           taskBg: "bg-blue-50",
           taskText: "text-blue-700",
-          taskBorder: "border-blue-200"
+          taskBorder: "border-blue-200",
+          completedText: "text-blue-800",
+          completedBg: "bg-blue-100"
         },
         {
           border: "border-green-300",
@@ -227,7 +229,9 @@ export default function ChoresView() {
           progressBg: "bg-green-100",
           taskBg: "bg-green-50",
           taskText: "text-green-700",
-          taskBorder: "border-green-200"
+          taskBorder: "border-green-200",
+          completedText: "text-green-800",
+          completedBg: "bg-green-100"
         },
         {
           border: "border-yellow-300",
@@ -235,7 +239,9 @@ export default function ChoresView() {
           progressBg: "bg-yellow-100",
           taskBg: "bg-yellow-50",
           taskText: "text-yellow-700",
-          taskBorder: "border-yellow-200"
+          taskBorder: "border-yellow-200",
+          completedText: "text-yellow-800",
+          completedBg: "bg-yellow-100"
         },
         {
           border: "border-orange-300",
@@ -243,7 +249,9 @@ export default function ChoresView() {
           progressBg: "bg-orange-100",
           taskBg: "bg-orange-50",
           taskText: "text-orange-700",
-          taskBorder: "border-orange-200"
+          taskBorder: "border-orange-200",
+          completedText: "text-orange-800",
+          completedBg: "bg-orange-100"
         }
       ]
       const memberIndex = members.findIndex(m => m.id === memberId)
@@ -258,7 +266,9 @@ export default function ChoresView() {
         progressBg: "bg-blue-100",
         taskBg: "bg-blue-50",
         taskText: "text-blue-700",
-        taskBorder: "border-blue-200"
+        taskBorder: "border-blue-200",
+        completedText: "text-blue-800",
+        completedBg: "bg-blue-100"
       },
       green: {
         border: "border-green-300",
@@ -266,7 +276,9 @@ export default function ChoresView() {
         progressBg: "bg-green-100",
         taskBg: "bg-green-50",
         taskText: "text-green-700",
-        taskBorder: "border-green-200"
+        taskBorder: "border-green-200",
+        completedText: "text-green-800",
+        completedBg: "bg-green-100"
       },
       yellow: {
         border: "border-yellow-300",
@@ -274,7 +286,9 @@ export default function ChoresView() {
         progressBg: "bg-yellow-100",
         taskBg: "bg-yellow-50",
         taskText: "text-yellow-700",
-        taskBorder: "border-yellow-200"
+        taskBorder: "border-yellow-200",
+        completedText: "text-yellow-800",
+        completedBg: "bg-yellow-100"
       },
       orange: {
         border: "border-orange-300",
@@ -282,7 +296,9 @@ export default function ChoresView() {
         progressBg: "bg-orange-100",
         taskBg: "bg-orange-50",
         taskText: "text-orange-700",
-        taskBorder: "border-orange-200"
+        taskBorder: "border-orange-200",
+        completedText: "text-orange-800",
+        completedBg: "bg-orange-100"
       },
       purple: {
         border: "border-purple-300",
@@ -290,7 +306,9 @@ export default function ChoresView() {
         progressBg: "bg-purple-100",
         taskBg: "bg-purple-50",
         taskText: "text-purple-700",
-        taskBorder: "border-purple-200"
+        taskBorder: "border-purple-200",
+        completedText: "text-purple-800",
+        completedBg: "bg-purple-100"
       },
       pink: {
         border: "border-pink-300",
@@ -298,7 +316,9 @@ export default function ChoresView() {
         progressBg: "bg-pink-100",
         taskBg: "bg-pink-50",
         taskText: "text-pink-700",
-        taskBorder: "border-pink-200"
+        taskBorder: "border-pink-200",
+        completedText: "text-pink-800",
+        completedBg: "bg-pink-100"
       },
       teal: {
         border: "border-teal-300",
@@ -306,7 +326,9 @@ export default function ChoresView() {
         progressBg: "bg-teal-100",
         taskBg: "bg-teal-50",
         taskText: "text-teal-700",
-        taskBorder: "border-teal-200"
+        taskBorder: "border-teal-200",
+        completedText: "text-teal-800",
+        completedBg: "bg-teal-100"
       },
       indigo: {
         border: "border-indigo-300",
@@ -314,7 +336,9 @@ export default function ChoresView() {
         progressBg: "bg-indigo-100",
         taskBg: "bg-indigo-50",
         taskText: "text-indigo-700",
-        taskBorder: "border-indigo-200"
+        taskBorder: "border-indigo-200",
+        completedText: "text-indigo-800",
+        completedBg: "bg-indigo-100"
       }
     }
 
@@ -563,7 +587,9 @@ export default function ChoresView() {
                       {groupChores.map((chore) => (
                         <div
                           key={chore.id}
-                          className={`flex items-center gap-3 p-3 rounded-lg border transition-all duration-200 ${theme.taskBg} ${theme.taskBorder} hover:shadow-sm ${
+                          className={`flex items-center gap-3 p-3 rounded-lg border transition-all duration-200 ${
+                            chore.completed ? theme.completedBg : theme.taskBg
+                          } ${theme.taskBorder} hover:shadow-sm ${
                             isEditMode ? 'cursor-grab' : 'cursor-pointer'
                           } ${draggedChore === chore.id ? 'opacity-50' : ''}`}
                           onClick={() => isEditMode ? handleChoreSelection(chore.id) : toggleChore(chore.id, chore.completed)}

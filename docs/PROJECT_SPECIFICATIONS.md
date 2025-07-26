@@ -150,6 +150,9 @@ interface FamilyMember {
   name: string
   role: "parent" | "child"
   color: string
+  avatarStyle?: string
+  avatarOptions?: Record<string, string>
+  avatarUrl?: string
   calmMode: boolean
   textToSpeech: boolean
 }
@@ -218,6 +221,16 @@ When assigning chores to multiple family members:
   - Passcode-protected edit access
   - Frequency badges (Daily, Weekly, Weekends) for each chore
   - Batch chore creation with preview and "Add Another" functionality
+
+- **Family Members View**: Centralized family member management and avatar customization
+  - Individual member cards with progress statistics
+  - DiceBear avatar integration with 12 different styles
+  - Real-time avatar customization and preview
+  - Member statistics dashboard (completed chores, pending tasks, points earned, overdue priorities)
+  - Completion rate progress bars
+  - Avatar style selection and customization options
+  - Sample data generation for testing
+  - Empty state with navigation to Settings
 
 ### Edit Mode & Security
 - **iPhone-Style Edit Mode**: Toggle edit mode to select and delete multiple chores

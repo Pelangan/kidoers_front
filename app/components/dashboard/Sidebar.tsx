@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import type { ViewType } from "./Dashboard"
-import { CheckSquare, Calendar, Gift, ChevronLeft, ChevronRight, LogOut, Settings } from "lucide-react"
+import { CheckSquare, Calendar, Gift, ChevronLeft, ChevronRight, LogOut, Settings, Users } from "lucide-react"
 
 interface SidebarProps {
   currentView: ViewType
@@ -33,6 +33,12 @@ export default function Sidebar({ currentView, setCurrentView, isOpen, setIsOpen
       label: "Calendar",
       icon: Calendar,
       description: "Scheduled activities",
+    },
+    {
+      id: "family-members" as ViewType,
+      label: "Family Members",
+      icon: Users,
+      description: "Manage members & avatars",
     },
     {
       id: "rewards" as ViewType,

@@ -4,9 +4,10 @@ import { useState } from "react"
 import ChoresView from "./views/ChoresView"
 import CalendarView from "./views/CalendarView"
 import SettingsView from "./views/SettingsView"
+import FamilyMembersView from "./views/FamilyMembersView"
 import Sidebar from "./Sidebar"
 
-export type ViewType = "chores" | "calendar" | "rewards" | "settings"
+export type ViewType = "chores" | "calendar" | "rewards" | "settings" | "family-members"
 
 interface DashboardProps {
   onSignOut: () => void
@@ -34,6 +35,8 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
         )
       case "settings":
         return <SettingsView />
+      case "family-members":
+        return <FamilyMembersView familyName="Family" />
       default:
         return <ChoresView />
     }
