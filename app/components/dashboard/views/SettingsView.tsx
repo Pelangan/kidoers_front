@@ -356,35 +356,38 @@ export default function SettingsView() {
               {/* Add New Member */}
               <div className="border-t pt-6">
                 <h3 className="text-lg font-semibold mb-4">Add New Member</h3>
-                <div className="flex gap-3">
-                  <ColorPicker
-                    selectedColor={newMemberColor}
-                    onColorChange={setNewMemberColor}
-                    className="w-32"
-                  />
-                  <input
-                    type="text"
-                    value={newMemberName}
-                    onChange={(e) => setNewMemberName(e.target.value)}
-                    placeholder="Member name"
-                    className="input flex-1 min-w-0"
-                    onKeyPress={(e) => e.key === "Enter" && addMember()}
-                  />
-                  <select
-                    value={newMemberRole}
-                    onChange={(e) => setNewMemberRole(e.target.value as "parent" | "child")}
-                    className="input w-32"
-                  >
-                    <option value="parent">Parent</option>
-                    <option value="child">Child</option>
-                  </select>
-                  <button
-                    onClick={addMember}
-                    disabled={!newMemberName.trim()}
-                    className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 whitespace-nowrap"
-                  >
-                    Add
-                  </button>
+                <div className="space-y-3">
+                  <div className="flex gap-3">
+                    <ColorPicker
+                      selectedColor={newMemberColor}
+                      onColorChange={setNewMemberColor}
+                      className="w-32"
+                    />
+                    <input
+                      type="text"
+                      value={newMemberName}
+                      onChange={(e) => setNewMemberName(e.target.value)}
+                      placeholder="Member name"
+                      className="input flex-1 min-w-0"
+                      onKeyPress={(e) => e.key === "Enter" && addMember()}
+                    />
+                    <select
+                      value={newMemberRole}
+                      onChange={(e) => setNewMemberRole(e.target.value as "parent" | "child")}
+                      className="input w-32"
+                    >
+                      <option value="parent">Parent</option>
+                      <option value="child">Child</option>
+                    </select>
+                    <button
+                      onClick={addMember}
+                      disabled={!newMemberName.trim()}
+                      className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 whitespace-nowrap"
+                    >
+                      Add
+                    </button>
+                  </div>
+
                 </div>
               </div>
 

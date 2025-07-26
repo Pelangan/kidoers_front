@@ -37,14 +37,14 @@ export default function CreateFamily({ familyName, setFamilyName, members, setMe
   const addMember = () => {
     if (!newMemberName.trim()) return
     
-    const newMember: FamilyMember = {
-      id: Date.now().toString(),
-      name: newMemberName.trim(),
-      role: newMemberRole,
-      color: newMemberColor,
-      calmMode: false,
-      textToSpeech: false,
-    }
+                const newMember: FamilyMember = {
+              id: Date.now().toString(),
+              name: newMemberName.trim(),
+              role: newMemberRole,
+              color: newMemberColor,
+              calmMode: false,
+              textToSpeech: false,
+            }
     
     setMembers([...members, newMember])
     setNewMemberName("")

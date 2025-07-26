@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Plus, Check, CheckSquare, Clock, Folder, ChevronLeft, ChevronRight } from "lucide-react"
+import { Plus, Check, CheckSquare, Clock, Folder, ChevronLeft, ChevronRight, Edit3, Trash2, X } from "lucide-react"
 import { storage } from "../../../lib/storage"
 import AddChoreModal from "../../chores/AddChoreModal"
 
@@ -22,6 +22,14 @@ export default function ChoresView() {
     return str.replace(/\b\w/g, char => char.toUpperCase());
   };
   const [currentDate, setCurrentDate] = useState(new Date())
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [selectedChores, setSelectedChores] = useState<string[]>([])
+  const [showPasscodeModal, setShowPasscodeModal] = useState(false)
+  const [passcode, setPasscode] = useState("")
+  const [draggedChore, setDraggedChore] = useState<string | null>(null)
+  const [dragOverMember, setDragOverMember] = useState<string | null>(null)
+  const [showDropActions, setShowDropActions] = useState<{choreId: string, memberId: string, x: number, y: number} | null>(null)
+  const [editingChore, setEditingChore] = useState<Chore | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -60,6 +68,140 @@ export default function ChoresView() {
     const updatedChores = [...chores, ...newChores]
     setChores(updatedChores)
     storage.setChores(updatedChores)
+  }
+
+  // Edit mode functions
+  const handleEditModeToggle = () => {
+    setShowPasscodeModal(true)
+  }
+
+  const handlePasscodeSubmit = () => {
+    // Simple passcode validation (in real app, this would be more secure)
+    if (passcode === "1234") {
+      setIsEditMode(true)
+      setShowPasscodeModal(false)
+      setPasscode("")
+    } else {
+      alert("Incorrect passcode")
+      setPasscode("")
+    }
+  }
+
+  const handleChoreSelection = (choreId: string) => {
+    setSelectedChores(prev => 
+      prev.includes(choreId) 
+        ? prev.filter(id => id !== choreId)
+        : [...prev, choreId]
+    )
+  }
+
+  const handleDeleteSelected = () => {
+    if (selectedChores.length === 0) return
+    
+    const updatedChores = chores.filter(chore => !selectedChores.includes(chore.id))
+    setChores(updatedChores)
+    storage.setChores(updatedChores)
+    setSelectedChores([])
+    setIsEditMode(false)
+  }
+
+  const handleCancelEdit = () => {
+    setIsEditMode(false)
+    setSelectedChores([])
+    setDraggedChore(null)
+  }
+
+  // Drag and drop functions
+  const handleDragStart = (e: React.DragEvent, choreId: string) => {
+    const chore = chores.find(c => c.id === choreId)
+    if (chore && !chore.completed) {
+      setDraggedChore(choreId)
+      e.dataTransfer.setData('text/plain', choreId)
+      e.dataTransfer.effectAllowed = 'move'
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent, memberId: string) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverMember(memberId)
+  }
+
+  const handleDrop = (e: React.DragEvent, targetMemberId: string) => {
+    e.preventDefault()
+    if (!draggedChore) return
+
+    const chore = chores.find(c => c.id === draggedChore)
+    if (!chore || chore.completed) return
+
+    // Show action popup at drop position
+    setShowDropActions({
+      choreId: draggedChore,
+      memberId: targetMemberId,
+      x: e.clientX,
+      y: e.clientY
+    })
+    
+    setDraggedChore(null)
+    setDragOverMember(null)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedChore(null)
+    setDragOverMember(null)
+  }
+
+  const handleMoveChore = () => {
+    if (!showDropActions) return
+    
+    const chore = chores.find(c => c.id === showDropActions.choreId)
+    if (!chore) return
+
+    // Move the chore to the target member
+    const updatedChores = chores.map(c => 
+      c.id === showDropActions.choreId ? { ...c, assignedTo: showDropActions.memberId } : c
+    )
+    
+    setChores(updatedChores)
+    storage.setChores(updatedChores)
+    setShowDropActions(null)
+  }
+
+  const handleDuplicateChore = () => {
+    if (!showDropActions) return
+    
+    const chore = chores.find(c => c.id === showDropActions.choreId)
+    if (!chore) return
+
+    // Create a duplicate chore for the target member
+    const newChore: Chore = {
+      ...chore,
+      id: Date.now().toString() + "_" + showDropActions.memberId,
+      assignedTo: showDropActions.memberId,
+      completed: false
+    }
+    
+    const updatedChores = [...chores, newChore]
+    setChores(updatedChores)
+    storage.setChores(updatedChores)
+    setShowDropActions(null)
+  }
+
+  const handleCancelDropAction = () => {
+    setShowDropActions(null)
+  }
+
+  const handleEditChore = (chore: Chore) => {
+    setEditingChore(chore)
+  }
+
+  const handleUpdateChore = (updatedChore: Chore) => {
+    const updatedChores = chores.map(c => 
+      c.id === updatedChore.id ? updatedChore : c
+    )
+    setChores(updatedChores)
+    storage.setChores(updatedChores)
+    setEditingChore(null)
   }
 
   const getChoresByMember = (memberId: string) => {
@@ -270,45 +412,56 @@ export default function ChoresView() {
     <div>
       {/* Header */}
       <div className="mb-6">
-        <div>
-          <h2 className="text-2xl font-bold text-foreground">{capitalizeWords(familyName)} Family</h2>
-          <p className="text-muted-foreground">Track daily tasks for each family member</p>
-        </div>
-      </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-foreground">{capitalizeWords(familyName)} Family</h2>
+            <p className="text-muted-foreground">Track daily tasks for each family member</p>
+          </div>
+          <div className="flex items-center gap-4">
+            {!isEditMode && (
+              <button
+                onClick={handleEditModeToggle}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <Edit3 className="h-4 w-4" />
+                Edit
+              </button>
+            )}
+            
+            {/* Day Navigation */}
+            <div className="flex items-center rounded-lg border border-gray-200 overflow-hidden">
+              <button
+                onClick={() => {
+                  const newDate = new Date(currentDate)
+                  newDate.setDate(currentDate.getDate() - 1)
+                  setCurrentDate(newDate)
+                }}
+                className="p-3 bg-white hover:bg-gray-50 transition-colors border-r border-gray-200"
+              >
+                <ChevronLeft className="h-4 w-4 text-gray-700" />
+              </button>
 
-      {/* Day Navigation */}
-      <div className="flex items-center justify-end mb-6">
-        <div className="flex items-center rounded-lg border border-gray-200 overflow-hidden">
-          <button
-            onClick={() => {
-              const newDate = new Date(currentDate)
-              newDate.setDate(currentDate.getDate() - 1)
-              setCurrentDate(newDate)
-            }}
-            className="p-3 bg-white hover:bg-gray-50 transition-colors border-r border-gray-200"
-          >
-            <ChevronLeft className="h-4 w-4 text-gray-700" />
-          </button>
+              <button
+                onClick={() => {
+                  setCurrentDate(new Date())
+                }}
+                className="px-4 py-3 bg-white hover:bg-gray-50 transition-colors border-r border-gray-200"
+              >
+                <span className="text-sm font-semibold text-gray-900">Today</span>
+              </button>
 
-          <button
-            onClick={() => {
-              setCurrentDate(new Date())
-            }}
-            className="px-4 py-3 bg-white hover:bg-gray-50 transition-colors border-r border-gray-200"
-          >
-            <span className="text-sm font-semibold text-gray-900">Today</span>
-          </button>
-
-          <button
-            onClick={() => {
-              const newDate = new Date(currentDate)
-              newDate.setDate(currentDate.getDate() + 1)
-              setCurrentDate(newDate)
-            }}
-            className="p-3 bg-white hover:bg-gray-50 transition-colors"
-          >
-            <ChevronRight className="h-4 w-4 text-gray-700" />
-          </button>
+              <button
+                onClick={() => {
+                  const newDate = new Date(currentDate)
+                  newDate.setDate(currentDate.getDate() + 1)
+                  setCurrentDate(newDate)
+                }}
+                className="p-3 bg-white hover:bg-gray-50 transition-colors"
+              >
+                <ChevronRight className="h-4 w-4 text-gray-700" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -351,7 +504,16 @@ export default function ChoresView() {
           const groupedChores = groupBy === "time" ? groupChoresByTime(member.id) : groupChoresByCategory(member.id)
 
           return (
-            <div key={member.id} className={`bg-white rounded-lg border-2 ${theme.border} p-6 shadow-sm`}>
+            <div 
+              key={member.id} 
+              className={`bg-white rounded-lg border-2 ${theme.border} p-6 shadow-sm transition-all duration-200 ${
+                isEditMode ? 'min-h-[300px]' : ''
+              } ${
+                isEditMode && dragOverMember === member.id ? 'bg-blue-50 border-blue-400 shadow-lg' : ''
+              }`}
+              onDragOver={isEditMode ? (e) => handleDragOver(e, member.id) : undefined}
+              onDrop={isEditMode ? (e) => handleDrop(e, member.id) : undefined}
+            >
               {/* Member Header */}
               <div className="mb-4">
                 <h3 className="font-bold text-lg text-foreground mb-3">{member.name}</h3>
@@ -401,23 +563,68 @@ export default function ChoresView() {
                       {groupChores.map((chore) => (
                         <div
                           key={chore.id}
-                          className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all duration-200 ${theme.taskBg} ${theme.taskBorder} hover:shadow-sm`}
-                          onClick={() => toggleChore(chore.id, chore.completed)}
+                          className={`flex items-center gap-3 p-3 rounded-lg border transition-all duration-200 ${theme.taskBg} ${theme.taskBorder} hover:shadow-sm ${
+                            isEditMode ? 'cursor-grab' : 'cursor-pointer'
+                          } ${draggedChore === chore.id ? 'opacity-50' : ''}`}
+                          onClick={() => isEditMode ? handleChoreSelection(chore.id) : toggleChore(chore.id, chore.completed)}
+                          draggable={isEditMode && !chore.completed}
+                          onDragStart={(e) => isEditMode && !chore.completed && handleDragStart(e, chore.id)}
+                          onDragEnd={handleDragEnd}
                         >
-                          <div
-                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                              chore.completed 
-                                ? "bg-green-500 border-green-500" 
-                                : `border-${theme.progress.split('-')[1]}-400`
-                            }`}
-                          >
-                            {chore.completed && <Check className="h-3 w-3 text-white" />}
+                          {isEditMode ? (
+                            <div
+                              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                                selectedChores.includes(chore.id)
+                                  ? "bg-red-500 border-red-500"
+                                  : "border-gray-300 bg-white"
+                              }`}
+                            >
+                              {selectedChores.includes(chore.id) && <X className="h-3 w-3 text-white" />}
+                            </div>
+                          ) : (
+                            <div
+                              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                                chore.completed 
+                                  ? "bg-green-500 border-green-500" 
+                                  : `border-${theme.progress.split('-')[1]}-400`
+                              }`}
+                            >
+                              {chore.completed && <Check className="h-3 w-3 text-white" />}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-medium ${theme.taskText} ${
+                              chore.completed ? "line-through opacity-60" : ""
+                            }`}>
+                              {chore.title}
+                            </span>
+                            <span className="px-2 py-1 text-xs font-medium rounded-full bg-white text-black border border-gray-300">
+                              {chore.frequency === 'daily' ? 'Daily' : 
+                               chore.frequency === 'weekly' ? 'Weekly' : 'Weekends'}
+                            </span>
                           </div>
-                          <span className={`text-sm font-medium ${theme.taskText} ${
-                            chore.completed ? "line-through opacity-60" : ""
-                          }`}>
-                            {chore.title}
-                          </span>
+                          {isEditMode && (
+                            <div className="ml-auto flex gap-2">
+                              {!chore.completed && (
+                                <div className="text-gray-400">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                                  </svg>
+                                </div>
+                              )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleEditChore(chore)
+                                }}
+                                className="text-gray-400 hover:text-blue-500 transition-colors"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -444,23 +651,131 @@ export default function ChoresView() {
         </div>
       )}
 
+      {/* Edit Mode Toolbar */}
+      {isEditMode && (
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white border border-gray-200 rounded-lg shadow-lg px-4 py-3 flex items-center gap-4 z-50">
+          <span className="text-sm text-gray-600">
+            {selectedChores.length} selected
+          </span>
+          <button
+            onClick={handleDeleteSelected}
+            disabled={selectedChores.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete Selected
+          </button>
+          <button
+            onClick={handleCancelEdit}
+            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       {/* Floating Action Button */}
       <button 
         onClick={() => setIsAddChoreModalOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center z-50"
+        className={`fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center z-50 ${
+          isEditMode ? 'bottom-20' : ''
+        }`}
       >
         <Plus className="h-6 w-6" />
       </button>
 
-      {/* Add Chore Modal */}
+      {/* Add/Edit Chore Modal */}
       <AddChoreModal
-        isOpen={isAddChoreModalOpen}
-        onClose={() => setIsAddChoreModalOpen(false)}
+        isOpen={isAddChoreModalOpen || editingChore !== null}
+        onClose={() => {
+          setIsAddChoreModalOpen(false)
+          setEditingChore(null)
+        }}
         onSave={handleAddChore}
         onSaveMultiple={handleAddMultipleChores}
+        onUpdate={handleUpdateChore}
         members={members}
         existingChores={chores}
+        editingChore={editingChore}
       />
+
+      {/* Drop Action Popup */}
+      {showDropActions && (
+        <div className="fixed inset-0 z-50" onClick={handleCancelDropAction}>
+          <div 
+            className="absolute bg-white rounded-lg shadow-xl border border-gray-200 p-3 flex gap-2"
+            style={{
+              left: Math.min(showDropActions.x, window.innerWidth - 200),
+              top: Math.min(showDropActions.y, window.innerHeight - 100)
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={handleMoveChore}
+              className="flex items-center gap-2 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+              Move
+            </button>
+            <button
+              onClick={handleDuplicateChore}
+              className="flex items-center gap-2 px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              Duplicate
+            </button>
+            <button
+              onClick={handleCancelDropAction}
+              className="flex items-center gap-2 px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Passcode Modal */}
+      {showPasscodeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6">
+            <h3 className="text-lg font-semibold mb-4">Enter Passcode</h3>
+            <p className="text-sm text-gray-600 mb-4">Enter the 4-digit passcode to edit chores</p>
+            <input
+              type="password"
+              value={passcode}
+              onChange={(e) => setPasscode(e.target.value)}
+              placeholder="1234"
+              maxLength={4}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              onKeyPress={(e) => e.key === "Enter" && handlePasscodeSubmit()}
+            />
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => {
+                  setShowPasscodeModal(false)
+                  setPasscode("")
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePasscodeSubmit}
+                className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+              >
+                Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

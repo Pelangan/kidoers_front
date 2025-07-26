@@ -149,6 +149,7 @@ interface FamilyMember {
   id: string
   name: string
   role: "parent" | "child"
+  color: string
   calmMode: boolean
   textToSpeech: boolean
 }
@@ -213,6 +214,20 @@ When assigning chores to multiple family members:
   - Filter and sort chores
   - Assign chores to family members
   - Multiple member assignment with individual chore instances
+  - Edit mode with bulk delete functionality
+  - Passcode-protected edit access
+  - Frequency badges (Daily, Weekly, Weekends) for each chore
+  - Batch chore creation with preview and "Add Another" functionality
+
+### Edit Mode & Security
+- **iPhone-Style Edit Mode**: Toggle edit mode to select and delete multiple chores
+- **Passcode Protection**: 4-digit PIN required to enter edit mode (only parents know the code)
+- **Bulk Operations**: Select multiple chores and delete them simultaneously
+- **Individual Editing**: Click pencil icon to edit individual chore details
+- **Drag & Drop**: Move or duplicate uncompleted chores between family members
+- **Action Popup**: Choose between "Move" or "Duplicate" when dropping chores
+- **Visual Feedback**: Selected chores show red X markers, drop zones highlight
+- **Family-Shared Access**: All family members use the same user account, passcode controls access
 
 ## 📅 Activity Management
 
