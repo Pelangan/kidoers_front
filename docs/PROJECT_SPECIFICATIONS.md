@@ -224,11 +224,12 @@ When assigning chores to multiple family members:
 
 - **Family Members View**: Centralized family member management and avatar customization
   - Individual member cards with progress statistics
-  - DiceBear avatar integration with 12 different styles
+  - **Dual Avatar System**: Standard DiceBear avatars (20+ styles) + Pro custom avatars
+  - **Pro Avatar Collection**: Premium custom avatars (e.g., Godzilla) with PRO badges
   - Real-time avatar customization and preview
   - Member statistics dashboard (completed chores, pending tasks, points earned, overdue priorities)
   - Completion rate progress bars
-  - Avatar style selection and customization options
+  - Avatar style selection with search and category filtering
   - Sample data generation for testing
   - Empty state with navigation to Settings
 

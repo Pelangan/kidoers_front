@@ -41,26 +41,30 @@ interface MemberStats {
 }
 
 const AVATAR_STYLES = [
-  { value: 'adventurer', label: 'Adventurer', category: 'Cartoon' },
-  { value: 'avataaars', label: 'Avataaars', category: 'Cartoon' },
-  { value: 'big-ears', label: 'Big Ears', category: 'Cartoon' },
-  { value: 'bottts', label: 'Bottts', category: 'Robot' },
-  { value: 'croodles', label: 'Croodles', category: 'Doodle' },
-  { value: 'fun-emoji', label: 'Fun Emoji', category: 'Emoji' },
-  { value: 'lorelei', label: 'Lorelei', category: 'Fantasy' },
-  { value: 'micah', label: 'Micah', category: 'Simple' },
-  { value: 'miniavs', label: 'Miniavs', category: 'Minimalist' },
-  { value: 'notionists', label: 'Notionists', category: 'Professional' },
-  { value: 'open-peeps', label: 'Open Peeps', category: 'Diverse' },
-  { value: 'personas', label: 'Personas', category: 'Modern' },
-  { value: 'beam', label: 'Beam', category: 'Geometric' },
-  { value: 'marble', label: 'Marble', category: 'Abstract' },
-  { value: 'rings', label: 'Rings', category: 'Abstract' },
-  { value: 'sunset', label: 'Sunset', category: 'Abstract' },
-  { value: 'wave', label: 'Wave', category: 'Abstract' },
-  { value: 'identicon', label: 'Identicon', category: 'Geometric' },
-  { value: 'initials', label: 'Initials', category: 'Simple' },
-  { value: 'shapes', label: 'Shapes', category: 'Geometric' }
+  { value: 'adventurer', label: 'Adventurer', category: 'Cartoon', type: 'standard' },
+  { value: 'avataaars', label: 'Avataaars', category: 'Cartoon', type: 'standard' },
+  { value: 'big-ears', label: 'Big Ears', category: 'Cartoon', type: 'standard' },
+  { value: 'bottts', label: 'Bottts', category: 'Robot', type: 'standard' },
+  { value: 'croodles', label: 'Croodles', category: 'Doodle', type: 'standard' },
+  { value: 'fun-emoji', label: 'Fun Emoji', category: 'Emoji', type: 'standard' },
+  { value: 'lorelei', label: 'Lorelei', category: 'Fantasy', type: 'standard' },
+  { value: 'micah', label: 'Micah', category: 'Simple', type: 'standard' },
+  { value: 'miniavs', label: 'Miniavs', category: 'Minimalist', type: 'standard' },
+  { value: 'notionists', label: 'Notionists', category: 'Professional', type: 'standard' },
+  { value: 'open-peeps', label: 'Open Peeps', category: 'Diverse', type: 'standard' },
+  { value: 'personas', label: 'Personas', category: 'Modern', type: 'standard' },
+  { value: 'beam', label: 'Beam', category: 'Geometric', type: 'standard' },
+  { value: 'marble', label: 'Marble', category: 'Abstract', type: 'standard' },
+  { value: 'rings', label: 'Rings', category: 'Abstract', type: 'standard' },
+  { value: 'sunset', label: 'Sunset', category: 'Abstract', type: 'standard' },
+  { value: 'wave', label: 'Wave', category: 'Abstract', type: 'standard' },
+  { value: 'identicon', label: 'Identicon', category: 'Geometric', type: 'standard' },
+  { value: 'initials', label: 'Initials', category: 'Simple', type: 'standard' },
+  { value: 'shapes', label: 'Shapes', category: 'Geometric', type: 'standard' }
+]
+
+const PRO_AVATARS = [
+  { value: 'md_avatar_godzilla', label: 'Godzilla', category: 'Monsters', type: 'pro', imageUrl: '/md_avatar_godzilla.png' }
 ]
 
 const AVATAR_OPTIONS = {
@@ -271,6 +275,13 @@ export default function FamilyMembersView({ familyName }: FamilyMembersViewProps
   }
 
   const generateAvatarUrl = (seed: string, style: string, options: Record<string, string> = {}) => {
+    // Check if it's a Pro avatar
+    const proAvatar = PRO_AVATARS.find(avatar => avatar.value === style)
+    if (proAvatar) {
+      return proAvatar.imageUrl
+    }
+    
+    // Standard DiceBear avatar
     const baseUrl = 'https://api.dicebear.com/7.x'
     const optionsString = Object.entries(options)
       .filter(([_, value]) => value)
@@ -309,11 +320,12 @@ export default function FamilyMembersView({ familyName }: FamilyMembersViewProps
     return str.replace(/\b\w/g, l => l.toUpperCase())
   }
 
-  // Get unique categories
-  const categories = ['All', ...Array.from(new Set(AVATAR_STYLES.map(style => style.category)))]
+  // Get unique categories from both standard and pro avatars
+  const allAvatars = [...AVATAR_STYLES, ...PRO_AVATARS]
+  const categories = ['All', ...Array.from(new Set(allAvatars.map(style => style.category)))]
 
   // Filter styles based on search and category
-  const filteredStyles = AVATAR_STYLES.filter(style => {
+  const filteredStyles = allAvatars.filter(style => {
     const matchesSearch = style.label.toLowerCase().includes(styleSearchTerm.toLowerCase()) ||
                          style.value.toLowerCase().includes(styleSearchTerm.toLowerCase())
     const matchesCategory = selectedCategory === 'All' || style.category === selectedCategory
@@ -532,7 +544,7 @@ export default function FamilyMembersView({ familyName }: FamilyMembersViewProps
                     onClick={() => setIsStyleDropdownOpen(!isStyleDropdownOpen)}
                     className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                   >
-                    <span>{AVATAR_STYLES.find(s => s.value === avatarStyle)?.label || 'Select style'}</span>
+                    <span>{allAvatars.find(s => s.value === avatarStyle)?.label || 'Select style'}</span>
                     <ChevronDown className="h-4 w-4 opacity-50" />
                   </button>
                   
@@ -598,7 +610,14 @@ export default function FamilyMembersView({ familyName }: FamilyMembersViewProps
                                 <Check className="absolute left-2 h-4 w-4 text-blue-600" />
                               )}
                               <div className="flex flex-col items-start">
-                                <span>{style.label}</span>
+                                <div className="flex items-center gap-2">
+                                  <span>{style.label}</span>
+                                  {style.type === 'pro' && (
+                                    <Badge variant="secondary" className="text-xs px-1 py-0 bg-gradient-warm text-white">
+                                      PRO
+                                    </Badge>
+                                  )}
+                                </div>
                                 <span className="text-xs text-gray-500">{style.category}</span>
                               </div>
                             </button>
