@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Settings, Lock, User, Shield, Bell, Palette, Users } from "lucide-react"
+import { Settings, Lock, User, Shield, Bell, Palette, Users, Code } from "lucide-react"
 import { auth } from "../../../lib/supabase"
 import { storage } from "../../../lib/storage"
 import type { FamilyMember } from "../../onboarding/OnboardingWizard"
@@ -32,6 +32,24 @@ export default function SettingsView() {
       setFamilyName(existingFamilyName)
     } catch (error) {
       console.error("Error loading family data:", error)
+    }
+  }
+
+  // Force onboarding toggle
+  const handleForceOnboarding = () => {
+    const currentForce = storage.getForceOnboarding()
+    storage.setForceOnboarding(!currentForce)
+    setMessage({ 
+      type: "success", 
+      text: `Force onboarding ${!currentForce ? "enabled" : "disabled"}. Refresh the page to see the effect.` 
+    })
+  }
+
+  // Reset all data
+  const handleResetData = () => {
+    if (confirm("Are you sure you want to reset all data? This will clear everything and redirect you to onboarding.")) {
+      storage.clearAll()
+      window.location.href = "/onboarding"
     }
   }
 
@@ -174,6 +192,25 @@ export default function SettingsView() {
           description: "Choose light or dark mode",
           action: "Select",
           onClick: () => {}
+        }
+      ]
+    },
+    {
+      id: "developer",
+      title: "Developer Tools",
+      icon: Code,
+      items: [
+        {
+          title: "Force Onboarding",
+          description: `Currently ${storage.getForceOnboarding() ? "enabled" : "disabled"}. Toggle to force onboarding flow.`,
+          action: storage.getForceOnboarding() ? "Disable" : "Enable",
+          onClick: handleForceOnboarding
+        },
+        {
+          title: "Reset All Data",
+          description: "Clear all data and start fresh (for testing)",
+          action: "Reset",
+          onClick: handleResetData
         }
       ]
     }

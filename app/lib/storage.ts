@@ -112,5 +112,18 @@ export const storage = {
     localStorage.removeItem("kidoers_chores")
     localStorage.removeItem("kidoers_activities")
     localStorage.removeItem("kidoers_rewards")
+    localStorage.removeItem("kidoers_force_onboarding")
+  },
+
+  // Force onboarding flag
+  getForceOnboarding: () => {
+    if (typeof window === "undefined") return false
+    const forceOnboarding = localStorage.getItem("kidoers_force_onboarding")
+    return forceOnboarding ? JSON.parse(forceOnboarding) : false
+  },
+
+  setForceOnboarding: (force: boolean) => {
+    if (typeof window === "undefined") return
+    localStorage.setItem("kidoers_force_onboarding", JSON.stringify(force))
   },
 }

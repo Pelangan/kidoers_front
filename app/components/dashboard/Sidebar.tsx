@@ -75,14 +75,10 @@ export default function Sidebar({ currentView, setCurrentView, isOpen, setIsOpen
             ) : (
               <div className="flex items-center">
                 <img
-                  src="/symbol_kidoers.png"
+                  src="/symbol.svg"
                   alt="Kidoers"
                   className="h-8 w-8 object-contain"
                   style={{ minWidth: '32px', minHeight: '32px' }}
-                  onError={(e) => {
-                    console.error('Failed to load symbol_kidoers.png, trying SVG fallback');
-                    e.currentTarget.src = '/symbol.svg';
-                  }}
                 />
                 <button onClick={() => setIsOpen(!isOpen)} className="p-1 hover:bg-muted rounded-lg transition-colors -ml-1">
                   <ChevronRight className="h-5 w-5" />

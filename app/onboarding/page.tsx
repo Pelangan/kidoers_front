@@ -26,7 +26,9 @@ export default function OnboardingPage() {
 
         // Check if onboarding is already completed
         const family = storage.getFamily()
-        if (family) {
+        const forceOnboarding = storage.getForceOnboarding()
+        
+        if (family && !forceOnboarding) {
           router.push("/dashboard")
           return
         }

@@ -85,6 +85,9 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
       storage.setChores(chores)
       storage.setActivities(activities)
       storage.setRewards(rewards)
+      
+      // Clear the force onboarding flag
+      storage.setForceOnboarding(false)
 
       onComplete()
     }
