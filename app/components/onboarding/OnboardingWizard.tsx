@@ -12,6 +12,8 @@ export type FamilyMember = {
   name: string
   role: "parent" | "child"
   color: string
+  age?: number
+  avatar_url?: string
   calmMode: boolean
   textToSpeech: boolean
 }

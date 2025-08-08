@@ -150,6 +150,7 @@ interface FamilyMember {
   name: string
   role: "parent" | "child"
   color: string
+  age?: number
   avatarStyle?: string
   avatarOptions?: Record<string, string>
   avatarUrl?: string

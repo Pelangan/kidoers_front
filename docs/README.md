@@ -75,7 +75,7 @@ kidoers_front/
 #### Data Models
 - **User**: `{ id, email, name }`
 - **Family**: `{ id, name, createdAt }`
-- **FamilyMember**: `{ id, name, role, calmMode, textToSpeech }`
+- **FamilyMember**: `{ id, name, role, age, calmMode, textToSpeech }`
 - **Chore**: `{ id, title, description, frequency, assignedTo, completed }`
 - **Activity**: `{ id, title, description, scheduled_date, depends_on_chores }`
 - **Reward**: `{ id, title, description, threshold }`
