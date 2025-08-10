@@ -5,7 +5,7 @@ import { Plus, Check, CheckSquare, Clock, Folder, ChevronLeft, ChevronRight, Edi
 import { storage } from "../../../lib/storage"
 import AddChoreModal from "../../chores/AddChoreModal"
 
-import type { Chore, FamilyMember } from "../../onboarding/OnboardingWizard"
+import type { Chore, FamilyMember } from "../../../types"
 
 type GroupByType = "time" | "categories"
 

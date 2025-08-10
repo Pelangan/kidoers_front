@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { X, Plus, Calendar, Clock, Users } from "lucide-react"
-import type { Chore, FamilyMember } from "../onboarding/OnboardingWizard"
+import type { Chore, FamilyMember } from "../../types"
 import { softColors } from "../ui/ColorPicker"
 
 interface AddChoreModalProps {

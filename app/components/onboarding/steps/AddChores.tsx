@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState } from "react"
 import { ArrowLeft, Plus, X, Calendar, Clock, Users, Folder } from "lucide-react"
-import type { Chore, FamilyMember } from "../OnboardingWizard"
+import type { Chore, FamilyMember } from "../../../types"
 import { softColors } from "../../ui/ColorPicker"
 
 interface AddChoresProps {

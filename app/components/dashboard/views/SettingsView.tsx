@@ -1,10 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { Settings, Lock, User, Shield, Bell, Palette, Users, Code } from "lucide-react"
+import { Settings, Lock, User, Shield, Bell, Palette, Users } from "lucide-react"
 import { auth } from "../../../lib/supabase"
 import { storage } from "../../../lib/storage"
-import type { FamilyMember } from "../../onboarding/OnboardingWizard"
+import type { FamilyMember } from "../../../types"
 import ColorPicker, { softColors } from "../../ui/ColorPicker"
 
 export default function SettingsView() {
@@ -35,23 +35,9 @@ export default function SettingsView() {
     }
   }
 
-  // Force onboarding toggle
-  const handleForceOnboarding = () => {
-    const currentForce = storage.getForceOnboarding()
-    storage.setForceOnboarding(!currentForce)
-    setMessage({ 
-      type: "success", 
-      text: `Force onboarding ${!currentForce ? "enabled" : "disabled"}. Refresh the page to see the effect.` 
-    })
-  }
 
-  // Reset all data
-  const handleResetData = () => {
-    if (confirm("Are you sure you want to reset all data? This will clear everything and redirect you to onboarding.")) {
-      storage.clearAll()
-      window.location.href = "/onboarding"
-    }
-  }
+
+
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -101,11 +87,15 @@ export default function SettingsView() {
   const addMember = () => {
     if (!newMemberName.trim()) return
     
+    // Set age to null for parents, or use default child age (5)
+    const memberAge = newMemberRole === "parent" ? null : 5
+    
     const newMember: FamilyMember = {
       id: Date.now().toString(),
       name: newMemberName.trim(),
       role: newMemberRole,
       color: newMemberColor,
+      age: memberAge,
       calmMode: false,
       textToSpeech: false,
     }
@@ -195,25 +185,7 @@ export default function SettingsView() {
         }
       ]
     },
-    {
-      id: "developer",
-      title: "Developer Tools",
-      icon: Code,
-      items: [
-        {
-          title: "Force Onboarding",
-          description: `Currently ${storage.getForceOnboarding() ? "enabled" : "disabled"}. Toggle to force onboarding flow.`,
-          action: storage.getForceOnboarding() ? "Disable" : "Enable",
-          onClick: handleForceOnboarding
-        },
-        {
-          title: "Reset All Data",
-          description: "Clear all data and start fresh (for testing)",
-          action: "Reset",
-          onClick: handleResetData
-        }
-      ]
-    }
+
   ]
 
   return (

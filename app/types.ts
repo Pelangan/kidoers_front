@@ -3,6 +3,10 @@ export interface FamilyMember {
   name: string
   role: 'parent' | 'child'
   color: string
+  age?: number | null
+  avatar_url?: string
+  calmMode: boolean
+  textToSpeech: boolean
   avatarStyle?: string
   avatarOptions?: Record<string, string>
   avatarUrl?: string
@@ -12,13 +16,12 @@ export interface Chore {
   id: string
   title: string
   description: string
-  frequency: 'daily' | 'weekly' | 'monthly' | 'once'
-  timeOfDay?: 'morning' | 'afternoon' | 'evening' | 'anytime'
+  frequency: 'daily' | 'weekly' | 'weekends'
+  timeOfDay: 'morning' | 'afternoon' | 'evening'
   category?: string
   assignedTo: string
   points: number
   completed: boolean
-  dueDate?: string
 }
 
 export interface Activity {
@@ -28,26 +31,23 @@ export interface Activity {
   location?: string
   time?: string
   duration?: number
-  frequency?: 'daily' | 'weekly' | 'monthly' | 'once'
+  frequency?: 'daily' | 'weekly' | 'monthly'
   daysOfWeek?: string[]
   icon?: string
-  assignedTo?: string[]
+  assignedTo?: string
+  completed: boolean
   scheduled_date?: string
-  depends_on_chores?: string[]
+  depends_on_chores?: boolean
 }
 
 export interface Reward {
   id: string
   title: string
   description: string
-  type: 'points' | 'activity' | 'privilege'
-  conditions: {
-    choresCompleted?: number
-    pointsEarned?: number
-    daysStreak?: number
-  }
-  icon?: string
-  availableTo?: string[]
+  type: 'complete_tasks' | 'complete_categories' | 'complete_time_slots' | 'specific_tasks' | 'streak' | 'mixed'
+  conditions: any
+  icon: string
+  availableTo: string
   threshold?: number
 }
 

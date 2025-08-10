@@ -5,7 +5,7 @@ import { Calendar, Plus, Clock, ChevronLeft, ChevronRight } from "lucide-react"
 import { storage } from "../../../lib/storage"
 import AddActivityModal from "../../activities/AddActivityModal"
 
-import type { Activity, FamilyMember } from "../../onboarding/OnboardingWizard"
+import type { Activity, FamilyMember } from "../../../types"
 
 export default function CalendarView() {
   const [activities, setActivities] = useState<Activity[]>([])

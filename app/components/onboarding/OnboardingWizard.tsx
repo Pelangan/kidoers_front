@@ -12,7 +12,7 @@ export type FamilyMember = {
   name: string
   role: "parent" | "child"
   color: string
-  age?: number
+  age?: number | null
   avatar_url?: string
   calmMode: boolean
   textToSpeech: boolean
@@ -87,9 +87,6 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
       storage.setChores(chores)
       storage.setActivities(activities)
       storage.setRewards(rewards)
-      
-      // Clear the force onboarding flag
-      storage.setForceOnboarding(false)
 
       onComplete()
     }

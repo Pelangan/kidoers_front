@@ -33,7 +33,6 @@ export default function SignUpPage() {
       const hasNavigatedThisSession = sessionStorage.getItem('hasNavigatedToOnboarding')
       
       if (!hasNavigatedThisSession) {
-        console.log("Redirecting to onboarding")
         sessionStorage.setItem('hasNavigatedToOnboarding', 'true')
         router.push("/onboarding")
       }

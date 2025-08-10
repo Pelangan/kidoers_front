@@ -173,6 +173,9 @@ export default function FamilyMembersView({ familyName }: FamilyMembersViewProps
           name: 'Cristian',
           role: 'parent',
           color: 'blue',
+          age: null,
+          calmMode: false,
+          textToSpeech: false,
           avatarStyle: 'adventurer'
         },
         {
@@ -180,6 +183,9 @@ export default function FamilyMembersView({ familyName }: FamilyMembersViewProps
           name: 'Cristina',
           role: 'parent',
           color: 'green',
+          age: null,
+          calmMode: false,
+          textToSpeech: false,
           avatarStyle: 'avataaars'
         },
         {
@@ -187,6 +193,9 @@ export default function FamilyMembersView({ familyName }: FamilyMembersViewProps
           name: 'Clàudia',
           role: 'child',
           color: 'pink',
+          age: 8,
+          calmMode: false,
+          textToSpeech: false,
           avatarStyle: 'lorelei'
         },
         {
@@ -194,6 +203,9 @@ export default function FamilyMembersView({ familyName }: FamilyMembersViewProps
           name: 'Guille',
           role: 'child',
           color: 'orange',
+          age: 6,
+          calmMode: false,
+          textToSpeech: false,
           avatarStyle: 'bottts'
         }
       ]
@@ -256,10 +268,9 @@ export default function FamilyMembersView({ familyName }: FamilyMembersViewProps
       .filter(chore => chore.completed)
       .reduce((sum, chore) => sum + (chore.points || 0), 0)
     
-    // Calculate overdue priorities (chores due today or past due)
-    const today = new Date().toISOString().split('T')[0]
+    // Calculate overdue priorities (chores not completed)
     const overduePriorities = memberChores.filter(chore => 
-      !chore.completed && chore.dueDate && chore.dueDate <= today
+      !chore.completed
     ).length
 
     const completionRate = totalChores > 0 ? Math.round((completedChores / totalChores) * 100) : 0

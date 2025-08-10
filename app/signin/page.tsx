@@ -40,8 +40,7 @@ export default function SignInPage() {
   useEffect(() => {
     if (user && !loading) {
       console.log("User authenticated:", user.email)
-      console.log("Redirecting to onboarding")
-      router.push("/onboarding")
+              router.push("/onboarding")
     }
   }, [user, loading, router])
 

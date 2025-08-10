@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { X, Plus, Calendar, Clock, MapPin, Star, Monitor } from "lucide-react"
-import type { Activity, FamilyMember } from "../onboarding/OnboardingWizard"
+import type { Activity, FamilyMember } from "../../types"
 import { softColors } from "../ui/ColorPicker"
 
 interface AddActivityModalProps {

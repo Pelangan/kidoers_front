@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState } from "react"
 import { Users, Plus, X, ChevronDown } from "lucide-react"
-import type { FamilyMember } from "../OnboardingWizard"
+import type { FamilyMember } from "../../../types"
 import ColorPicker, { softColors } from "../../ui/ColorPicker"
 import { apiService } from "../../../lib/api"
 import { supabase } from "../../../lib/supabase"
@@ -24,6 +24,15 @@ export default function CreateFamily({ familyName, setFamilyName, members, setMe
   const [newMemberRole, setNewMemberRole] = useState<"parent" | "child">("child")
   const [newMemberColor, setNewMemberColor] = useState("blue")
   const [showRoleDropdown, setShowRoleDropdown] = useState(false)
+
+  // Update age when role changes - hide age field for parents
+  const handleRoleChange = (role: "parent" | "child") => {
+    setNewMemberRole(role)
+    if (role === "child") {
+      setNewMemberAge("5") // Reset to default child age
+    }
+    setShowRoleDropdown(false)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -51,7 +60,7 @@ export default function CreateFamily({ familyName, setFamilyName, members, setMe
       const apiMembers = members.map(member => ({
         name: member.name,
         role: member.role,
-        age: member.age || 5,
+        age: member.age, // Keep null for parents, actual age for children
         color: member.color,
         avatar_url: member.avatar_url
       }))
@@ -89,12 +98,15 @@ export default function CreateFamily({ familyName, setFamilyName, members, setMe
   const addMember = () => {
     if (!newMemberName.trim()) return
     
+    // Set age to null for parents, or use selected age for children
+    const memberAge = newMemberRole === "parent" ? null : parseInt(newMemberAge)
+    
     const newMember: FamilyMember = {
       id: Date.now().toString(),
       name: newMemberName.trim(),
       role: newMemberRole,
       color: newMemberColor,
-      age: parseInt(newMemberAge),
+      age: memberAge,
       calmMode: false,
       textToSpeech: false,
     }
@@ -166,21 +178,23 @@ export default function CreateFamily({ familyName, setFamilyName, members, setMe
               />
             </div>
 
-            {/* Age Dropdown */}
-            <div className="relative">
-              <select
-                value={newMemberAge}
-                onChange={(e) => setNewMemberAge(e.target.value)}
-                className="input appearance-none pr-8"
-              >
-                {ageOptions.map(age => (
-                  <option key={age} value={age.toString()}>
-                    {age}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            </div>
+            {/* Age Dropdown - Only show for children */}
+            {newMemberRole === "child" && (
+              <div className="relative">
+                <select
+                  value={newMemberAge}
+                  onChange={(e) => setNewMemberAge(e.target.value)}
+                  className="input appearance-none pr-8"
+                >
+                  {ageOptions.map(age => (
+                    <option key={age} value={age.toString()}>
+                      {age}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              </div>
+            )}
 
             {/* Role Dropdown */}
             <div className="relative">
@@ -197,20 +211,14 @@ export default function CreateFamily({ familyName, setFamilyName, members, setMe
                 <div className="absolute top-full left-0 mt-1 bg-white border border-border rounded-lg shadow-lg z-10 min-w-[100px]">
                   <button
                     type="button"
-                    onClick={() => {
-                      setNewMemberRole("parent")
-                      setShowRoleDropdown(false)
-                    }}
+                    onClick={() => handleRoleChange("parent")}
                     className="w-full text-left px-3 py-2 hover:bg-muted rounded-t-lg"
                   >
                     Parent
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setNewMemberRole("child")
-                      setShowRoleDropdown(false)
-                    }}
+                    onClick={() => handleRoleChange("child")}
                     className="w-full text-left px-3 py-2 hover:bg-muted rounded-b-lg"
                   >
                     Child
@@ -259,7 +267,9 @@ export default function CreateFamily({ familyName, setFamilyName, members, setMe
                     </div>
                     <div className="flex-1">
                       <div className="font-medium">{member.name}</div>
-                      <div className="text-sm text-muted-foreground">Age {member.age || 5}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {member.role === "parent" ? "Parent" : `Age ${member.age || 5}`}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`text-xs px-2 py-1 rounded-full capitalize ${

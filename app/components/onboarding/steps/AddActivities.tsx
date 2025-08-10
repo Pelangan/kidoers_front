@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState } from "react"
 import { ArrowLeft, Plus, X, Calendar, Clock, MapPin, Star, Monitor } from "lucide-react"
-import type { Activity, FamilyMember } from "../OnboardingWizard"
+import type { Activity, FamilyMember } from "../../../types"
 import { softColors } from "../../ui/ColorPicker"
 
 interface AddActivitiesProps {

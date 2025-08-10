@@ -14,7 +14,7 @@ export interface FamilyMember {
   id?: string
   name: string
   role: 'parent' | 'child'
-  age?: number
+  age?: number | null
   color: string
   avatar_url?: string
 }

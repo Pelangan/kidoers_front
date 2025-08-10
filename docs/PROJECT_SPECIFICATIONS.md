@@ -305,57 +305,7 @@ interface Reward {
   - Visual progress indicators
   - Reward status (locked/unlocked)
 
-## 🚧 TEMPORARY DEVELOPMENT FEATURES
 
-### ⚠️ IMPORTANT: These features are for development/testing only and MUST be removed before production
-
-#### Force Onboarding System
-**Purpose**: Allow developers to force the onboarding flow to appear for testing purposes, even when a user has already completed onboarding.
-
-**Implementation**:
-- **Storage Key**: `kidoers_force_onboarding` (boolean)
-- **Storage Functions**: 
-  - `storage.getForceOnboarding()`: Check if force onboarding is enabled
-  - `storage.setForceOnboarding(force)`: Enable/disable force onboarding
-- **Dashboard Logic**: Modified to redirect to onboarding if force flag is enabled
-- **Onboarding Logic**: Modified to allow onboarding if force flag is enabled
-- **Auto-Clear**: Force flag is automatically cleared when onboarding completes
-
-**Access Methods**:
-1. **Browser Console**:
-   ```javascript
-   kidoersDev.forceOnboarding()  // Toggle force onboarding
-   kidoersDev.showStatus()        // Show current status
-   kidoersDev.resetData()         // Clear all data and go to onboarding
-   ```
-
-2. **Settings Page**: Settings → Developer Tools → Force Onboarding toggle
-
-3. **Direct localStorage**:
-   ```javascript
-   localStorage.setItem("kidoers_force_onboarding", "true")  // Enable
-   localStorage.setItem("kidoers_force_onboarding", "false") // Disable
-   ```
-
-**Files Modified**:
-- `app/lib/storage.ts` - Added force onboarding functions
-- `app/dashboard/page.tsx` - Modified routing logic
-- `app/onboarding/page.tsx` - Modified routing logic  
-- `app/components/onboarding/OnboardingWizard.tsx` - Auto-clear flag on completion
-- `app/components/dashboard/views/SettingsView.tsx` - Added developer tools section
-- `app/layout.tsx` - Added console utilities
-
-**REMOVAL CHECKLIST**:
-- [ ] Remove `getForceOnboarding()` and `setForceOnboarding()` from storage.ts
-- [ ] Remove force onboarding logic from dashboard/page.tsx
-- [ ] Remove force onboarding logic from onboarding/page.tsx
-- [ ] Remove auto-clear logic from OnboardingWizard.tsx
-- [ ] Remove developer tools section from SettingsView.tsx
-- [ ] Remove console utilities from layout.tsx
-- [ ] Remove `kidoers_force_onboarding` from storage keys documentation
-- [ ] Remove this entire "TEMPORARY DEVELOPMENT FEATURES" section
-
-**Notes**: This feature was added on [DATE] to facilitate onboarding flow development and testing. It should be removed once the onboarding flow is finalized and tested.
 
 
 
@@ -372,7 +322,6 @@ interface Reward {
 "kidoers_activities"     // Calendar activities
 "kidoers_rewards"        // Family rewards
 "kidoers_welcome_dismissed" // Welcome message state
-"kidoers_force_onboarding" // TEMPORARY: Force onboarding flag (DEV ONLY)
 ```
 
 #### Storage Functions

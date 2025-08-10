@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState } from "react"
 import { ArrowLeft, Plus, X, Gift, Trophy, Star, Target } from "lucide-react"
-import type { Reward, FamilyMember, Chore } from "../OnboardingWizard"
+import type { Reward, FamilyMember, Chore } from "../../../types"
 
 interface AddRewardsProps {
   rewards: Reward[]
