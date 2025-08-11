@@ -30,24 +30,51 @@ export interface FamilyWithMembers extends Family {
   members: FamilyMember[]
 }
 
+export interface User {
+  id: string
+  email: string
+  name?: string
+  is_active: boolean
+  onboarding_status: string
+}
+
 // API service class
 class ApiService {
-  private async getAuthHeaders(): Promise<HeadersInit> {
-    const token = await this.getAuthToken()
-    return {
-      'Content-Type': 'application/json',
-      ...(token && { 'Authorization': `Bearer ${token}` })
-    }
-  }
-
   private async getAuthToken(): Promise<string | null> {
     try {
+      console.log('Getting auth token...')
       const { data: { session } } = await supabase.auth.getSession()
-      return session?.access_token || null
+      console.log('Session data:', session)
+      
+      if (session?.access_token) {
+        console.log('Access token found, length:', session.access_token.length)
+        return session.access_token
+      } else {
+        console.log('No access token found in session')
+        return null
+      }
     } catch (error) {
       console.error('Error getting auth token:', error)
       return null
     }
+  }
+
+  private async getAuthHeaders(): Promise<HeadersInit> {
+    const token = await this.getAuthToken()
+    console.log('Auth headers - token present:', !!token)
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json'
+    }
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+      console.log('Authorization header added')
+    } else {
+      console.log('No authorization header added - no token')
+    }
+    
+    return headers
   }
 
   private async makeRequest<T>(
@@ -56,20 +83,29 @@ class ApiService {
   ): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`
     const headers = await this.getAuthHeaders()
+    console.log('Making request to:', url)
+    console.log('Request headers:', headers)
+    
     const config: RequestInit = {
       ...options,
       headers,
     }
 
     try {
+      console.log('Sending request...')
       const response = await fetch(url, config)
+      console.log('Response status:', response.status)
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()))
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
+        console.error('Response error:', errorData)
         throw new Error(errorData.detail || `HTTP error! status: ${response.status}`)
       }
 
-      return await response.json()
+      const responseData = await response.json()
+      console.log('Response data:', responseData)
+      return responseData
     } catch (error) {
       console.error('API request failed:', error)
       throw error
@@ -147,6 +183,44 @@ class ApiService {
   async deleteFamilyMember(familyId: string, memberId: string): Promise<void> {
     return this.makeRequest<void>(`/families/${familyId}/members/${memberId}`, {
       method: 'DELETE'
+    })
+  }
+
+  // User profile endpoints
+  async getUserProfile(): Promise<User> {
+    return this.makeRequest<User>('/users/profile')
+  }
+
+  async updateUserProfile(updates: Partial<User>): Promise<User> {
+    return this.makeRequest<User>('/users/profile', {
+      method: 'PUT',
+      body: JSON.stringify(updates)
+    })
+  }
+
+  async getUserById(userId: string): Promise<User> {
+    return this.makeRequest<User>(`/users/${userId}`)
+  }
+
+  // Routine endpoints
+  async createRoutine(routine: any): Promise<any> {
+    return this.makeRequest<any>('/routines', {
+      method: 'POST',
+      body: JSON.stringify(routine)
+    })
+  }
+
+  async createRoutineTaskGroup(taskGroup: any): Promise<any> {
+    return this.makeRequest<any>('/routines/task-groups', {
+      method: 'POST',
+      body: JSON.stringify(taskGroup)
+    })
+  }
+
+  async createRoutineTask(task: any): Promise<any> {
+    return this.makeRequest<any>('/routines/tasks', {
+      method: 'POST',
+      body: JSON.stringify(task)
     })
   }
 }

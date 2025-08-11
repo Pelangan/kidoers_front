@@ -94,36 +94,5 @@ export interface UserProfile {
   updated_at: string
 }
 
-// Database helper functions
-export const db = {
-  // Get user profile
-  getUserProfile: async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-    return { profile: data, error: error?.message }
-  },
-
-  // Update user profile
-  updateUserProfile: async (userId: string, updates: Partial<UserProfile>) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .update(updates)
-      .eq('id', userId)
-      .select()
-      .single()
-    return { profile: data, error: error?.message }
-  },
-
-  // Create user profile
-  createUserProfile: async (profile: Omit<UserProfile, 'created_at' | 'updated_at'>) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .insert([profile])
-      .select()
-      .single()
-    return { profile: data, error: error?.message }
-  }
-} 
+// Note: All database operations should go through the backend API
+// This file only handles authentication via Supabase 

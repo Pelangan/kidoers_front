@@ -1,11 +1,11 @@
 "use client"
 
-import { useState } from "react"
-import { storage } from "../../lib/storage"
-import CreateFamily from "./steps/CreateFamily"
-import AddChores from "./steps/AddChores"
-import AddActivities from "./steps/AddActivities"
-import AddRewards from "./steps/AddRewards"
+import { useState, useEffect } from "react"
+import { auth } from "../../lib/supabase"
+import { apiService } from "../../lib/api"
+import CreateFamilyStep from "./steps/CreateFamilyStep"
+import CreateRoutineStep from "./steps/CreateRoutineStep"
+import { useRouter } from "next/navigation"
 
 export type FamilyMember = {
   id: string
@@ -14,47 +14,6 @@ export type FamilyMember = {
   color: string
   age?: number | null
   avatar_url?: string
-  calmMode: boolean
-  textToSpeech: boolean
-}
-
-export type Chore = {
-  id: string
-  title: string
-  description: string
-  frequency: "daily" | "weekly" | "weekends"
-  timeOfDay: "morning" | "afternoon" | "evening"
-  category?: string
-  assignedTo: string
-  points: number
-  completed: boolean
-}
-
-export type Activity = {
-  id: string
-  title: string
-  description: string
-  location?: string
-  time?: string
-  duration?: number
-  frequency?: "daily" | "weekly" | "monthly"
-  daysOfWeek?: string[]
-  icon?: string
-  assignedTo?: string
-  completed: boolean
-  scheduled_date?: string
-  depends_on_chores?: boolean
-}
-
-export type Reward = {
-  id: string
-  title: string
-  description: string
-  type: "complete_tasks" | "complete_categories" | "complete_time_slots" | "specific_tasks" | "streak" | "mixed"
-  conditions: any
-  icon: string
-  availableTo: string
-  threshold?: number
 }
 
 interface OnboardingWizardProps {
@@ -63,32 +22,16 @@ interface OnboardingWizardProps {
 
 export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   const [currentStep, setCurrentStep] = useState(1)
-  const [familyName, setFamilyName] = useState("")
-  const [members, setMembers] = useState<FamilyMember[]>([])
-  const [chores, setChores] = useState<Chore[]>([])
-  const [activities, setActivities] = useState<Activity[]>([])
-  const [rewards, setRewards] = useState<Reward[]>([])
+  const [familyId, setFamilyId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const router = useRouter()
 
-  const totalSteps = 4
+  const totalSteps = 2
 
   const nextStep = () => {
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1)
-    } else {
-      // Complete onboarding - save all data to localStorage
-      const family = {
-        id: Date.now().toString(),
-        name: familyName,
-        createdAt: new Date().toISOString(),
-      }
-
-      storage.setFamily(family)
-      storage.setMembers(members)
-      storage.setChores(chores)
-      storage.setActivities(activities)
-      storage.setRewards(rewards)
-
-      onComplete()
     }
   }
 
@@ -98,72 +41,79 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
     }
   }
 
+  const handleFamilyCreated = (newFamilyId: string) => {
+    setFamilyId(newFamilyId)
+    nextStep()
+  }
+
+  const handleRoutineCreated = async () => {
+    setLoading(true)
+    try {
+      // Mark onboarding as completed
+      const currentUser = await auth.getCurrentUser()
+      if (!currentUser || !familyId) {
+        throw new Error("User or family not found")
+      }
+
+      // Update family onboarding status via backend API
+      await apiService.updateFamily(familyId, { onboarding_status: 'completed' })
+
+      // Update user onboarding status via backend API
+      await apiService.updateUserProfile({ onboarding_status: 'completed' })
+
+      onComplete()
+    } catch (error) {
+      console.error("Error completing onboarding:", error)
+      setError("Failed to complete onboarding. Please try again.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return (
-          <CreateFamily
-            familyName={familyName}
-            setFamilyName={setFamilyName}
-            members={members}
-            setMembers={setMembers}
-            onNext={nextStep}
-          />
-        )
+        return <CreateFamilyStep onComplete={handleFamilyCreated} />
       case 2:
-        return (
-          <AddChores
-            chores={chores}
-            setChores={setChores}
-            members={members}
-            onNext={nextStep}
-            onBack={prevStep}
-          />
-        )
-      case 3:
-        return (
-          <AddActivities
-            activities={activities}
-            setActivities={setActivities}
-            members={members}
-            onNext={nextStep}
-            onBack={prevStep}
-          />
-        )
-      case 4:
-        return (
-          <AddRewards
-            rewards={rewards}
-            setRewards={setRewards}
-            members={members}
-            chores={chores}
-            onNext={nextStep}
-            onBack={prevStep}
-          />
-        )
+        return <CreateRoutineStep familyId={familyId!} onComplete={handleRoutineCreated} />
       default:
-        return null
+        return <CreateFamilyStep onComplete={handleFamilyCreated} />
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-soft flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600">Completing onboarding...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="min-h-screen bg-gradient-soft">
       <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-800 mb-2">Welcome to Kidoers</h1>
+          <p className="text-gray-600">Let's get your family set up in just a few steps</p>
+        </div>
+
         {/* Progress Bar */}
-        <div className="max-w-2xl mx-auto mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-sm text-muted-foreground">
-              Step {currentStep} of {totalSteps}
-            </span>
-            <span className="text-sm text-muted-foreground">
-              {Math.round((currentStep / totalSteps) * 100)}% complete
+        <div className="max-w-md mx-auto mb-8">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-gray-600">Step {currentStep} of {totalSteps}</span>
+            <span className="text-sm font-medium text-primary">
+              {Math.round((currentStep / totalSteps) * 100)}%
             </span>
           </div>
-          <div className="w-full bg-muted rounded-full h-2">
-            <div
-              className="bg-gradient-warm h-2 rounded-full transition-all duration-500 ease-smooth"
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div 
+              className="bg-primary h-2 rounded-full transition-all duration-300"
               style={{ width: `${(currentStep / totalSteps) * 100}%` }}
-            />
+            ></div>
           </div>
         </div>
 
@@ -171,6 +121,34 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
         <div className="max-w-2xl mx-auto">
           {renderStep()}
         </div>
+
+        {/* Navigation */}
+        <div className="max-w-2xl mx-auto mt-8 flex justify-between">
+          <button
+            onClick={prevStep}
+            disabled={currentStep === 1}
+            className={`px-6 py-2 rounded-lg border ${
+              currentStep === 1
+                ? 'border-gray-300 text-gray-400 cursor-not-allowed'
+                : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            Previous
+          </button>
+          
+          <div className="text-sm text-gray-500">
+            Step {currentStep} of {totalSteps}
+          </div>
+        </div>
+
+        {/* Error Display */}
+        {error && (
+          <div className="max-w-2xl mx-auto mt-4">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-red-600 text-sm">{error}</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

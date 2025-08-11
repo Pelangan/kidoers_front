@@ -24,10 +24,10 @@ export default function DashboardPage() {
           return
         }
 
-        // Check if onboarding is completed
-        const family = storage.getFamily()
+        // Check if onboarding is completed from Supabase
+        const onboardingStatus = await storage.checkOnboardingStatus(currentUser.id)
         
-        if (!family) {
+        if (onboardingStatus.needsOnboarding) {
           router.push("/onboarding")
           return
         }

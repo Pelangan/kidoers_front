@@ -22,7 +22,11 @@
  * - Activities: getActivities(), setActivities()
  * - Rewards: getRewards(), setRewards()
  * - Utility: clearAll()
+ * - Supabase Integration: checkOnboardingStatus(), checkFamilyExists()
  */
+
+import { supabase } from './supabase'
+import { apiService } from './api'
 
 // Local storage utilities for persisting data
 export const storage = {
@@ -113,4 +117,123 @@ export const storage = {
     localStorage.removeItem("kidoers_activities")
     localStorage.removeItem("kidoers_rewards")
   },
+
+  // Supabase Integration Functions
+  
+  // Test database connection
+  testConnection: async () => {
+    try {
+      console.log('Testing backend API connection...')
+      
+      // Test the backend API instead of direct Supabase
+      const families = await apiService.getFamilies()
+      
+      console.log('Backend API connection test successful')
+      return { success: true, data: families }
+    } catch (error) {
+      console.error('Backend API connection test error:', error)
+      return { success: false, error: (error as any)?.message || 'Unknown error' }
+    }
+  },
+
+  checkOnboardingStatus: async (userId: string) => {
+    try {
+      console.log('Checking onboarding status for user:', userId)
+      
+      // Use backend API to get families instead of direct Supabase query
+      const families = await apiService.getFamilies()
+      console.log('Families from API:', families)
+
+      if (!families || families.length === 0) {
+        console.log('No family found, user needs onboarding')
+        return {
+          needsOnboarding: true,
+          currentStep: 'create_family',
+          familyExists: false
+        }
+      }
+
+      // User has families, check if they have routines
+      const familyId = families[0].id
+      console.log('Found family ID:', familyId)
+      
+      // For now, assume onboarding is complete if user has families
+      // We can add more sophisticated checks later using the backend API
+      console.log('User has family, onboarding appears complete')
+      return {
+        needsOnboarding: false,
+        currentStep: null,
+        familyExists: true,
+        familyId
+      }
+
+    } catch (error) {
+      console.error('Error checking onboarding status:', error)
+      console.error('Error details:', {
+        message: (error as any)?.message,
+        code: (error as any)?.code,
+        details: (error as any)?.details,
+        hint: (error as any)?.hint
+      })
+      
+      // Check if it's an authentication error
+      if ((error as any)?.message?.includes('401') || (error as any)?.message?.includes('Unauthorized')) {
+        console.error('Authentication error detected - user may not be properly authenticated')
+        return {
+          needsOnboarding: true,
+          currentStep: 'create_family',
+          familyExists: false,
+          authError: true
+        }
+      }
+      
+      // Fallback to showing onboarding
+      return {
+        needsOnboarding: true,
+        currentStep: 'create_family',
+        familyExists: false
+      }
+    }
+  },
+
+  // Check if user already has a family (created by them)
+  checkUserHasFamily: async (userId: string) => {
+    try {
+      console.log('Checking if user has family via backend API...')
+      
+      // Use backend API instead of direct Supabase query
+      const families = await apiService.getFamilies()
+      console.log('Families from API:', families)
+
+      if (families && families.length > 0) {
+        // User has families, return the first one
+        return {
+          id: families[0].id,
+          name: families[0].name,
+          onboarding_status: 'in_progress' // Default status
+        }
+      }
+
+      return null
+    } catch (error) {
+      console.error('Error checking if user has family:', error)
+      return null
+    }
+  },
+
+  // Check if user already has a family
+  checkFamilyExists: async (userId: string) => {
+    try {
+      console.log('Checking family existence via backend API...')
+      
+      // Use backend API instead of direct Supabase query
+      const families = await apiService.getFamilies()
+      console.log('Families from API:', families)
+
+      return families && families.length > 0 ? families[0].id : null
+    } catch (error) {
+      console.error('Error checking family existence:', error)
+      return null
+    }
+  }
 }
