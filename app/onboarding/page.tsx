@@ -92,41 +92,7 @@ export default function OnboardingPage() {
         
         console.log('User found, checking onboarding status...')
         
-        // Test database connection first
-        console.log('Testing database connection...')
-        const connectionTest = await storage.testConnection()
-        console.log('Connection test result:', connectionTest)
-        
-        if (!connectionTest.success) {
-          console.error('Database connection failed:', connectionTest.error)
-          // Could show an error message to the user
-        }
-        
-        // Check if user already has a family (created by them)
-        console.log('Checking if user already has a family...')
-        const existingFamily = await storage.checkUserHasFamily(currentUser.id)
-        console.log('Existing family check:', existingFamily)
-        
-        if (existingFamily) {
-          console.log('User already has a family, checking if they need to complete onboarding...')
-          
-          // Check if onboarding is already completed from Supabase
-          const onboardingStatus = await storage.checkOnboardingStatus(currentUser.id)
-          console.log('Onboarding status:', onboardingStatus)
-          
-          if (!onboardingStatus.needsOnboarding) {
-            console.log('Onboarding completed, redirecting to dashboard')
-            router.push("/dashboard")
-            return
-          }
-          
-          // User has family but onboarding not complete, continue with onboarding
-          console.log('User has family but onboarding not complete, showing onboarding wizard')
-          setLoading(false)
-          return
-        }
-        
-        // User has no family, check if onboarding is already completed from Supabase
+        // Check onboarding status (this handles all the logic now)
         const onboardingStatus = await storage.checkOnboardingStatus(currentUser.id)
         console.log('Onboarding status:', onboardingStatus)
         
@@ -138,7 +104,8 @@ export default function OnboardingPage() {
 
         if (onboardingStatus.authError) {
           console.error('Authentication error detected, user may need to sign in again')
-          // Could redirect to signin or show an error message
+          router.push("/signin")
+          return
         }
 
         console.log('User needs onboarding, showing onboarding wizard')

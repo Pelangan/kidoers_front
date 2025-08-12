@@ -24,6 +24,7 @@ export interface Family {
   name: string
   created_by?: string
   created_at?: string
+  onboarding_status?: 'not_started' | 'in_progress' | 'completed'
 }
 
 export interface FamilyWithMembers extends Family {
@@ -222,6 +223,41 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify(task)
     })
+  }
+
+  // Onboarding endpoints
+  async getOnboardingStatus(): Promise<any> {
+    return this.makeRequest<any>('/onboarding/status')
+  }
+
+  async startOnboardingStep(stepKey: string, familyId?: string, data?: any): Promise<any> {
+    return this.makeRequest<any>('/onboarding/step/start', {
+      method: 'POST',
+      body: JSON.stringify({
+        step_key: stepKey,
+        family_id: familyId,
+        data: data
+      })
+    })
+  }
+
+  async completeOnboardingStep(stepKey: string, familyId?: string, data?: any): Promise<any> {
+    return this.makeRequest<any>('/onboarding/step/complete', {
+      method: 'PUT',
+      body: JSON.stringify({
+        step_key: stepKey,
+        family_id: familyId,
+        data: data
+      })
+    })
+  }
+
+  async getOnboardingStepProgress(stepKey: string): Promise<any> {
+    return this.makeRequest<any>(`/onboarding/step/${stepKey}/progress`)
+  }
+
+  async getAllOnboardingStepsProgress(): Promise<any[]> {
+    return this.makeRequest<any[]>('/onboarding/steps/progress')
   }
 }
 

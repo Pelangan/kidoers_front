@@ -33,6 +33,9 @@ export default function CreateRoutineStep({ familyId, onComplete }: CreateRoutin
         throw new Error("User not authenticated")
       }
 
+      // Start tracking this step
+      // await apiService.startOnboardingStep('create_routine', familyId)
+
       // Create routine via backend API
       const routine = await apiService.createRoutine({
         name: routineName.trim(),
@@ -78,6 +81,13 @@ export default function CreateRoutineStep({ familyId, onComplete }: CreateRoutin
           group_id: null // These are standalone tasks
         })
       }
+
+      // Mark this step as completed
+      // await apiService.completeOnboardingStep('create_routine', familyId, {
+      //   routine_name: routineName.trim(),
+      //   task_groups_count: taskGroups.length,
+      //   sample_tasks_count: sampleTasks.length
+      // })
 
       onComplete()
     } catch (error) {

@@ -29,6 +29,67 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
 
   const totalSteps = 2
 
+  // Check for existing onboarding progress when component mounts
+  useEffect(() => {
+    const checkExistingProgress = async () => {
+      try {
+        // Temporarily disabled step progress tracking to avoid API errors
+        // const progress = await apiService.getAllOnboardingStepsProgress()
+        
+        // For now, just log that we're starting fresh
+        console.log('Starting onboarding fresh - step progress tracking disabled')
+        
+        // TODO: Re-enable when backend endpoints are working
+        /*
+        // If user has completed steps, determine where to resume
+        if (progress && progress.length > 0) {
+          const completedSteps = progress.filter(step => step.status === 'completed')
+          const inProgressSteps = progress.filter(step => step.status === 'in_progress')
+          
+          if (completedSteps.length > 0) {
+            // Find the last completed step to determine next step
+            const lastCompleted = completedSteps.sort((a, b) => 
+              new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
+            )[0]
+            
+            if (lastCompleted.step_key === 'create_family') {
+              // Family created, move to routine step
+              setCurrentStep(2)
+              setFamilyId(lastCompleted.family_id || null)
+            }
+          } else if (inProgressSteps.length > 0) {
+            // Resume from in-progress step
+            const inProgress = inProgressSteps[0]
+            if (inProgress.step_key === 'create_family') {
+              setCurrentStep(1)
+            } else if (inProgress.step_key === 'create_routine') {
+              setCurrentStep(2)
+              setFamilyId(inProgress.family_id || null)
+            }
+          }
+        } else {
+          // No existing progress, start tracking the onboarding process
+          try {
+            await apiService.startOnboardingStep('onboarding_started')
+          } catch (error) {
+            console.log('Could not start onboarding tracking')
+          }
+        }
+        */
+      } catch (error) {
+        console.log('No existing onboarding progress found, starting fresh')
+        // Start tracking the onboarding process
+        try {
+          await apiService.startOnboardingStep('onboarding_started')
+        } catch (error) {
+          console.log('Could not start onboarding tracking')
+        }
+      }
+    }
+
+    checkExistingProgress()
+  }, [])
+
   const nextStep = () => {
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1)
@@ -124,17 +185,17 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
 
         {/* Navigation */}
         <div className="max-w-2xl mx-auto mt-8 flex justify-between">
-          <button
-            onClick={prevStep}
-            disabled={currentStep === 1}
-            className={`px-6 py-2 rounded-lg border ${
-              currentStep === 1
-                ? 'border-gray-300 text-gray-400 cursor-not-allowed'
-                : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            Previous
-          </button>
+          {/* Only show Previous button if not on first step */}
+          {currentStep > 1 ? (
+            <button
+              onClick={prevStep}
+              className="px-6 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50"
+            >
+              Previous
+            </button>
+          ) : (
+            <div></div>
+          )}
           
           <div className="text-sm text-gray-500">
             Step {currentStep} of {totalSteps}

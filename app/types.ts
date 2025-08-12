@@ -54,4 +54,5 @@ export interface Reward {
 export interface Family {
   name: string
   members: FamilyMember[]
+  onboarding_status?: 'not_started' | 'in_progress' | 'completed'
 } 

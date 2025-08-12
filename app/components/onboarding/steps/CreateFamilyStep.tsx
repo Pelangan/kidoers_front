@@ -53,6 +53,12 @@ export default function CreateFamilyStep({ onComplete }: CreateFamilyStepProps) 
         throw new Error("Please sign in to create a family")
       }
 
+      // Update user onboarding status to 'in_progress' since they're starting family creation
+      await apiService.updateUserProfile({ onboarding_status: 'in_progress' })
+
+      // Temporarily disabled step progress tracking to avoid API errors
+      // await apiService.startOnboardingStep('create_family')
+
       // Convert members to API format
       const apiMembers = members.map(member => ({
         name: member.name,
@@ -67,6 +73,21 @@ export default function CreateFamilyStep({ onComplete }: CreateFamilyStepProps) 
         { name: familyName.trim() },
         apiMembers
       )
+
+      // Ensure we have a valid family ID
+      if (!result.id) {
+        throw new Error("Failed to create family - no ID returned")
+      }
+
+      // Update family onboarding status to 'in_progress' since family is created
+      await apiService.updateFamily(result.id, { onboarding_status: 'in_progress' })
+
+      // Temporarily disabled step progress tracking to avoid API errors
+      // await apiService.completeOnboardingStep('create_family', result.id, {
+      //   family_name: familyName.trim(),
+      //   member_count: members.length,
+      //   members: apiMembers
+      // })
 
       // Store the created family and members in localStorage for compatibility
       const { members: createdMembers, ...familyData } = result
