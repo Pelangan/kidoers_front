@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { auth } from "../../lib/supabase"
-import { apiService } from "../../lib/api"
 import CreateFamilyStep from "./steps/CreateFamilyStep"
 import CreateRoutineStep from "./steps/CreateRoutineStep"
 import { useRouter } from "next/navigation"
@@ -33,57 +32,25 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   useEffect(() => {
     const checkExistingProgress = async () => {
       try {
-        // Temporarily disabled step progress tracking to avoid API errors
-        // const progress = await apiService.getAllOnboardingStepsProgress()
+        // Check if user already has a family in localStorage
+        const existingFamily = localStorage.getItem("kidoers_family")
+        const existingMembers = localStorage.getItem("kidoers_members")
         
-        // For now, just log that we're starting fresh
-        console.log('Starting onboarding fresh - step progress tracking disabled')
-        
-        // TODO: Re-enable when backend endpoints are working
-        /*
-        // If user has completed steps, determine where to resume
-        if (progress && progress.length > 0) {
-          const completedSteps = progress.filter(step => step.status === 'completed')
-          const inProgressSteps = progress.filter(step => step.status === 'in_progress')
+        if (existingFamily && existingMembers) {
+          const familyData = JSON.parse(existingFamily)
+          const membersData = JSON.parse(existingMembers)
           
-          if (completedSteps.length > 0) {
-            // Find the last completed step to determine next step
-            const lastCompleted = completedSteps.sort((a, b) => 
-              new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
-            )[0]
-            
-            if (lastCompleted.step_key === 'create_family') {
-              // Family created, move to routine step
-              setCurrentStep(2)
-              setFamilyId(lastCompleted.family_id || null)
-            }
-          } else if (inProgressSteps.length > 0) {
-            // Resume from in-progress step
-            const inProgress = inProgressSteps[0]
-            if (inProgress.step_key === 'create_family') {
-              setCurrentStep(1)
-            } else if (inProgress.step_key === 'create_routine') {
-              setCurrentStep(2)
-              setFamilyId(inProgress.family_id || null)
-            }
+          if (familyData.id && membersData.length > 0) {
+            // User already has a family, move to routine step
+            setCurrentStep(2)
+            setFamilyId(familyData.id)
+            console.log('Resuming onboarding from routine step - family already exists')
           }
         } else {
-          // No existing progress, start tracking the onboarding process
-          try {
-            await apiService.startOnboardingStep('onboarding_started')
-          } catch (error) {
-            console.log('Could not start onboarding tracking')
-          }
+          console.log('Starting onboarding fresh - no existing family found')
         }
-        */
       } catch (error) {
         console.log('No existing onboarding progress found, starting fresh')
-        // Start tracking the onboarding process
-        try {
-          await apiService.startOnboardingStep('onboarding_started')
-        } catch (error) {
-          console.log('Could not start onboarding tracking')
-        }
       }
     }
 
@@ -110,18 +77,29 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   const handleRoutineCreated = async () => {
     setLoading(true)
     try {
-      // Mark onboarding as completed
+      // Mark onboarding as completed in localStorage
       const currentUser = await auth.getCurrentUser()
       if (!currentUser || !familyId) {
         throw new Error("User or family not found")
       }
 
-      // Update family onboarding status via backend API
-      await apiService.updateFamily(familyId, { onboarding_status: 'completed' })
+      // Update user profile in localStorage
+      const userData = localStorage.getItem("kidoers_user")
+      if (userData) {
+        const user = JSON.parse(userData)
+        user.onboarding_status = 'completed'
+        localStorage.setItem("kidoers_user", JSON.stringify(user))
+      }
 
-      // Update user onboarding status via backend API
-      await apiService.updateUserProfile({ onboarding_status: 'completed' })
+      // Update family onboarding status in localStorage
+      const familyData = localStorage.getItem("kidoers_family")
+      if (familyData) {
+        const family = JSON.parse(familyData)
+        family.onboarding_status = 'completed'
+        localStorage.setItem("kidoers_family", JSON.stringify(family))
+      }
 
+      console.log('Onboarding completed successfully')
       onComplete()
     } catch (error) {
       console.error("Error completing onboarding:", error)

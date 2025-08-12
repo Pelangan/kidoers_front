@@ -24,8 +24,8 @@ export default function DashboardPage() {
           return
         }
 
-        // Check if onboarding is completed from Supabase
-        const onboardingStatus = await storage.checkOnboardingStatus(currentUser.id)
+        // Check if onboarding is completed using localStorage
+        const onboardingStatus = storage.checkOnboardingStatus()
         
         if (onboardingStatus.needsOnboarding) {
           router.push("/onboarding")

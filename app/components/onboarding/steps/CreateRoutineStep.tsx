@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { auth } from "../../../lib/supabase"
-import { apiService } from "../../../lib/api"
 
 interface CreateRoutineStepProps {
   familyId: string
@@ -33,61 +32,71 @@ export default function CreateRoutineStep({ familyId, onComplete }: CreateRoutin
         throw new Error("User not authenticated")
       }
 
-      // Start tracking this step
-      // await apiService.startOnboardingStep('create_routine', familyId)
-
-      // Create routine via backend API
-      const routine = await apiService.createRoutine({
+      // Generate a unique routine ID
+      const routineId = `routine_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      
+      // Create routine data structure
+      const routineData = {
+        id: routineId,
         name: routineName.trim(),
         family_id: familyId,
         created_by: currentUser.id,
-        source: 'manual'
-      })
-
-      // Create task groups via backend API
-      for (const group of taskGroups) {
-        await apiService.createRoutineTaskGroup({
-          name: group.name,
-          routine_id: routine.id,
-          icon: group.icon,
-          color: group.color
-        })
+        source: 'manual',
+        created_at: new Date().toISOString()
       }
 
-      // Create some sample tasks via backend API
+      // Create task groups data
+      const taskGroupsData = taskGroups.map((group, index) => ({
+        id: `group_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`,
+        name: group.name,
+        routine_id: routineId,
+        icon: group.icon,
+        color: group.color,
+        created_at: new Date().toISOString()
+      }))
+
+      // Create sample tasks data
       const sampleTasks = [
         {
+          id: `task_${Date.now()}_1_${Math.random().toString(36).substr(2, 9)}`,
           name: "Make bed",
           description: "Start the day with a tidy room",
           points: 1,
           time_of_day: "morning",
           frequency: "daily",
-          days_of_week: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+          days_of_week: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
+          routine_id: routineId,
+          group_id: null,
+          created_at: new Date().toISOString()
         },
         {
+          id: `task_${Date.now()}_2_${Math.random().toString(36).substr(2, 9)}`,
           name: "Brush teeth",
           description: "Maintain good oral hygiene",
           points: 1,
           time_of_day: "morning",
           frequency: "daily",
-          days_of_week: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+          days_of_week: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
+          routine_id: routineId,
+          group_id: null,
+          created_at: new Date().toISOString()
         }
       ]
 
-      for (const task of sampleTasks) {
-        await apiService.createRoutineTask({
-          ...task,
-          routine_id: routine.id,
-          group_id: null // These are standalone tasks
-        })
-      }
+      // Store routine data in localStorage
+      localStorage.setItem("kidoers_routines", JSON.stringify([routineData]))
+      localStorage.setItem("kidoers_routine_task_groups", JSON.stringify(taskGroupsData))
+      localStorage.setItem("kidoers_routine_tasks", JSON.stringify(sampleTasks))
 
-      // Mark this step as completed
-      // await apiService.completeOnboardingStep('create_routine', familyId, {
-      //   routine_name: routineName.trim(),
-      //   task_groups_count: taskGroups.length,
-      //   sample_tasks_count: sampleTasks.length
-      // })
+      // Also store in the main storage object for compatibility
+      const { storage } = await import("../../../lib/storage")
+      storage.setRoutines([routineData])
+      storage.setRoutineTaskGroups(taskGroupsData)
+      storage.setRoutineTasks(sampleTasks)
+
+      console.log('Routine created successfully:', routineData)
+      console.log('Task groups created:', taskGroupsData)
+      console.log('Sample tasks created:', sampleTasks)
 
       onComplete()
     } catch (error) {

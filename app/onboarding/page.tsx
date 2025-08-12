@@ -36,76 +36,24 @@ export default function OnboardingPage() {
         }
         
         console.log('Session user:', session.user)
-        
-        // Check if the session has a valid access token
-        if (!session.access_token) {
-          console.log('No access token in session, redirecting to signin')
-          router.push("/signin")
-          return
-        }
-        
-        console.log('Access token found, length:', session.access_token.length)
-        
-        const currentUser = await auth.getCurrentUser()
-        console.log('Current user:', currentUser)
-        setUser(currentUser)
+        setUser(session.user)
 
-        if (!currentUser) {
-          console.log('No user found, redirecting to signin')
-          router.push("/signin")
-          return
-        }
-
-        // Double-check that we have a valid session with access token
-        const currentSession = await auth.getSession()
-        if (!currentSession || !currentSession.access_token) {
-          console.log('Session expired or invalid, redirecting to signin')
-          router.push("/signin")
-          return
-        }
-
-        console.log('User authenticated and session valid, proceeding with onboarding check...')
+        // Check if user already has a family in localStorage
+        const existingFamily = localStorage.getItem("kidoers_family")
+        const existingMembers = localStorage.getItem("kidoers_members")
         
-        // Test authentication by making a simple API call
-        try {
-          console.log('Testing authentication with API call...')
-          const testResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/families/`, {
-            headers: {
-              'Authorization': `Bearer ${currentSession.access_token}`,
-              'Content-Type': 'application/json'
+        if (existingFamily && existingMembers) {
+          const familyData = JSON.parse(existingFamily)
+          const membersData = JSON.parse(existingMembers)
+          
+          if (familyData.id && membersData.length > 0) {
+            // User already has a family, check if onboarding is complete
+            if (familyData.onboarding_status === 'completed') {
+              console.log('Onboarding already completed, redirecting to dashboard')
+              router.push("/dashboard")
+              return
             }
-          })
-          console.log('Test API response status:', testResponse.status)
-          
-          if (testResponse.status === 401) {
-            console.log('Authentication failed, redirecting to signin')
-            router.push("/signin")
-            return
           }
-          
-          console.log('Authentication test successful')
-        } catch (error) {
-          console.error('Authentication test failed:', error)
-          router.push("/signin")
-          return
-        }
-        
-        console.log('User found, checking onboarding status...')
-        
-        // Check onboarding status (this handles all the logic now)
-        const onboardingStatus = await storage.checkOnboardingStatus(currentUser.id)
-        console.log('Onboarding status:', onboardingStatus)
-        
-        if (!onboardingStatus.needsOnboarding) {
-          console.log('Onboarding completed, redirecting to dashboard')
-          router.push("/dashboard")
-          return
-        }
-
-        if (onboardingStatus.authError) {
-          console.error('Authentication error detected, user may need to sign in again')
-          router.push("/signin")
-          return
         }
 
         console.log('User needs onboarding, showing onboarding wizard')

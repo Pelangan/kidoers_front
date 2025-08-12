@@ -4,8 +4,6 @@ import { useState } from "react"
 import { Users, Plus, X, ChevronDown } from "lucide-react"
 import type { FamilyMember } from "../../../types"
 import ColorPicker, { softColors } from "../../ui/ColorPicker"
-import { apiService } from "../../../lib/api"
-import { supabase } from "../../../lib/supabase"
 
 interface CreateFamilyStepProps {
   onComplete: (familyId: string) => void
@@ -47,76 +45,45 @@ export default function CreateFamilyStep({ onComplete }: CreateFamilyStepProps) 
     setError("")
 
     try {
-      // Check if user is authenticated
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        throw new Error("Please sign in to create a family")
+      // Generate a unique family ID
+      const familyId = `family_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      
+      // Create family data structure
+      const familyData = {
+        id: familyId,
+        name: familyName.trim(),
+        created_at: new Date().toISOString(),
+        onboarding_status: 'in_progress'
       }
 
-      // Update user onboarding status to 'in_progress' since they're starting family creation
-      await apiService.updateUserProfile({ onboarding_status: 'in_progress' })
-
-      // Temporarily disabled step progress tracking to avoid API errors
-      // await apiService.startOnboardingStep('create_family')
-
-      // Convert members to API format
+      // Convert members to the format we need
       const apiMembers = members.map(member => ({
+        id: member.id,
         name: member.name,
         role: member.role,
         age: member.age, // Keep null for parents, actual age for children
         color: member.color,
-        avatar_url: member.avatar_url
+        avatar_url: member.avatar_url,
+        family_id: familyId
       }))
 
-      // Create family with members using the backend API
-      const result = await apiService.createFamilyWithMembers(
-        { name: familyName.trim() },
-        apiMembers
-      )
-
-      // Ensure we have a valid family ID
-      if (!result.id) {
-        throw new Error("Failed to create family - no ID returned")
-      }
-
-      // Update family onboarding status to 'in_progress' since family is created
-      await apiService.updateFamily(result.id, { onboarding_status: 'in_progress' })
-
-      // Temporarily disabled step progress tracking to avoid API errors
-      // await apiService.completeOnboardingStep('create_family', result.id, {
-      //   family_name: familyName.trim(),
-      //   member_count: members.length,
-      //   members: apiMembers
-      // })
-
-      // Store the created family and members in localStorage for compatibility
-      const { members: createdMembers, ...familyData } = result
-      
-      // Update localStorage with the created data
+      // Store the created family and members in localStorage
       localStorage.setItem("kidoers_family", JSON.stringify(familyData))
-      localStorage.setItem("kidoers_members", JSON.stringify(createdMembers))
+      localStorage.setItem("kidoers_members", JSON.stringify(apiMembers))
+
+      // Also store in the main storage object for compatibility
+      const { storage } = await import("../../../lib/storage")
+      storage.setFamily(familyData)
+      storage.setMembers(apiMembers)
+
+      console.log('Family created successfully:', familyData)
+      console.log('Members created:', apiMembers)
 
       // Call onComplete with the family ID
-      onComplete(familyData.id || '')
+      onComplete(familyId)
     } catch (error) {
       console.error('Failed to create family:', error)
-      
-      // Handle specific error cases
-      if (error instanceof Error) {
-        if (error.message.includes("sign in")) {
-          setError("Please sign in to create a family. You'll be redirected to the sign-in page.")
-          // Redirect to sign-in page after a short delay
-          setTimeout(() => {
-            window.location.href = '/signin'
-          }, 2000)
-        } else if (error.message.includes("already has a family")) {
-          setError("You already have a family. Only one family per user is allowed.")
-        } else {
-          setError(error.message || "Failed to create family. Please try again.")
-        }
-      } else {
-        setError("Failed to create family. Please try again.")
-      }
+      setError("Failed to create family. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
@@ -285,22 +252,22 @@ export default function CreateFamilyStep({ onComplete }: CreateFamilyStepProps) 
                         {member.role === "parent" ? "Parent" : `Age ${member.age || 5}`}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs px-2 py-1 rounded-full capitalize ${
-                        member.role === "parent" 
-                          ? "bg-blue-100 text-blue-800" 
-                          : "bg-green-100 text-green-800"
-                      }`}>
-                        {member.role}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => removeMember(member.id)}
-                        className="p-1 hover:bg-gray-200 rounded text-red-500 hover:text-red-700"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
+                                          <div className="flex items-center gap-2">
+                        <span className={`text-xs px-2 py-1 rounded-full capitalize ${
+                          member.role === "parent" 
+                            ? "bg-blue-100 text-blue-800" 
+                            : "bg-green-100 text-green-800"
+                        }`}>
+                          {member.role}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeMember(member.id)}
+                          className="p-1 hover:bg-gray-200 rounded text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
                   </div>
                 )
               })}

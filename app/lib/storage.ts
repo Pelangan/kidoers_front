@@ -13,20 +13,22 @@
  * - kidoers_chores - Chores/tasks
  * - kidoers_activities - Calendar activities
  * - kidoers_rewards - Family rewards
+ * - kidoers_routines - Family routines
+ * - kidoers_routine_task_groups - Routine task groups
+ * - kidoers_routine_tasks - Routine tasks
  * 
- * Implemented Functions (14 total):
+ * Implemented Functions (17 total):
  * - User: getUser(), setUser(), removeUser()
  * - Family: getFamily(), setFamily()
  * - Members: getMembers(), setMembers()
  * - Chores: getChores(), setChores()
  * - Activities: getActivities(), setActivities()
  * - Rewards: getRewards(), setRewards()
+ * - Routines: getRoutines(), setRoutines()
+ * - Routine Task Groups: getRoutineTaskGroups(), setRoutineTaskGroups()
+ * - Routine Tasks: getRoutineTasks(), setRoutineTasks()
  * - Utility: clearAll()
- * - Supabase Integration: checkOnboardingStatus(), checkFamilyExists()
  */
-
-import { supabase } from './supabase'
-import { apiService } from './api'
 
 // Local storage utilities for persisting data
 export const storage = {
@@ -107,6 +109,42 @@ export const storage = {
     localStorage.setItem("kidoers_rewards", JSON.stringify(rewards))
   },
 
+  // Routines
+  getRoutines: () => {
+    if (typeof window === "undefined") return []
+    const routines = localStorage.getItem("kidoers_routines")
+    return routines ? JSON.parse(routines) : []
+  },
+
+  setRoutines: (routines: any[]) => {
+    if (typeof window === "undefined") return
+    localStorage.setItem("kidoers_routines", JSON.stringify(routines))
+  },
+
+  // Routine Task Groups
+  getRoutineTaskGroups: () => {
+    if (typeof window === "undefined") return []
+    const groups = localStorage.getItem("kidoers_routine_task_groups")
+    return groups ? JSON.parse(groups) : []
+  },
+
+  setRoutineTaskGroups: (groups: any[]) => {
+    if (typeof window === "undefined") return
+    localStorage.setItem("kidoers_routine_task_groups", JSON.stringify(groups))
+  },
+
+  // Routine Tasks
+  getRoutineTasks: () => {
+    if (typeof window === "undefined") return []
+    const tasks = localStorage.getItem("kidoers_routine_tasks")
+    return tasks ? JSON.parse(tasks) : []
+  },
+
+  setRoutineTasks: (tasks: any[]) => {
+    if (typeof window === "undefined") return
+    localStorage.setItem("kidoers_routine_tasks", JSON.stringify(tasks))
+  },
+
   // Clear all data
   clearAll: () => {
     if (typeof window === "undefined") return
@@ -116,53 +154,45 @@ export const storage = {
     localStorage.removeItem("kidoers_chores")
     localStorage.removeItem("kidoers_activities")
     localStorage.removeItem("kidoers_rewards")
+    localStorage.removeItem("kidoers_routines")
+    localStorage.removeItem("kidoers_routine_task_groups")
+    localStorage.removeItem("kidoers_routine_tasks")
   },
 
-
-
-  // Supabase Integration Functions
-  
-
-
-  checkOnboardingStatus: async (userId: string) => {
+  // Simple onboarding status check using localStorage
+  checkOnboardingStatus: () => {
     try {
-      console.log('Checking onboarding status for user:', userId)
+      const family = localStorage.getItem("kidoers_family")
+      const members = localStorage.getItem("kidoers_members")
       
-      // Use the dedicated onboarding status endpoint
-      const onboardingStatus = await apiService.getOnboardingStatus()
-      console.log('Onboarding status from API:', onboardingStatus)
-
-      // The backend already determines if onboarding is needed
-      return {
-        needsOnboarding: onboardingStatus.user_status === 'not_started' || onboardingStatus.user_status === 'in_progress',
-        currentStep: onboardingStatus.current_step,
-        familyExists: onboardingStatus.family_id !== null,
-        familyId: onboardingStatus.family_id
-      }
-
-    } catch (error) {
-      console.error('Error checking onboarding status:', error)
-      
-      // Check if it's an authentication error
-      if ((error as any)?.message?.includes('401') || (error as any)?.message?.includes('Unauthorized')) {
-        console.error('Authentication error detected - user may not be properly authenticated')
-        return {
-          needsOnboarding: true,
-          currentStep: 'create_family',
-          familyExists: false,
-          authError: true
+      if (family && members) {
+        const familyData = JSON.parse(family)
+        const membersData = JSON.parse(members)
+        
+        if (familyData.id && membersData.length > 0) {
+          return {
+            needsOnboarding: familyData.onboarding_status !== 'completed',
+            currentStep: familyData.onboarding_status === 'completed' ? 'completed' : 'create_routine',
+            familyExists: true,
+            familyId: familyData.id
+          }
         }
       }
       
-      // Fallback to showing onboarding
       return {
         needsOnboarding: true,
         currentStep: 'create_family',
-        familyExists: false
+        familyExists: false,
+        familyId: null
+      }
+    } catch (error) {
+      console.error('Error checking onboarding status:', error)
+      return {
+        needsOnboarding: true,
+        currentStep: 'create_family',
+        familyExists: false,
+        familyId: null
       }
     }
-  },
-
-  // Note: checkUserHasFamily and checkFamilyExists are no longer needed
-  // The onboarding status endpoint provides all the information we need
+  }
 }
