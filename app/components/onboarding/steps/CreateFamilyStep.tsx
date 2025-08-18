@@ -30,64 +30,40 @@ export default function CreateFamilyStep({ onComplete }: CreateFamilyStepProps) 
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!familyName.trim()) {
-      setError("Please enter a family name")
-      return
-    }
-    if (members.length === 0) {
-      setError("Please add at least one family member")
-      return
-    }
+    e.preventDefault();
 
-    setIsSubmitting(true)
-    setError("")
+    if (!familyName.trim()) return setError("Please enter a family name");
+    if (members.length === 0) return setError("Please add at least one family member");
+
+    setIsSubmitting(true);
+    setError("");
 
     try {
-      // Generate a unique family ID
-      const familyId = `family_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-      
-      // Create family data structure
-      const familyData = {
-        id: familyId,
-        name: familyName.trim(),
-        created_at: new Date().toISOString(),
-        onboarding_status: 'in_progress'
-      }
+      const apiMembers = members.map((m) => ({
+        name: m.name,
+        role: m.role,
+        age: m.role === "child" ? m.age ?? 5 : null,
+        color: m.color ?? "blue",
+        avatar_url: m.avatar_url ?? null,
+        family_id: null, // Backend will ignore this
+        user_id: null,   // Backend will ignore this
+      }));
 
-      // Convert members to the format we need
-      const apiMembers = members.map(member => ({
-        id: member.id,
-        name: member.name,
-        role: member.role,
-        age: member.age, // Keep null for parents, actual age for children
-        color: member.color,
-        avatar_url: member.avatar_url,
-        family_id: familyId
-      }))
+      const { apiService } = await import("../../../lib/api");
+      const created = await apiService.startOnboarding({
+        family_name: familyName.trim(),
+        members: apiMembers,
+      });
 
-      // Store the created family and members in localStorage
-      localStorage.setItem("kidoers_family", JSON.stringify(familyData))
-      localStorage.setItem("kidoers_members", JSON.stringify(apiMembers))
-
-      // Also store in the main storage object for compatibility
-      const { storage } = await import("../../../lib/storage")
-      storage.setFamily(familyData)
-      storage.setMembers(apiMembers)
-
-      console.log('Family created successfully:', familyData)
-      console.log('Members created:', apiMembers)
-
-      // Call onComplete with the family ID
-      onComplete(familyId)
-    } catch (error) {
-      console.error('Failed to create family:', error)
-      setError("Failed to create family. Please try again.")
+      // created.id is the new family id returned by the backend
+      onComplete(created.id);
+    } catch (err: any) {
+      console.error(err);
+      setError("Failed to create family. Please try again.");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   const addMember = () => {
     if (!newMemberName.trim()) return

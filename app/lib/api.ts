@@ -7,7 +7,10 @@
 
 import { supabase } from './supabase'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+// Debug logging to verify the API URL
+console.log('API_BASE_URL:', API_BASE_URL)
 
 // Types for API requests and responses
 export interface FamilyMember {
@@ -38,6 +41,18 @@ export interface User {
   is_active: boolean
   onboarding_status: string
 }
+
+/** Types mirrored from backend responses */
+export type OnboardingStatus =
+  | { has_family: false; in_progress: null }
+  | { has_family: true; in_progress: null | {
+      id: string;
+      name: string;
+      setup_state: "not_started" | "in_progress" | "complete";
+      setup_step: "create_family" | "choose_flow" | "create_routine" | null;
+      subscription_plan?: "free" | "premium";
+      trial_start?: string; trial_end?: string;
+    }};
 
 // API service class
 class ApiService {
@@ -84,6 +99,8 @@ class ApiService {
   ): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`
     const headers = await this.getAuthHeaders()
+    console.log('API_BASE_URL:', API_BASE_URL)
+    console.log('endpoint:', endpoint)
     console.log('Making request to:', url)
     console.log('Request headers:', headers)
     
@@ -226,8 +243,34 @@ class ApiService {
   }
 
   // Onboarding endpoints
-  async getOnboardingStatus(): Promise<any> {
-    return this.makeRequest<any>('/onboarding/status')
+  async getOnboardingStatus(): Promise<OnboardingStatus> {
+    return this.makeRequest<OnboardingStatus>('/onboarding/status')
+  }
+
+  async startOnboarding(payload: {
+    family_name: string;
+    members?: Array<{
+      name: string;
+      role: "parent" | "child";
+      age?: number | null;
+      color?: "blue" | "green" | "yellow" | "orange" | "purple" | "pink" | "teal" | "indigo";
+      avatar_url?: string | null;
+      user_id?: string | null;
+      family_id?: string; // will be ignored by backend
+    }>;
+  }): Promise<{
+    id: string; name: string;
+    setup_state: string; setup_step: string | null;
+    subscription_plan?: string; trial_start?: string; trial_end?: string;
+  }> {
+    return this.makeRequest<{
+      id: string; name: string;
+      setup_state: string; setup_step: string | null;
+      subscription_plan?: string; trial_start?: string; trial_end?: string;
+    }>('/onboarding/start', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
   }
 
   async startOnboardingStep(stepKey: string, familyId?: string, data?: any): Promise<any> {
