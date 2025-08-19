@@ -1,15 +1,17 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Users, Plus, X, ChevronDown } from "lucide-react"
 import type { FamilyMember } from "../../../types"
 import ColorPicker, { softColors } from "../../ui/ColorPicker"
+import { getFamily, listMembers, patchFamilyName, createMember, deleteMember, apiService } from "../../../lib/api"
 
 interface CreateFamilyStepProps {
+  familyId?: string | null;     // new
   onComplete: (familyId: string) => void
 }
 
-export default function CreateFamilyStep({ onComplete }: CreateFamilyStepProps) {
+export default function CreateFamilyStep({ familyId, onComplete }: CreateFamilyStepProps) {
   const [familyName, setFamilyName] = useState("")
   const [members, setMembers] = useState<FamilyMember[]>([])
   const [error, setError] = useState("")
@@ -19,6 +21,33 @@ export default function CreateFamilyStep({ onComplete }: CreateFamilyStepProps) 
   const [newMemberRole, setNewMemberRole] = useState<"parent" | "child">("child")
   const [newMemberColor, setNewMemberColor] = useState("blue")
   const [showRoleDropdown, setShowRoleDropdown] = useState(false)
+
+  // Load existing family data when familyId is provided (edit mode)
+  useEffect(() => {
+    (async () => {
+      if (!familyId) return; // create mode
+      setIsSubmitting(true);
+      try {
+        const fam = await getFamily(familyId);
+        setFamilyName(fam.name || "");
+        const existing = await listMembers(familyId);
+        setMembers(existing.map(m => ({
+          id: m.id,
+          name: m.name,
+          role: m.role,
+          color: m.color || "blue",
+          age: m.role === "child" ? (m.age ?? null) : null,
+          avatar_url: m.avatar_url || undefined,
+        })));
+      } catch (e) {
+        console.error("Failed to load family for edit", e);
+        setError("Failed to load existing family. You can retry or continue.");
+      } finally {
+        setIsSubmitting(false);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [familyId]);
 
   // Update age when role changes - hide age field for parents
   const handleRoleChange = (role: "parent" | "child") => {
@@ -39,39 +68,48 @@ export default function CreateFamilyStep({ onComplete }: CreateFamilyStepProps) 
     setError("");
 
     try {
-      const apiMembers = members.map((m) => ({
-        name: m.name,
-        role: m.role,
-        age: m.role === "child" ? m.age ?? 5 : null,
-        color: m.color ?? "blue",
-        avatar_url: m.avatar_url ?? null,
-        family_id: null, // Backend will ignore this
-        user_id: null,   // Backend will ignore this
-      }));
+      if (familyId) {
+        // EDIT MODE: patch name if changed
+        try {
+          const fam = await getFamily(familyId);
+          if ((fam.name || "") !== familyName.trim()) {
+            await patchFamilyName(familyId, familyName.trim());
+          }
+        } catch {}
+        onComplete(familyId);
+      } else {
+        // CREATE MODE: create family + members at once
+        const apiMembers = members.map((m) => ({
+          name: m.name,
+          role: m.role,
+          age: m.role === "child" ? m.age ?? 5 : null,
+          color: m.color ?? "blue",
+          avatar_url: m.avatar_url ?? null,
+        }));
 
-      const { apiService } = await import("../../../lib/api");
-      const created = await apiService.startOnboarding({
-        family_name: familyName.trim(),
-        members: apiMembers,
-      });
+        const created = await apiService.startOnboarding({
+          family_name: familyName.trim(),
+          members: apiMembers,
+        });
 
-      // created.id is the new family id returned by the backend
-      onComplete(created.id);
+        // created.id is the new family id returned by the backend
+        onComplete(created.id);
+      }
     } catch (err: any) {
       console.error(err);
-      setError("Failed to create family. Please try again.");
+      setError("Failed to save family. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const addMember = () => {
+  const addMember = async () => {
     if (!newMemberName.trim()) return
     
     // Set age to null for parents, or use selected age for children
     const memberAge = newMemberRole === "parent" ? null : parseInt(newMemberAge)
     
-    const newMember: FamilyMember = {
+    const local = {
       id: Date.now().toString(),
       name: newMemberName.trim(),
       role: newMemberRole,
@@ -79,17 +117,46 @@ export default function CreateFamilyStep({ onComplete }: CreateFamilyStepProps) 
       age: memberAge,
       calmMode: false,
       textToSpeech: false,
+    } as FamilyMember;
+
+    try {
+      if (familyId) {
+        const created = await createMember({
+          family_id: familyId,
+          name: local.name,
+          role: local.role,
+          age: local.role === "child" ? (local.age ?? 5) : null,
+          color: local.color as any,
+        });
+        // `created` returns the full row including `id`
+        setMembers(prev => [...prev, { ...local, id: created.id }]);
+      } else {
+        setMembers(prev => [...prev, local]); // create mode (local only)
+      }
+    } catch (e) {
+      console.error(e);
+      setError("Failed to add member.");
+    } finally {
+      setNewMemberName("");
+      setNewMemberAge("5");
+      setNewMemberRole("child");
+      setNewMemberColor("blue");
     }
-    
-    setMembers([...members, newMember])
-    setNewMemberName("")
-    setNewMemberAge("5")
-    setNewMemberRole("child")
-    setNewMemberColor("blue")
   }
 
-  const removeMember = (id: string) => {
-    setMembers(members.filter(member => member.id !== id))
+  const removeMember = async (id: string) => {
+    try {
+      if (familyId) {
+        // Only delete if this looks like a real UUID from backend
+        if (id && id.length > 20) {
+          await deleteMember(id);
+        }
+      }
+      setMembers(prev => prev.filter(m => m.id !== id));
+    } catch (e) {
+      console.error(e);
+      setError("Failed to remove member.");
+    }
   }
 
   const ageOptions = Array.from({ length: 18 }, (_, i) => i + 1)
@@ -276,10 +343,10 @@ export default function CreateFamilyStep({ onComplete }: CreateFamilyStepProps) 
             {isSubmitting ? (
               <div className="flex items-center justify-center">
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                Creating Family...
+                {familyId ? "Saving…" : "Creating Family..."}
               </div>
             ) : (
-              'Create Family & Continue'
+              familyId ? "Save & Continue" : "Create Family & Continue"
             )}
           </button>
         </div>

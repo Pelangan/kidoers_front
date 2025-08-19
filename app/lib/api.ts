@@ -93,7 +93,7 @@ class ApiService {
     return headers
   }
 
-  private async makeRequest<T>(
+  async makeRequest<T>(
     endpoint: string, 
     options: RequestInit = {}
   ): Promise<T> {
@@ -302,7 +302,49 @@ class ApiService {
   async getAllOnboardingStepsProgress(): Promise<any[]> {
     return this.makeRequest<any[]>('/onboarding/steps/progress')
   }
+
+  async updateOnboardingStep(familyId: string, step: 'choose_flow' | 'create_routine'): Promise<any> {
+    return this.makeRequest<any>('/onboarding/step', {
+      method: 'POST',
+      body: JSON.stringify({
+        family_id: familyId,
+        step: step
+      })
+    })
+  }
 }
 
 // Export singleton instance
 export const apiService = new ApiService()
+
+// Additional API functions for onboarding edit mode
+export async function getFamily(familyId: string) {
+  return apiService.makeRequest<{ id: string; name: string; setup_state?: string; setup_step?: string }>(
+    `/families/${familyId}`
+  );
+}
+
+export async function patchFamilyName(familyId: string, name: string) {
+  return apiService.makeRequest<{ id: string; name: string }>(`/families/${familyId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function listMembers(familyId: string) {
+  return apiService.makeRequest<Array<{
+    id: string; family_id: string; name: string; role: "parent" | "child";
+    age: number | null; color: string; avatar_url: string | null; user_id: string | null;
+  }>>(`/family-members?family_id=${encodeURIComponent(familyId)}`);
+}
+
+export async function createMember(m: {
+  family_id: string; name: string; role: "parent" | "child"; age?: number | null;
+  color?: "blue"|"green"|"yellow"|"orange"|"purple"|"pink"|"teal"|"indigo"; avatar_url?: string | null; user_id?: string | null;
+}) {
+  return apiService.makeRequest(`/family-members`, { method: "POST", body: JSON.stringify(m) });
+}
+
+export async function deleteMember(memberId: string) {
+  return apiService.makeRequest(`/family-members/${memberId}`, { method: "DELETE" });
+}

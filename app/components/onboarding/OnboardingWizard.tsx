@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import CreateFamilyStep from "./steps/CreateFamilyStep";
 import CreateRoutineStep from "./steps/CreateRoutineStep";
+import ChooseRoutineMethodStep from "./steps/ChooseRoutineMethodStep";
 import { useRouter } from "next/navigation";
 import { apiService } from "../../lib/api";
 
@@ -60,6 +61,12 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
     onComplete();
   };
 
+  const prevStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep(1);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-soft flex items-center justify-center">
@@ -93,8 +100,11 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
 
         <div className="max-w-2xl mx-auto">
           {currentStep === 1
-            ? <CreateFamilyStep onComplete={handleFamilyCreated} />
-            : <CreateRoutineStep familyId={familyId!} onComplete={handleRoutineCreated} />}
+            ? <CreateFamilyStep familyId={familyId ?? null} onComplete={handleFamilyCreated} />
+            : <ChooseRoutineMethodStep
+                familyId={familyId!}
+                onBack={prevStep}
+              />}
         </div>
 
         {error && (
