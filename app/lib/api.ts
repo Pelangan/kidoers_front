@@ -118,7 +118,10 @@ class ApiService {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         console.error('Response error:', errorData)
-        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`)
+        console.error('Response status:', response.status)
+        console.error('Response headers:', Object.fromEntries(response.headers.entries()))
+        console.error('Request URL:', url)
+        throw new Error(errorData.detail || errorData.message || `HTTP error! status: ${response.status}`)
       }
 
       const responseData = await response.json()
@@ -347,4 +350,141 @@ export async function createMember(m: {
 
 export async function deleteMember(memberId: string) {
   return apiService.makeRequest(`/family-members/${memberId}`, { method: "DELETE" });
+}
+
+// Library
+export async function listLibraryTasks(query?: string) {
+  const q = query ? `?q=${encodeURIComponent(query)}` : "";
+  return apiService.makeRequest<Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    default_points: number;
+    default_duration_mins: number | null;
+    default_time_of_day: string | null;
+    category: string | null;
+    tags: string[] | null;
+    icon: string | null;
+    color: string | null;
+    is_system: boolean;
+    is_public: boolean;
+  }>>(`/library/tasks${q}`);
+}
+
+export async function listLibraryGroups(query?: string, includeItems = true) {
+  const qs = new URLSearchParams();
+  if (query) qs.set("q", query);
+  if (!includeItems) qs.set("include_items", "false");
+  const s = qs.toString();
+  return apiService.makeRequest<Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    default_time_of_day: string | null;
+    icon: string | null;
+    color: string | null;
+    is_system: boolean;
+    is_public: boolean;
+    items?: Array<{
+      task_id: string;
+      name: string;
+      description: string | null;
+      default_points: number;
+      order_index: number;
+    }>;
+  }>>(`/library/groups${s ? `?${s}` : ""}`);
+}
+
+// Routine draft lifecycle
+export async function createRoutineDraft(familyId: string, name: string) {
+  return apiService.makeRequest<{
+    id: string;
+    family_id: string;
+    name: string;
+    status: string;
+    source: string;
+  }>(`/routines`, {
+    method: "POST",
+    body: JSON.stringify({ family_id: familyId, name, source: "scratch" }),
+  });
+}
+
+export async function patchRoutine(routineId: string, body: { name?: string; status?: "draft"|"active"|"archived" }) {
+  return apiService.makeRequest<{
+    id: string;
+    family_id: string;
+    name: string;
+    status: string;
+    source: string;
+  }>(`/routines/${routineId}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+// Groups & tasks within routine
+export async function addRoutineGroup(routineId: string, payload: { name?: string; time_of_day?: "morning"|"afternoon"|"evening"|"night"; from_group_template_id?: string }) {
+  return apiService.makeRequest<{
+    id: string;
+    routine_id: string;
+    name: string;
+    time_of_day: string | null;
+    order_index: number;
+  }>(`/routines/${routineId}/groups`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function addRoutineTask(routineId: string, payload: {
+  group_id?: string;
+  from_task_template_id?: string;
+  name?: string;
+  description?: string;
+  points?: number;
+  duration_mins?: number|null;
+  time_of_day?: "morning"|"afternoon"|"evening"|"night";
+  frequency?: "daily"|"weekly"|"monthly"|"weekends";
+  days_of_week?: string[];
+}) {
+  return apiService.makeRequest<{
+    id: string;
+    routine_id: string;
+    group_id: string | null;
+    name: string;
+    description: string | null;
+    points: number;
+    duration_mins: number | null;
+    time_of_day: string | null;
+    frequency: string;
+    days_of_week: string[];
+    order_index: number;
+  }>(`/routines/${routineId}/tasks`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteRoutineGroup(routineId: string, groupId: string) {
+  return apiService.makeRequest(`/routines/${routineId}/groups/${groupId}`, { method: "DELETE" });
+}
+
+export async function deleteRoutineTask(routineId: string, taskId: string) {
+  return apiService.makeRequest(`/routines/${routineId}/tasks/${taskId}`, { method: "DELETE" });
+}
+
+// Onboarding step tracking (already exists; keep signature)
+export async function updateOnboardingStep(familyId: string, step: string) {
+  return apiService.makeRequest<{
+    id: string;
+    name: string;
+    setup_state: string;
+    setup_step: string | null;
+    subscription_plan: string | null;
+    trial_start: string | null;
+    trial_end: string | null;
+  }>(`/onboarding/step`, {
+    method: "POST",
+    body: JSON.stringify({ family_id: familyId, step }),
+  });
 }

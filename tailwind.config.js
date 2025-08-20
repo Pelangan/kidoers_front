@@ -15,6 +15,7 @@ module.exports = {
         primary: {
           DEFAULT: "hsl(12 85% 65%)",
           foreground: "hsl(0 0% 100%)",
+          dark: "hsl(12 85% 55%)",
         },
         secondary: {
           DEFAULT: "hsl(260 30% 92%)",
