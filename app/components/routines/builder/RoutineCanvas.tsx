@@ -19,6 +19,9 @@ export type UiTask = {
 
 export default function RoutineCanvas({
   groups,
+  familyMembers,
+  routineName,
+  onRoutineNameChange,
   onAddEmptyGroup,
   onDeleteGroup,
   onAddCustomTask,
@@ -26,6 +29,9 @@ export default function RoutineCanvas({
   onAddTaskFromTemplate,
 }: {
   groups: UiGroup[];
+  familyMembers: any[];
+  routineName: string;
+  onRoutineNameChange: (name: string) => void;
   onAddEmptyGroup: () => void;
   onDeleteGroup: (groupId: string) => void;
   onAddCustomTask: (groupId?: string) => void;
@@ -33,36 +39,66 @@ export default function RoutineCanvas({
   onAddTaskFromTemplate: (groupId?: string) => void; // will open right‑pane selector via callback
 }) {
   return (
-    <div className="space-y-4">
-      {/* Top actions */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => onAddEmptyGroup()}
-          className="px-3 py-2 rounded-lg border hover:bg-gray-50"
-        >
-          + Add Group
-        </button>
-        <button
-          onClick={() => onAddCustomTask(undefined)}
-          className="px-3 py-2 rounded-lg border hover:bg-gray-50"
-        >
-          + Add Task (no group)
-        </button>
-        <button
-          onClick={() => onAddTaskFromTemplate(undefined)}
-          className="px-3 py-2 rounded-lg border hover:bg-gray-50"
-        >
-          + Add Task from Library
-        </button>
+    <div className="space-y-6">
+      {/* Routine Details Section */}
+      <div className="bg-white border rounded-xl shadow-sm p-6">
+        <h3 className="text-lg font-semibold mb-4">Routine Details</h3>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Routine Name
+          </label>
+          <input
+            type="text"
+            value={routineName}
+            onChange={(e) => onRoutineNameChange(e.target.value)}
+            placeholder="My Family Routine"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
       </div>
 
-      {/* Groups */}
-      {groups.length === 0 ? (
-        <div className="bg-white border rounded-xl shadow-sm p-6 text-center text-gray-500">
-          No groups yet — add a group or add tasks directly.
+      {/* Family Members as Columns */}
+      {familyMembers.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {familyMembers.map((member) => (
+            <div key={member.id} className="bg-white border rounded-xl shadow-sm p-4">
+              <div className="text-center mb-4">
+                <div 
+                  className="w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center text-white font-bold text-xl"
+                  style={{ 
+                    backgroundColor: member.color || '#3B82F6',
+                    border: `3px solid ${member.color || '#3B82F6'}`
+                  }}
+                >
+                  {member.name.charAt(0).toUpperCase()}
+                </div>
+                <h3 className="font-semibold text-lg">{member.name}</h3>
+                <p className="text-sm text-gray-500 capitalize">{member.role}</p>
+              </div>
+              
+              {/* Drop Zone for Tasks */}
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center text-gray-500 hover:border-gray-400 transition-colors">
+                <div className="text-gray-400 mb-2">
+                  <svg className="w-8 h-8 mx-auto" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <p className="font-medium">Drop tasks here</p>
+                <p className="text-xs">Drag from the library panel</p>
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
+        <div className="bg-white border rounded-xl shadow-sm p-6 text-center text-gray-500">
+          <p>No family members found. Please complete family setup first.</p>
+        </div>
+      )}
+
+      {/* Legacy Groups Section (Hidden for now) */}
+      {false && groups.length > 0 && (
         <div className="space-y-4">
+          <h3 className="text-lg font-semibold">Task Groups</h3>
           {groups
             .sort((a, b) => a.order_index - b.order_index)
             .map((g) => (

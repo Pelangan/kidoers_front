@@ -14,6 +14,7 @@ import {
   deleteRoutineGroup,
   deleteRoutineTask,
   updateOnboardingStep,
+  apiService,
 } from "../../lib/api";
 
 export default function CustomRoutinePage() {
@@ -22,6 +23,7 @@ export default function CustomRoutinePage() {
   const familyId = sp.get("family");
   const [routine, setRoutine] = useState<{ id: string; family_id: string; name: string; status: "draft"|"active"|"archived" }|null>(null);
   const [groups, setGroups] = useState<UiGroup[]>([]);
+  const [familyMembers, setFamilyMembers] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string|null>(null);
 
@@ -43,6 +45,12 @@ export default function CustomRoutinePage() {
         const created = await createRoutineDraft(familyId, "My Routine");
         console.log('Routine draft created:', created);
         setRoutine(created);
+        
+        // Fetch family members
+        console.log('Fetching family members...');
+        const members = await apiService.getFamilyMembers(familyId);
+        console.log('Family members fetched:', members);
+        setFamilyMembers(members);
       } catch (e:any) {
         console.error('Error in useEffect:', e);
         setError(e?.message || "Failed to start routine");
@@ -194,12 +202,32 @@ export default function CustomRoutinePage() {
           )}
           <RoutineCanvas
             groups={groups}
+            familyMembers={familyMembers}
+            routineName={routine?.name || "My Routine"}
+            onRoutineNameChange={onRename}
             onAddEmptyGroup={addEmptyGroup}
             onDeleteGroup={onDeleteGroup}
             onAddCustomTask={addCustomTask}
             onDeleteTask={onDeleteTask}
             onAddTaskFromTemplate={addTaskFromTemplate}
           />
+          
+          {/* Save Button */}
+          <div className="flex justify-center mt-8">
+            <button
+              onClick={onPublish}
+              disabled={busy}
+              className="px-8 py-3 bg-gradient-to-r from-orange-500 to-pink-500 text-white font-semibold rounded-lg shadow-lg hover:from-orange-600 hover:to-pink-600 transition-all duration-200 flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h-1v5.586l-2.293-2.293z" />
+              </svg>
+              Save My Routine
+            </button>
+          </div>
+          <p className="text-center text-sm text-gray-500 mt-2">
+            Drag tasks and groups from the library panel to family members
+          </p>
         </>
       }
       right={

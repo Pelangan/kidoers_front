@@ -177,14 +177,14 @@ class ApiService {
 
   // Family member endpoints
   async getFamilyMembers(familyId: string): Promise<FamilyMember[]> {
-    return this.makeRequest<FamilyMember[]>(`/families/${familyId}/members`)
+    return this.makeRequest<FamilyMember[]>(`/family-members?family_id=${familyId}`)
   }
 
   async addFamilyMember(
     familyId: string, 
     member: Omit<FamilyMember, 'id'>
   ): Promise<FamilyMember> {
-    return this.makeRequest<FamilyMember>(`/families/${familyId}/members`, {
+    return this.makeRequest<FamilyMember>('/family-members', {
       method: 'POST',
       body: JSON.stringify(member)
     })
@@ -195,14 +195,14 @@ class ApiService {
     memberId: string,
     member: Partial<FamilyMember>
   ): Promise<FamilyMember> {
-    return this.makeRequest<FamilyMember>(`/families/${familyId}/members/${memberId}`, {
-      method: 'PUT',
+    return this.makeRequest<FamilyMember>(`/family-members/${memberId}`, {
+      method: 'PATCH',
       body: JSON.stringify(member)
     })
   }
 
   async deleteFamilyMember(familyId: string, memberId: string): Promise<void> {
-    return this.makeRequest<void>(`/families/${familyId}/members/${memberId}`, {
+    return this.makeRequest<void>(`/family-members/${memberId}`, {
       method: 'DELETE'
     })
   }
