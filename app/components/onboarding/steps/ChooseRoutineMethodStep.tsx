@@ -7,6 +7,7 @@ import { apiService } from "../../../lib/api";
 interface Props {
   familyId: string;
   onBack?: () => void;
+  onComplete: () => void;
 }
 
 // Simple CTA Card
@@ -42,7 +43,7 @@ function MethodCard({
   );
 }
 
-export default function ChooseRoutineMethodStep({ familyId, onBack }: Props) {
+export default function ChooseRoutineMethodStep({ familyId, onBack, onComplete }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
@@ -53,12 +54,13 @@ export default function ChooseRoutineMethodStep({ familyId, onBack }: Props) {
         setBusy(true);
         // Mark onboarding step = choose_flow (persist resume point)
         await apiService.updateOnboardingStep(familyId, "choose_flow");
-        router.push(`${path}?family=${familyId}`);
+        // Call onComplete to move to step 3 instead of navigating
+        onComplete();
       } finally {
         setBusy(false);
       }
     },
-    [busy, familyId, router]
+    [busy, familyId, onComplete]
   );
 
   return (

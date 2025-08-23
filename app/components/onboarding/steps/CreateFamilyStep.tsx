@@ -1,10 +1,18 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Users, Plus, X, ChevronDown, Loader2 } from "lucide-react"
+import { Users, Plus, X, ChevronDown, Loader2, AlertTriangle } from "lucide-react"
 import type { FamilyMember } from "../../../types"
 import ColorPicker, { softColors } from "../../ui/ColorPicker"
 import { getFamily, listMembers, patchFamilyName, createMember, deleteMember, apiService } from "../../../lib/api"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../../../../components/ui/dialog"
 
 interface CreateFamilyStepProps {
   familyId?: string | null;     // new
@@ -22,6 +30,7 @@ export default function CreateFamilyStep({ familyId, onComplete }: CreateFamilyS
   const [newMemberRole, setNewMemberRole] = useState<"parent" | "child">("child")
   const [newMemberColor, setNewMemberColor] = useState("blue")
   const [showRoleDropdown, setShowRoleDropdown] = useState(false)
+  const [showUnsavedMemberWarning, setShowUnsavedMemberWarning] = useState(false)
 
   // Load existing family data when familyId is provided (edit mode)
   useEffect(() => {
@@ -74,6 +83,12 @@ export default function CreateFamilyStep({ familyId, onComplete }: CreateFamilyS
 
     if (!familyName.trim()) return setError("Please enter a family name");
     if (members.length === 0) return setError("Please add at least one family member");
+
+    // Check if there's unsaved member data
+    if (newMemberName.trim()) {
+      setShowUnsavedMemberWarning(true);
+      return;
+    }
 
     setIsSubmitting(true);
     setError("");
@@ -171,6 +186,11 @@ export default function CreateFamilyStep({ familyId, onComplete }: CreateFamilyS
   }
 
   const ageOptions = Array.from({ length: 18 }, (_, i) => i + 1)
+
+  // Helper function to check if there's unsaved member data
+  const hasUnsavedMemberData = () => {
+    return newMemberName.trim().length > 0;
+  }
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-8">
@@ -353,13 +373,24 @@ export default function CreateFamilyStep({ familyId, onComplete }: CreateFamilyS
           )}
 
           <div className="text-center">
+            {hasUnsavedMemberData() && (
+              <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-amber-700 text-sm flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  You have unsaved member data. Click "Add Member" or submit to see options.
+                </p>
+              </div>
+            )}
+            
             <button
               type="submit"
               disabled={isSubmitting || !familyName.trim() || members.length === 0}
               className={`px-8 py-3 rounded-lg font-medium transition-colors ${
                 isSubmitting || !familyName.trim() || members.length === 0
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-primary text-white hover:bg-primary-dark'
+                  : hasUnsavedMemberData()
+                    ? 'bg-amber-500 text-white hover:bg-amber-600'
+                    : 'bg-primary text-white hover:bg-primary-dark'
               }`}
             >
               {isSubmitting ? (
@@ -367,6 +398,8 @@ export default function CreateFamilyStep({ familyId, onComplete }: CreateFamilyS
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                   {familyId ? "Saving…" : "Creating Family..."}
                 </div>
+              ) : hasUnsavedMemberData() ? (
+                "Review & Continue"
               ) : (
                 familyId ? "Save & Continue" : "Create Family & Continue"
               )}
@@ -380,6 +413,68 @@ export default function CreateFamilyStep({ familyId, onComplete }: CreateFamilyS
           This will create your family profile and add you as the owner
         </p>
       </div>
+
+      {/* Unsaved Member Warning Dialog */}
+      <Dialog open={showUnsavedMemberWarning} onOpenChange={setShowUnsavedMemberWarning}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                <AlertTriangle className="h-5 w-5 text-amber-600" />
+              </div>
+              <DialogTitle className="text-amber-800">Unsaved Family Member</DialogTitle>
+            </div>
+            <DialogDescription className="text-gray-600">
+              You have entered a family member's name but haven't added them yet. 
+              Would you like to add this member before continuing, or discard the information?
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="bg-gray-50 rounded-lg p-3 mb-4">
+            <div className="flex items-center gap-3">
+              <div className={`w-8 h-8 ${softColors.find(c => c.value === newMemberColor)?.bg || 'bg-blue-100'} rounded-full flex items-center justify-center`}>
+                <span className={`text-sm font-bold ${softColors.find(c => c.value === newMemberColor)?.text || 'text-blue-700'}`}>
+                  {newMemberName.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <div>
+                <div className="font-medium text-gray-800">{newMemberName}</div>
+                <div className="text-sm text-gray-500 capitalize">
+                  {newMemberRole} {newMemberRole === "child" && `(Age ${newMemberAge})`}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setShowUnsavedMemberWarning(false);
+                // Clear the unsaved data
+                setNewMemberName("");
+                setNewMemberAge("5");
+                setNewMemberRole("child");
+                setNewMemberColor("blue");
+              }}
+              className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            >
+              Discard & Continue
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowUnsavedMemberWarning(false);
+                // Add the member first
+                addMember();
+              }}
+              className="px-4 py-2 bg-primary text-white hover:bg-primary-dark rounded-lg transition-colors"
+            >
+              Add Member First
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

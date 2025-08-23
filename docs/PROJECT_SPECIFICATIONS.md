@@ -91,6 +91,49 @@ For family member personalization, use these soft colors:
 - **Teal**: `bg-teal-100`, `border-teal-300`, `text-teal-700`
 - **Indigo**: `bg-indigo-100`, `border-indigo-300`, `text-indigo-700`
 
+## 🚀 Onboarding Flow
+
+### 3-Step Onboarding Process
+1. **Step 1: Welcome & Family Creation**
+   - Welcome message: "Welcome to Kidoers"
+   - Subtitle: "Let's get your family set up in just a few steps"
+   - Create family name and add family members with colors
+   - Progress: Step 1 of 3 (33%)
+
+2. **Step 2: Routine Method Selection**
+   - Header: "Choose How to Create Your Routine"
+   - Subtitle: "Pick the approach that fits your style. You can always change it later."
+   - Options: AI suggestions, community routines, custom building, AI chat
+   - Progress: Step 2 of 3 (67%)
+
+3. **Step 3: Routine Creation**
+   - Header: "Create Your Own Routine"
+   - Subtitle: "Drag tasks from the library to build your custom routine"
+   - **Full-width layout** expanding to occupy entire screen width
+   - Family member columns with selected colors (responsive grid: 1-5 columns based on screen size)
+   - Task library sidebar with groups and individual tasks
+   - API integration for real data loading
+   - Progress: Step 3 of 3 (100%)
+
+### Navigation
+- **Back buttons** on steps 2 and 3 for easy navigation
+- **Progress bar** showing current step and completion percentage
+- **Automatic progression** between steps based on user actions
+
+### Component Architecture
+- **`OnboardingWizard.tsx`**: Main orchestrator managing 3-step flow
+- **`CreateFamilyStep.tsx`**: Step 1 - Family creation and member management
+- **`ChooseRoutineMethodStep.tsx`**: Step 2 - Routine creation method selection
+- **`CreateRoutineStep.tsx`**: Step 3 - Wrapper for ManualRoutineBuilder
+- **`ManualRoutineBuilder.tsx`**: Core routine builder component (used in both onboarding and standalone)
+  - **Dual Mode**: Works as onboarding step or standalone page
+  - **Props**: Accepts `familyId` and `onComplete` for onboarding integration
+  - **API Integration**: Loads family members and library data from backend
+  - **Responsive Design**: Adapts layout based on usage context
+  - **Layout Modes**: 
+    - **Onboarding Mode**: Full-width expansion with absolute-positioned task library
+    - **Standalone Mode**: Fixed-width with fixed-positioned task library
+
 ## 🔐 Authentication System
 
 ### Implemented Functions
@@ -173,6 +216,11 @@ interface FamilyMember {
   - Add Members step
   - Add Chores step
   - Add Rewards step
+- **Smart Form Validation**: 
+  - Unsaved member data detection
+  - Warning popup for incomplete member information
+  - Visual indicators for unsaved data
+  - Option to add member first or discard data
 
 ## 📝 Task Management (Chores)
 
@@ -308,6 +356,54 @@ interface Reward {
 
 
 
+
+## 🔧 API Implementation & Fixes
+
+### API Response Handling
+- **DELETE Operations**: All DELETE endpoints return 204 No Content status
+- **Empty Response Handling**: Frontend properly handles responses with no content
+- **JSON Parsing**: Prevents "Unexpected end of JSON input" errors on empty responses
+- **Status Code Support**: Handles 204, 200, and other HTTP status codes appropriately
+
+### Fixed Issues
+- **Family Member Deletion**: Resolved JSON parsing error when deleting family members
+- **Routine Deletion**: Fixed similar issues with routine groups and tasks deletion
+- **Consistent Error Handling**: All DELETE operations now work without console errors
+
+## 🎯 Routine Builder System
+
+### Manual Routine Builder
+- **Wireframe-Exact Implementation**: Complete recreation of the routine builder interface
+- **Family Member Columns**: Individual columns for each family member with their selected colors
+- **Collapsible Right Panel**: Task library panel that can be collapsed/expanded
+- **API Integration**: Connected to real backend endpoints for routine management
+- **Library Data**: Dynamic loading of task groups and individual tasks from API
+- **Filter Options**: Show all, groups only, or tasks only
+- **Drag & Drop**: Full drag and drop functionality for tasks and groups
+- **Smart Assignment**: Choose who receives tasks (individual, all kids, all parents, all family)
+- **Task Management**: Create groups from selected tasks, remove tasks/groups
+- **Real-time Saving**: Automatic routine draft creation and publishing
+- **Visual Design**: Matches wireframe exactly with proper colors and layout
+
+## 🔌 API Integration
+
+### Routine Builder API Endpoints
+- **`POST /routines`**: Creates routine draft for family
+- **`PATCH /routines/{routine_id}`**: Updates routine name and status
+- **`GET /family-members`**: Fetches family members for routine assignment
+- **`GET /library/groups`**: Retrieves available task group templates
+- **`GET /library/tasks`**: Retrieves available individual task templates
+- **`POST /routines/{routine_id}/groups`**: Adds task groups to routine
+- **`POST /routines/{routine_id}/tasks`**: Adds individual tasks to routine
+- **`DELETE /routines/{routine_id}/groups/{group_id}`**: Removes task groups
+- **`DELETE /routines/{routine_id}/tasks/{task_id}`**: Removes individual tasks
+
+### Data Flow
+1. **Routine Creation**: Automatically creates draft routine on component mount
+2. **Family Loading**: Fetches family members with their selected colors
+3. **Library Loading**: Dynamically loads task groups and tasks from backend
+4. **Real-time Updates**: All changes are saved to backend via API calls
+5. **Publishing**: Routine status changes from draft to active when saved
 
 ## 💾 Data Storage System
 

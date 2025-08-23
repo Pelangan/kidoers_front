@@ -124,6 +124,12 @@ class ApiService {
         throw new Error(errorData.detail || errorData.message || `HTTP error! status: ${response.status}`)
       }
 
+      // Handle responses with no content (like DELETE 204)
+      if (response.status === 204 || response.headers.get('content-length') === '0') {
+        console.log('Response has no content')
+        return {} as T
+      }
+
       const responseData = await response.json()
       console.log('Response data:', responseData)
       return responseData

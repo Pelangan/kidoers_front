@@ -12,13 +12,13 @@ interface OnboardingWizardProps {
 }
 
 export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
-  const [currentStep, setCurrentStep] = useState<1 | 2>(1);
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [familyId, setFamilyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  const totalSteps: 2 = 2;
+  const totalSteps: 3 = 3;
 
   useEffect(() => {
     (async () => {
@@ -56,14 +56,17 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
     setCurrentStep(2);
   };
 
+  const handleRoutineMethodChosen = () => {
+    setCurrentStep(3);
+  };
+
   const handleRoutineCreated = async () => {
-    // Step 2 wire-up will be done later; keep callback for compatibility
     onComplete();
   };
 
   const prevStep = () => {
     if (currentStep > 1) {
-      setCurrentStep(1);
+      setCurrentStep((currentStep - 1) as 1 | 2 | 3);
     }
   };
 
@@ -80,10 +83,26 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
 
   return (
     <div className="min-h-screen bg-gradient-soft">
-      <div className="container mx-auto px-4 py-8">
+      <div className={currentStep === 3 ? "w-full px-4 py-8" : "container mx-auto px-4 py-8"}>
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">Welcome to Kidoers</h1>
-          <p className="text-gray-600">Let's get your family set up in just a few steps</p>
+          {currentStep === 1 && (
+            <>
+              <h1 className="text-4xl font-bold text-gray-800 mb-2">Welcome to Kidoers</h1>
+              <p className="text-gray-600">Let's get your family set up in just a few steps</p>
+            </>
+          )}
+          {currentStep === 2 && (
+            <>
+              <h1 className="text-4xl font-bold text-gray-800 mb-2">Choose How to Create Your Routine</h1>
+              <p className="text-gray-600">Pick the approach that fits your style. You can always change it later.</p>
+            </>
+          )}
+          {currentStep === 3 && (
+            <>
+              <h1 className="text-4xl font-bold text-gray-800 mb-2">Create Your Own Routine</h1>
+              <p className="text-gray-600">Drag tasks from the library to build your custom routine.</p>
+            </>
+          )}
         </div>
 
         <div className="max-w-md mx-auto mb-8">
@@ -98,13 +117,24 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
           </div>
         </div>
 
-        <div className="max-w-2xl mx-auto">
-          {currentStep === 1
-            ? <CreateFamilyStep familyId={familyId ?? null} onComplete={handleFamilyCreated} />
-            : <ChooseRoutineMethodStep
-                familyId={familyId!}
-                onBack={prevStep}
-              />}
+        <div className={currentStep === 3 ? "w-full" : "max-w-2xl mx-auto"}>
+          {currentStep === 1 && (
+            <CreateFamilyStep familyId={familyId ?? null} onComplete={handleFamilyCreated} />
+          )}
+          {currentStep === 2 && (
+            <ChooseRoutineMethodStep
+              familyId={familyId!}
+              onBack={prevStep}
+              onComplete={handleRoutineMethodChosen}
+            />
+          )}
+          {currentStep === 3 && (
+            <CreateRoutineStep
+              familyId={familyId!}
+              onBack={prevStep}
+              onComplete={handleRoutineCreated}
+            />
+          )}
         </div>
 
         {error && (
