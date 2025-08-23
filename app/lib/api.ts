@@ -377,6 +377,39 @@ export async function listLibraryTasks(query?: string) {
   }>>(`/library/tasks${q}`);
 }
 
+export async function createLibraryTask(payload: {
+  name: string;
+  description?: string;
+  default_points: number;
+  default_duration_mins?: number;
+  category?: string;
+  tags?: string[];
+  icon?: string;
+  color?: string;
+  is_public?: boolean;
+}) {
+  return apiService.makeRequest<{
+    id: string;
+    name: string;
+    description: string | null;
+    default_points: number;
+    default_duration_mins: number | null;
+    default_time_of_day: string | null;
+    category: string | null;
+    tags: string[] | null;
+    icon: string | null;
+    color: string | null;
+    is_system: boolean;
+    is_public: boolean;
+    created_by: string;
+    created_at: string;
+    updated_at: string;
+  }>(`/library/tasks`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function listLibraryGroups(query?: string, includeItems = true) {
   const qs = new URLSearchParams();
   if (query) qs.set("q", query);
@@ -399,6 +432,32 @@ export async function listLibraryGroups(query?: string, includeItems = true) {
       order_index: number;
     }>;
   }>>(`/library/groups${s ? `?${s}` : ""}`);
+}
+
+export async function createLibraryGroup(payload: {
+  name: string;
+  description?: string;
+  default_time_of_day?: string;
+  icon?: string;
+  color?: string;
+  is_public?: boolean;
+}) {
+  return apiService.makeRequest<{
+    id: string;
+    name: string;
+    description: string | null;
+    default_time_of_day: string | null;
+    icon: string | null;
+    color: string | null;
+    is_system: boolean;
+    is_public: boolean;
+    created_by: string;
+    created_at: string;
+    updated_at: string;
+  }>(`/library/groups`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 // Routine draft lifecycle

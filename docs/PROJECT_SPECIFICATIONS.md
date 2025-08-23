@@ -376,6 +376,12 @@ interface Reward {
 - **Wireframe-Exact Implementation**: Complete recreation of the routine builder interface
 - **Family Member Columns**: Individual columns for each family member with their selected colors
 - **Collapsible Right Panel**: Task library panel that can be collapsed/expanded
+- **Task Library Features**: 
+  - **Filter Options**: All, Groups Only, Tasks Only
+  - **Task Groups**: Displayed with folder icon, showing task count, system badge (if applicable), and preview of first 3 tasks
+  - **Individual Tasks**: Displayed with ListTodo icon, showing points, system badge (if applicable), and duration
+  - **System Badge**: Purple "system" badge appears for tasks/groups provided by the system (based on `is_system` field from API)
+- **Library Creation**: Users can create custom task groups and individual tasks to add to their personal library
 - **API Integration**: Connected to real backend endpoints for routine management
 - **Library Data**: Dynamic loading of task groups and individual tasks from API
 - **Filter Options**: Show all, groups only, or tasks only
@@ -387,12 +393,16 @@ interface Reward {
 
 ## 🔌 API Integration
 
+### Library Management API Endpoints
+- **`GET /library/groups`**: Retrieves available task group templates with `is_system` field
+- **`POST /library/groups`**: Creates new task group templates
+- **`GET /library/tasks`**: Retrieves available individual task templates with `is_system` field  
+- **`POST /library/tasks`**: Creates new individual task templates
+
 ### Routine Builder API Endpoints
 - **`POST /routines`**: Creates routine draft for family
 - **`PATCH /routines/{routine_id}`**: Updates routine name and status
 - **`GET /family-members`**: Fetches family members for routine assignment
-- **`GET /library/groups`**: Retrieves available task group templates
-- **`GET /library/tasks`**: Retrieves available individual task templates
 - **`POST /routines/{routine_id}/groups`**: Adds task groups to routine
 - **`POST /routines/{routine_id}/tasks`**: Adds individual tasks to routine
 - **`DELETE /routines/{routine_id}/groups/{group_id}`**: Removes task groups

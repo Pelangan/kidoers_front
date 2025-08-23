@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../../components/ui/dialog"
 import { Textarea } from "../../../../components/ui/textarea"
 import { Checkbox } from "../../../../components/ui/checkbox"
-import { ArrowLeft, Plus, Trash2, Save, GripVertical, User, Folder, Users, Baby, UserCheck, Check, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Save, GripVertical, User, Folder, Users, Baby, UserCheck, Check, ChevronLeft, ChevronRight, ListTodo } from 'lucide-react'
 import type { FamilyMember } from '../../../lib/api'
 import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, updateOnboardingStep, listLibraryGroups, listLibraryTasks } from '../../../lib/api'
 
@@ -25,9 +25,9 @@ interface Task {
   name: string
   description: string
   points: number
-  category: string
   estimatedMinutes: number
   completed?: boolean
+  is_system?: boolean
 }
 
 interface TaskGroup {
@@ -36,13 +36,14 @@ interface TaskGroup {
   description: string
   tasks: Task[]
   color: string
+  is_system?: boolean
 }
 
 interface ApplyToOption {
   id: string
   label: string
   icon: React.ReactNode
-  filter: (members: FamilyMember[]) => FamilyMember[]
+  filter: (members: any[]) => any[]
 }
 
 interface PendingDrop {
@@ -82,13 +83,13 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       id: 'all-kids', 
       label: 'All kids', 
       icon: <Baby className="w-4 h-4" />,
-      filter: (members) => members.filter(m => m.role === 'child') 
+      filter: (members) => members.filter(m => m.type === 'child') 
     },
     { 
       id: 'all-parents', 
       label: 'All parents', 
       icon: <UserCheck className="w-4 h-4" />,
-      filter: (members) => members.filter(m => m.role === 'parent') 
+      filter: (members) => members.filter(m => m.type === 'parent') 
     },
     { 
       id: 'all-family', 
@@ -200,12 +201,12 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           name: group.name,
           description: group.description || '',
           color: 'bg-blue-100 border-blue-300',
+          is_system: group.is_system,
           tasks: group.items?.map((item: any) => ({
             id: item.task_id,
             name: item.name,
             description: '',
             points: item.default_points,
-            category: 'chore',
             estimatedMinutes: 5
           })) || []
         }))
@@ -216,8 +217,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           name: task.name,
           description: task.description || '',
           points: task.default_points,
-          category: 'chore',
-          estimatedMinutes: 5
+          estimatedMinutes: 5,
+          is_system: task.is_system
         }))
         
         setLibraryGroups(transformedGroups)
@@ -431,22 +432,13 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     return member.groups.reduce((sum: number, group: TaskGroup) => sum + group.tasks.length, 0) + member.individualTasks.length
   }
 
-  const getCategoryColor = (category: string) => {
-    const colors = {
-      chore: 'bg-blue-100 text-blue-800',
-      hygiene: 'bg-green-100 text-green-800',
-      education: 'bg-purple-100 text-purple-800',
-      health: 'bg-emerald-100 text-emerald-800',
-      habit: 'bg-orange-100 text-orange-800'
-    }
-    return colors[category as keyof typeof colors] || 'bg-gray-100 text-gray-800'
-  }
+
 
   const totalTasks = enhancedFamilyMembers.reduce((sum, member) => sum + getTotalTasks(member), 0)
 
-  const panelWidth = isPanelCollapsed ? 'w-12' : 'w-80'
+  const panelWidth = isPanelCollapsed ? 'w-12' : 'w-96'
   // When used in onboarding mode, don't add right padding to allow full width expansion
-  const mainPadding = onComplete ? '' : (isPanelCollapsed ? 'pr-12' : 'pr-80')
+  const mainPadding = onComplete ? '' : (isPanelCollapsed ? 'pr-12' : 'pr-96')
 
   // Filter tasks and groups based on show options
   const filteredGroups = showOnlyTasks ? [] : libraryGroups
@@ -778,6 +770,11 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                               <Badge variant="outline" className="text-xs">
                                 {group.tasks.length} tasks
                               </Badge>
+                              {group.is_system && (
+                                <Badge className="text-xs bg-purple-100 text-purple-800">
+                                  system
+                                </Badge>
+                              )}
                             </div>
                             <p className="text-xs text-gray-600 mb-3">{group.description}</p>
                             <div className="space-y-1">
@@ -808,7 +805,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
               {libraryLoading ? (
                 <div className="space-y-4">
                   <h3 className="font-semibold text-gray-900 flex items-center space-x-2">
-                    <Plus className="w-5 h-5" />
+                    <ListTodo className="w-5 h-5" />
                     <span>Individual Tasks</span>
                   </h3>
                   <div className="text-center py-4">
@@ -819,7 +816,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
               ) : filteredTasks.length > 0 ? (
                 <div className="space-y-4">
                   <h3 className="font-semibold text-gray-900 flex items-center space-x-2">
-                    <Plus className="w-5 h-5" />
+                    <ListTodo className="w-5 h-5" />
                     <span>Individual Tasks</span>
                   </h3>
                   <div className="space-y-3">
@@ -841,9 +838,11 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                             </div>
                             <p className="text-xs text-gray-600 mb-2">{task.description}</p>
                             <div className="flex items-center space-x-2">
-                              <Badge className={`text-xs ${getCategoryColor(task.category)}`}>
-                                {task.category}
-                              </Badge>
+                              {task.is_system && (
+                                <Badge className="text-xs bg-purple-100 text-purple-800">
+                                  system
+                                </Badge>
+                              )}
                               <Badge variant="outline" className="text-xs">
                                 {task.estimatedMinutes}min
                               </Badge>
