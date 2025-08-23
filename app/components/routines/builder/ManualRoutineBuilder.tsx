@@ -436,9 +436,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
   const totalTasks = enhancedFamilyMembers.reduce((sum, member) => sum + getTotalTasks(member), 0)
 
-  const panelWidth = isPanelCollapsed ? 'w-12' : 'w-96'
-  // When used in onboarding mode, don't add right padding to allow full width expansion
-  const mainPadding = onComplete ? '' : (isPanelCollapsed ? 'pr-12' : 'pr-96')
+  const panelWidth = isPanelCollapsed ? 'w-12' : 'w-80'
+  const mainPadding = isPanelCollapsed ? 'pr-12' : 'pr-80'
 
   // Filter tasks and groups based on show options
   const filteredGroups = showOnlyTasks ? [] : libraryGroups
@@ -449,7 +448,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       <div className="flex">
         {/* Main Content */}
         <div className={`flex-1 p-6 ${mainPadding} transition-all duration-300`}>
-          <div className="w-full space-y-6">
+          <div className="max-w-full mx-auto space-y-6">
             {/* Header - Only show when not in onboarding mode */}
             {!onComplete && (
               <div className="text-center space-y-4">
@@ -504,7 +503,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
             </Card>
 
             {/* Family Members Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 w-full">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
               {enhancedFamilyMembers.map((member) => {
                 const totalTasks = getTotalTasks(member)
                 
@@ -679,7 +678,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         </div>
 
         {/* Right Panel - Task Library */}
-        <div className={`${onComplete ? 'absolute' : 'fixed'} right-0 top-0 h-full ${panelWidth} bg-white border-l border-gray-200 overflow-y-auto transition-all duration-300 z-10 shadow-lg`}>
+        <div className={`fixed right-0 top-0 h-full ${panelWidth} bg-white border-l border-gray-200 overflow-y-auto transition-all duration-300 z-10 shadow-lg`}>
           {/* Collapse/Expand Button */}
           <div className="p-3 border-b border-gray-200 bg-gray-50">
             <Button

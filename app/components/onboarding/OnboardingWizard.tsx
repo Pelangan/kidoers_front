@@ -83,7 +83,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
 
   return (
     <div className="min-h-screen bg-gradient-soft">
-      <div className={currentStep === 3 ? "w-full px-4 py-8" : "container mx-auto px-4 py-8"}>
+      <div className={currentStep === 3 ? "w-full py-8" : "container mx-auto px-4 py-8"}>
         <div className="text-center mb-8">
           {currentStep === 1 && (
             <>

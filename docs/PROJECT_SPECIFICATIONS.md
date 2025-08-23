@@ -376,13 +376,14 @@ interface Reward {
 - **Wireframe-Exact Implementation**: Complete recreation of the routine builder interface
 - **Family Member Columns**: Individual columns for each family member with their selected colors
 - **Collapsible Right Panel**: Task library panel that can be collapsed/expanded
+- **Responsive Layout**: Main content expands to full width when right panel is collapsed
 - **Task Library Features**: 
   - **Filter Options**: All, Groups Only, Tasks Only
   - **Task Groups**: Displayed with folder icon, showing task count, system badge (if applicable), and preview of first 3 tasks
   - **Individual Tasks**: Displayed with ListTodo icon, showing points, system badge (if applicable), and duration
   - **System Badge**: Purple "system" badge appears for tasks/groups provided by the system (based on `is_system` field from API)
-- **Library Creation**: Users can create custom task groups and individual tasks to add to their personal library
-- **API Integration**: Connected to real backend endpoints for routine management
+  - **Library Creation**: Users can create custom task groups and individual tasks to add to their personal library
+  - **API Integration**: Connected to real backend endpoints for routine management
 - **Library Data**: Dynamic loading of task groups and individual tasks from API
 - **Filter Options**: Show all, groups only, or tasks only
 - **Drag & Drop**: Full drag and drop functionality for tasks and groups
