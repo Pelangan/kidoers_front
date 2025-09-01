@@ -75,7 +75,7 @@ class ApiService {
     }
   }
 
-  private async getAuthHeaders(): Promise<HeadersInit> {
+  async getAuthHeaders(): Promise<HeadersInit> {
     const token = await this.getAuthToken()
     console.log('Auth headers - token present:', !!token)
     
@@ -484,6 +484,96 @@ export async function patchRoutine(routineId: string, body: { name?: string; sta
   }>(`/routines/${routineId}`, {
     method: "PATCH",
     body: JSON.stringify(body),
+  });
+}
+
+export async function getOnboardingRoutine(familyId: string) {
+  // Use a custom request for onboarding routine to avoid logging 404s
+  const url = `${API_BASE_URL}/routines/onboarding/${familyId}`;
+  const headers = await apiService.getAuthHeaders();
+  
+  const response = await fetch(url, {
+    method: "GET",
+    headers,
+  });
+  
+  if (!response.ok) {
+    if (response.status === 404) {
+      // Don't log 404s for onboarding routine - this is expected
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    // For other errors, log them
+    const errorData = await response.json().catch(() => ({}));
+    console.error('Response error:', errorData);
+    console.error('Response status:', response.status);
+    throw new Error(errorData.detail || errorData.message || `HTTP error! status: ${response.status}`);
+  }
+  
+  const responseData = await response.json();
+  return responseData;
+}
+
+export async function getRoutineGroups(routineId: string) {
+  return apiService.makeRequest<{
+    id: string;
+    routine_id: string;
+    name: string;
+    time_of_day: string | null;
+    order_index: number;
+  }[]>(`/routines/${routineId}/groups`, {
+    method: "GET",
+  });
+}
+
+export async function getRoutineTasks(routineId: string) {
+  return apiService.makeRequest<{
+    id: string;
+    routine_id: string;
+    group_id: string | null;
+    name: string;
+    description: string | null;
+    points: number;
+    duration_mins: number | null;
+    time_of_day: string | null;
+    frequency: string;
+    days_of_week: string[];
+    order_index: number;
+  }[]>(`/routines/${routineId}/tasks`, {
+    method: "GET",
+  });
+}
+
+// Task Assignment endpoints
+export async function createTaskAssignment(routineId: string, taskId: string, memberId: string, orderIndex?: number) {
+  return apiService.makeRequest<{
+    id: string;
+    routine_task_id: string;
+    member_id: string;
+    order_index: number;
+  }>(`/routines/${routineId}/tasks/${taskId}/assignments`, {
+    method: "POST",
+    body: JSON.stringify({
+      routine_task_id: taskId,
+      member_id: memberId,
+      order_index: orderIndex
+    }),
+  });
+}
+
+export async function getRoutineAssignments(routineId: string) {
+  return apiService.makeRequest<{
+    id: string;
+    routine_task_id: string;
+    member_id: string;
+    order_index: number;
+  }[]>(`/routines/${routineId}/assignments`, {
+    method: "GET",
+  });
+}
+
+export async function deleteTaskAssignment(routineId: string, taskId: string, assignmentId: string) {
+  return apiService.makeRequest(`/routines/${routineId}/tasks/${taskId}/assignments/${assignmentId}`, {
+    method: "DELETE",
   });
 }
 

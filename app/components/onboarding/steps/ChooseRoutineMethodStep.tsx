@@ -53,7 +53,9 @@ export default function ChooseRoutineMethodStep({ familyId, onBack, onComplete }
       try {
         setBusy(true);
         // Mark onboarding step = choose_flow (persist resume point)
+        console.log('ChooseRoutineMethodStep: Updating onboarding step to:', "choose_flow");
         await apiService.updateOnboardingStep(familyId, "choose_flow");
+        console.log('ChooseRoutineMethodStep: Onboarding step updated successfully');
         // Call onComplete to move to step 3 instead of navigating
         onComplete();
       } finally {

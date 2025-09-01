@@ -388,8 +388,17 @@ interface Reward {
 - **Filter Options**: Show all, groups only, or tasks only
 - **Drag & Drop**: Full drag and drop functionality for tasks and groups
 - **Smart Assignment**: Choose who receives tasks (individual, all kids, all parents, all family)
-- **Task Management**: Create groups from selected tasks, remove tasks/groups
-- **Real-time Saving**: Automatic routine draft creation and publishing
+- **Task Management**: Remove tasks/groups (task grouping functionality removed for simplicity)
+- **Lazy Routine Creation**: Routine draft is created only when user starts building (types name or adds tasks)
+- **Manual Save Progress**: Users can save their progress with a dedicated button (only enabled when routine name is provided)
+- **Task Persistence**: Save Progress now persists tasks and groups to backend database with duplicate prevention
+- **Routine Resume**: Users can resume their onboarding routine if they close the browser and return later
+- **Automatic Loading**: Existing routines are automatically loaded when returning to the onboarding flow
+- **Data Restoration**: Tasks and groups are restored into family member cards with proper task assignments
+- **Silent 404 Handling**: Onboarding routine 404 errors are handled silently for first-time users
+- **Optimized API Calls**: Single useEffect with concurrent data loading to minimize API requests
+- **No Auto-Save**: Removed automatic backend calls during name editing to prevent errors
+- **Smart Publishing**: Routine is published to active status when user completes onboarding
 - **Visual Design**: Matches wireframe exactly with proper colors and layout
 
 ## 🔌 API Integration
@@ -408,13 +417,19 @@ interface Reward {
 - **`POST /routines/{routine_id}/tasks`**: Adds individual tasks to routine
 - **`DELETE /routines/{routine_id}/groups/{group_id}`**: Removes task groups
 - **`DELETE /routines/{routine_id}/tasks/{task_id}`**: Removes individual tasks
+- **`GET /routines/onboarding/{family_id}`**: Retrieves the onboarding routine for a family
+- **`GET /routines/{routine_id}/groups`**: Retrieves all task groups for a routine
+- **`GET /routines/{routine_id}/tasks`**: Retrieves all tasks for a routine
+- **`POST /routines/{routine_id}/tasks/{task_id}/assignments`**: Creates a task assignment to a family member
+- **`GET /routines/{routine_id}/assignments`**: Retrieves all task assignments for a routine
+- **`DELETE /routines/{routine_id}/tasks/{task_id}/assignments/{assignment_id}`**: Deletes a task assignment
 
 ### Data Flow
-1. **Routine Creation**: Automatically creates draft routine on component mount
+1. **Lazy Routine Creation**: Creates draft routine only when user starts building (types name or adds tasks)
 2. **Family Loading**: Fetches family members with their selected colors
 3. **Library Loading**: Dynamically loads task groups and tasks from backend
-4. **Real-time Updates**: All changes are saved to backend via API calls
-5. **Publishing**: Routine status changes from draft to active when saved
+4. **Manual Progress Saving**: Users explicitly save progress with dedicated button
+5. **Publishing**: Routine status changes from draft to active when onboarding is completed
 
 ## 💾 Data Storage System
 

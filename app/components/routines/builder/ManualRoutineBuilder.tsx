@@ -9,11 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../../../components
 import { Badge } from "../../../../components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../../components/ui/dialog"
-import { Textarea } from "../../../../components/ui/textarea"
-import { Checkbox } from "../../../../components/ui/checkbox"
 import { ArrowLeft, Plus, Trash2, Save, GripVertical, User, Folder, Users, Baby, UserCheck, Check, ChevronLeft, ChevronRight, ListTodo } from 'lucide-react'
 import type { FamilyMember } from '../../../lib/api'
-import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, updateOnboardingStep, listLibraryGroups, listLibraryTasks } from '../../../lib/api'
+import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, updateOnboardingStep, listLibraryGroups, listLibraryTasks, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments } from '../../../lib/api'
 
 interface ManualRoutineBuilderProps {
   familyId?: string
@@ -28,6 +26,9 @@ interface Task {
   estimatedMinutes: number
   completed?: boolean
   is_system?: boolean
+  time_of_day?: "morning" | "afternoon" | "evening" | "night"
+  template_id?: string // Store the original template ID
+  is_saved?: boolean // Track if this task has been saved to backend
 }
 
 interface TaskGroup {
@@ -37,6 +38,9 @@ interface TaskGroup {
   tasks: Task[]
   color: string
   is_system?: boolean
+  time_of_day?: "morning" | "afternoon" | "evening" | "night"
+  template_id?: string // Store the original template ID
+  is_saved?: boolean // Track if this group has been saved to backend
 }
 
 interface ApplyToOption {
@@ -59,9 +63,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   const familyId = propFamilyId || sp?.get("family")
   
   const [routine, setRoutine] = useState<{ id: string; family_id: string; name: string; status: "draft"|"active"|"archived" }|null>(null)
-  const [routineName, setRoutineName] = useState('')
-  const [selectedTasks, setSelectedTasks] = useState<string[]>([])
-  const [isCreatingGroupFromTasks, setIsCreatingGroupFromTasks] = useState(false)
+  const [routineName, setRoutineName] = useState('My Routine')
   const [draggedItem, setDraggedItem] = useState<{ type: 'task' | 'group', item: Task | TaskGroup } | null>(null)
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false)
   const [pendingDrop, setPendingDrop] = useState<PendingDrop | null>(null)
@@ -70,6 +72,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   const [showOnlyGroups, setShowOnlyGroups] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string|null>(null)
+  const [isSavingProgress, setIsSavingProgress] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
   // Apply to options
   const applyToOptions: ApplyToOption[] = [
@@ -118,37 +122,87 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     return colorMap[color] || { border: 'border-gray-300', bg: 'bg-gray-50' }
   }
 
-  // Load family members and create routine draft
+  // Load all initial data (family members, existing routine, and library data)
   useEffect(() => {
-    const loadData = async () => {
+    let isMounted = true;
+    
+    const loadAllData = async () => {
       if (!familyId) {
         router.push("/onboarding"); // safety
         return;
       }
       
+      console.log('ManualRoutineBuilder: Starting loadAllData, familyId:', familyId);
+      
       setBusy(true);
+      setLibraryLoading(true);
       setError(null);
       
       try {
-        console.log('Updating onboarding step to:', "create_routine");
-        await updateOnboardingStep(familyId, "create_routine"); // resume point
-        console.log('Onboarding step updated successfully');
+        console.log('Starting to load all data for family:', familyId);
         
-        console.log('Creating routine draft...');
-        const created = await createRoutineDraft(familyId, "My Routine");
-        console.log('Routine draft created:', created);
-        setRoutine({
-          id: created.id,
-          family_id: created.family_id,
-          name: created.name,
-          status: created.status as "draft"|"active"|"archived"
-        });
-        setRoutineName(created.name);
+        // Check current onboarding step and only update if needed
+        console.log('ManualRoutineBuilder: Checking current onboarding step...');
+        try {
+          const onboardingStatus = await apiService.getOnboardingStatus();
+          console.log('Current onboarding status:', onboardingStatus);
+          
+          if (onboardingStatus.has_family && onboardingStatus.in_progress) {
+            const currentStep = onboardingStatus.in_progress.setup_step;
+            console.log('Current step:', currentStep);
+            
+            if (currentStep !== 'create_routine') {
+              console.log('Updating step from', currentStep, 'to create_routine');
+              await updateOnboardingStep(familyId, "create_routine");
+              console.log('ManualRoutineBuilder: Onboarding step updated successfully');
+            } else {
+              console.log('Step already set to create_routine, skipping update');
+            }
+          } else {
+            console.log('No onboarding in progress, updating step to create_routine');
+            await updateOnboardingStep(familyId, "create_routine");
+            console.log('ManualRoutineBuilder: Onboarding step updated successfully');
+          }
+        } catch (error) {
+          console.log('ManualRoutineBuilder: Error checking/updating step:', error);
+        }
         
-        // Fetch family members
-        console.log('Fetching family members...');
-        const members = await apiService.getFamilyMembers(familyId);
-        console.log('Family members fetched:', members);
+        // Load all data concurrently
+        const [members, groupsData, tasksData] = await Promise.all([
+          apiService.getFamilyMembers(familyId),
+          listLibraryGroups('', true),
+          listLibraryTasks('')
+        ]);
+        
+        console.log('All API data loaded:', { members, groupsData, tasksData });
+        
+        // Try to load existing onboarding routine
+        let existingRoutine = null;
+        try {
+          console.log('Loading existing onboarding routine...');
+          existingRoutine = await getOnboardingRoutine(familyId);
+          console.log('Existing routine found:', existingRoutine);
+          setRoutine({
+            id: existingRoutine.id,
+            family_id: existingRoutine.family_id,
+            name: existingRoutine.name,
+            status: existingRoutine.status as "draft"|"active"|"archived"
+          });
+          setRoutineName(existingRoutine.name);
+          
+          // Mark as having no unsaved changes since we just loaded the routine
+          setHasUnsavedChanges(false);
+        } catch (e: any) {
+          // Check if this is an expected 404 (no routine exists yet)
+          if (e.message && e.message.includes('404')) {
+            console.log('No existing onboarding routine found, will create new one when needed');
+          } else {
+            // This is an unexpected error, log it but don't set error state
+            console.warn('Unexpected error loading routine:', e);
+          }
+        }
+        
+        // Set family members
         setFamilyMembers(members);
         
         // Enhance family members with the structure needed for the routine builder
@@ -166,36 +220,13 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           }
         })
         setEnhancedFamilyMembers(enhanced)
-      } catch (e: any) {
-        console.error('Error in useEffect:', e);
-        setError(e?.message || "Failed to start routine");
-      } finally {
-        setBusy(false);
-      }
-    }
-
-    loadData()
-  }, [familyId, router])
-
-  // Library data from API
-  const [libraryGroups, setLibraryGroups] = useState<TaskGroup[]>([])
-  const [libraryTasks, setLibraryTasks] = useState<Task[]>([])
-  const [libraryLoading, setLibraryLoading] = useState(false)
-
-  // Load library data
-  useEffect(() => {
-    const loadLibraryData = async () => {
-      if (!familyId) return
-      
-      setLibraryLoading(true)
-      try {
-        // Load both groups and tasks concurrently
-        const [groupsData, tasksData] = await Promise.all([
-          listLibraryGroups('', true),
-          listLibraryTasks('')
-        ])
         
-        // Transform groups data
+        // Load existing routine data after enhanced family members are set
+        if (existingRoutine) {
+          await loadExistingRoutineData(existingRoutine.id, enhanced);
+        }
+        
+        // Transform and set library data
         const transformedGroups: TaskGroup[] = groupsData.map((group: any) => ({
           id: group.id,
           name: group.name,
@@ -211,7 +242,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           })) || []
         }))
         
-        // Transform tasks data
         const transformedTasks: Task[] = tasksData.map((task: any) => ({
           id: task.id,
           name: task.name,
@@ -223,15 +253,32 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         
         setLibraryGroups(transformedGroups)
         setLibraryTasks(transformedTasks)
-      } catch (error) {
-        console.error('Failed to load library data:', error)
+        
+        console.log('All data loaded successfully');
+      } catch (e: any) {
+        console.error('Error loading data:', e);
+        setError(e?.message || "Failed to load data");
       } finally {
-        setLibraryLoading(false)
+        if (isMounted) {
+          setBusy(false);
+          setLibraryLoading(false);
+        }
       }
     }
 
-    loadLibraryData()
-  }, [familyId])
+    loadAllData()
+    
+    return () => {
+      isMounted = false;
+    }
+  }, [familyId]) // Removed router dependency to prevent unnecessary re-runs
+
+
+
+  // Library data from API
+  const [libraryGroups, setLibraryGroups] = useState<TaskGroup[]>([])
+  const [libraryTasks, setLibraryTasks] = useState<Task[]>([])
+  const [libraryLoading, setLibraryLoading] = useState(false)
 
   // Pre-defined task groups (now using API data)
   const [predefinedGroups] = useState<TaskGroup[]>([])
@@ -239,11 +286,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   // Pre-defined individual tasks (now using API data)
   const [predefinedTasks] = useState<Task[]>([])
 
-  const [newGroup, setNewGroup] = useState({
-    name: '',
-    description: '',
-    color: 'bg-gray-100 border-gray-300'
-  })
+
 
   // Drag and drop handlers
   const handleDragStart = (e: React.DragEvent, type: 'task' | 'group', item: Task | TaskGroup) => {
@@ -274,13 +317,13 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     setDraggedItem(null)
   }
 
-  const handleApplyToSelection = (applyToId: string) => {
+  const handleApplyToSelection = async (applyToId: string) => {
     if (!pendingDrop) return
 
     if (pendingDrop.type === 'task') {
-      addTaskToMember(pendingDrop.targetMemberId, pendingDrop.item as Task, applyToId)
+      await addTaskToMember(pendingDrop.targetMemberId, pendingDrop.item as Task, applyToId)
     } else if (pendingDrop.type === 'group') {
-      addGroupToMember(pendingDrop.targetMemberId, pendingDrop.item as TaskGroup, applyToId)
+      await addGroupToMember(pendingDrop.targetMemberId, pendingDrop.item as TaskGroup, applyToId)
     }
 
     // Close popup and reset
@@ -288,81 +331,71 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     setPendingDrop(null)
   }
 
-  const addGroupToMember = (memberId: string, group: TaskGroup, applyTo: string) => {
-    const applyToOption = applyToOptions.find(option => option.id === applyTo)
-    if (!applyToOption) return
-
-    const targetMembers = applyTo === 'none' 
-      ? enhancedFamilyMembers.filter(m => m.id === memberId)
-      : applyToOption.filter(enhancedFamilyMembers)
-
-    setEnhancedFamilyMembers(members =>
-      members.map(member => {
-        if (targetMembers.some(tm => tm.id === member.id)) {
-          return {
-            ...member,
-            groups: [...member.groups, { ...group, id: `${group.id}-${member.id}-${Date.now()}` }]
-          }
-        }
-        return member
-      })
-    )
-  }
-
-  const addTaskToMember = (memberId: string, task: Task, applyTo: string) => {
-    const applyToOption = applyToOptions.find(option => option.id === applyTo)
-    if (!applyToOption) return
-
-    const targetMembers = applyTo === 'none' 
-      ? enhancedFamilyMembers.filter(m => m.id === memberId)
-      : applyToOption.filter(enhancedFamilyMembers)
-
-    setEnhancedFamilyMembers(members =>
-      members.map(member => {
-        if (targetMembers.some(tm => tm.id === member.id)) {
-          return {
-            ...member,
-            individualTasks: [...member.individualTasks, { ...task, id: `${task.id}-${member.id}-${Date.now()}` }]
-          }
-        }
-        return member
-      })
-    )
-  }
-
-  const createGroupFromSelectedTasks = (memberId: string) => {
-    if (selectedTasks.length === 0 || !newGroup.name.trim()) return
-
-    const member = enhancedFamilyMembers.find(m => m.id === memberId)
-    if (!member) return
-
-    const tasksToGroup = member.individualTasks.filter((task: Task) => selectedTasks.includes(task.id))
+  const addGroupToMember = async (memberId: string, group: TaskGroup, applyTo: string) => {
+    // Ensure routine exists before adding tasks
+    const routineData = await ensureRoutineExists();
+    if (!routineData) return;
     
-    const newGroupWithTasks: TaskGroup = {
-      id: `grouped-${Date.now()}`,
-      name: newGroup.name,
-      description: newGroup.description,
-      color: newGroup.color,
-      tasks: tasksToGroup
-    }
+    const applyToOption = applyToOptions.find(option => option.id === applyTo)
+    if (!applyToOption) return
+
+    const targetMembers = applyTo === 'none' 
+      ? enhancedFamilyMembers.filter(m => m.id === memberId)
+      : applyToOption.filter(enhancedFamilyMembers)
 
     setEnhancedFamilyMembers(members =>
-      members.map(m => {
-        if (m.id === memberId) {
+      members.map(member => {
+        if (targetMembers.some(tm => tm.id === member.id)) {
           return {
-            ...m,
-            groups: [...m.groups, newGroupWithTasks],
-            individualTasks: m.individualTasks.filter((task: Task) => !selectedTasks.includes(task.id))
+            ...member,
+            groups: [...member.groups, { 
+              ...group, 
+              id: `${group.id}-${member.id}-${Date.now()}`,
+              template_id: group.id // Store the original template ID
+            }]
           }
         }
-        return m
+        return member
       })
     )
-
-    setSelectedTasks([])
-    setNewGroup({ name: '', description: '', color: 'bg-gray-100 border-gray-300' })
-    setIsCreatingGroupFromTasks(false)
+    
+    // Mark as having unsaved changes
+    setHasUnsavedChanges(true);
   }
+
+  const addTaskToMember = async (memberId: string, task: Task, applyTo: string) => {
+    // Ensure routine exists before adding tasks
+    const routineData = await ensureRoutineExists();
+    if (!routineData) return;
+    
+    const applyToOption = applyToOptions.find(option => option.id === applyTo)
+    if (!applyToOption) return
+
+    const targetMembers = applyTo === 'none' 
+      ? enhancedFamilyMembers.filter(m => m.id === memberId)
+      : applyToOption.filter(enhancedFamilyMembers)
+
+    setEnhancedFamilyMembers(members =>
+      members.map(member => {
+        if (targetMembers.some(tm => tm.id === member.id)) {
+          return {
+            ...member,
+            individualTasks: [...member.individualTasks, { 
+              ...task, 
+              id: `${task.id}-${member.id}-${Date.now()}`,
+              template_id: task.id // Store the original template ID
+            }]
+          }
+        }
+        return member
+      })
+    )
+    
+    // Mark as having unsaved changes
+    setHasUnsavedChanges(true);
+  }
+
+
 
   const removeGroup = (memberId: string, groupId: string) => {
     setEnhancedFamilyMembers(members =>
@@ -392,26 +425,25 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     )
   }
 
-  const toggleTaskSelection = (taskId: string) => {
-    setSelectedTasks(prev =>
-      prev.includes(taskId)
-        ? prev.filter(id => id !== taskId)
-        : [...prev, taskId]
-    )
-  }
+
 
   const handleSaveRoutine = async () => {
-    if (!routine) return
-    
     setBusy(true)
     try {
-      // Update routine name if changed
-      if (routine.name !== routineName) {
-        await patchRoutine(routine.id, { name: routineName })
+      // First save any unsaved progress
+      if (hasUnsavedChanges) {
+        await saveProgress();
+      }
+      
+      // Ensure routine exists (create if needed)
+      const routineData = await ensureRoutineExists();
+      if (!routineData) {
+        setError('Failed to create routine. Please try again.');
+        return;
       }
       
       // Publish the routine
-      await patchRoutine(routine.id, { status: "active" })
+      await patchRoutine(routineData.id, { status: "active" })
       
       // If we have an onComplete callback (onboarding flow), use it
       if (onComplete) {
@@ -436,8 +468,287 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
   const totalTasks = enhancedFamilyMembers.reduce((sum, member) => sum + getTotalTasks(member), 0)
 
-  const panelWidth = isPanelCollapsed ? 'w-12' : 'w-80'
-  const mainPadding = isPanelCollapsed ? 'pr-12' : 'pr-80'
+  const panelWidth = isPanelCollapsed ? 'w-12' : 'w-96'
+  const mainPadding = isPanelCollapsed ? 'pr-12' : 'pr-96'
+
+  // Lazy routine creation - only create when user actually starts building
+  const ensureRoutineExists = async () => {
+    if (routine) return routine;
+    
+    if (!familyId) return null;
+    
+    try {
+      console.log('Creating routine draft lazily...');
+      const created = await createRoutineDraft(familyId, routineName);
+      console.log('Routine draft created:', created);
+      const routineData = {
+        id: created.id,
+        family_id: created.family_id,
+        name: created.name,
+        status: created.status as "draft"|"active"|"archived"
+      };
+      setRoutine(routineData);
+      return routineData;
+    } catch (e: any) {
+      console.error('Error creating routine:', e);
+      setError(e?.message || "Failed to create routine");
+      return null;
+    }
+  };
+
+  // Load existing routine data (groups and tasks)
+  const loadExistingRoutineData = async (routineId: string, enhancedMembers: any[]) => {
+    try {
+      console.log('Loading existing routine data...');
+      
+      // Load groups and tasks first
+      const [groups, tasks] = await Promise.all([
+        getRoutineGroups(routineId),
+        getRoutineTasks(routineId)
+      ]);
+      
+      // Try to load assignments (might not exist yet)
+      let assignments: Array<{
+        id: string;
+        routine_task_id: string;
+        member_id: string;
+        order_index: number;
+      }> = [];
+      try {
+        assignments = await getRoutineAssignments(routineId);
+      } catch (e: any) {
+        console.log('No task assignments found yet, will create them when tasks are saved');
+      }
+      
+      console.log('Loaded groups:', groups);
+      console.log('Loaded tasks:', tasks);
+      console.log('Loaded assignments:', assignments);
+      
+      // Transform backend data to frontend format
+      const transformedGroups: TaskGroup[] = groups.map(group => ({
+        id: group.id,
+        name: group.name,
+        description: '',
+        tasks: [], // We'll populate this with tasks that belong to this group
+        color: 'bg-blue-100 border-blue-300',
+        time_of_day: group.time_of_day as "morning" | "afternoon" | "evening" | "night" | undefined,
+        is_saved: true, // These are already saved in the backend
+        template_id: undefined // We don't have this info from the backend yet
+      }));
+      
+      // Transform backend data to frontend format, preserving group_id for processing
+      const transformedTasksWithGroupId = tasks.map(task => ({
+        id: task.id,
+        name: task.name,
+        description: task.description || '',
+        points: task.points,
+        estimatedMinutes: task.duration_mins || 5,
+        time_of_day: task.time_of_day as "morning" | "afternoon" | "evening" | "night" | undefined,
+        is_saved: true, // These are already saved in the backend
+        template_id: undefined, // We don't have this info from the backend yet
+        group_id: task.group_id // Keep this for processing, then remove it
+      }));
+      
+      console.log('Transformed groups:', transformedGroups);
+      console.log('Transformed tasks with group_id:', transformedTasksWithGroupId);
+      
+      // Create a map of task assignments by member
+      const assignmentsByMember = new Map<string, string[]>(); // memberId -> taskIds
+      for (const assignment of assignments) {
+        const memberId = assignment.member_id;
+        const taskId = assignment.routine_task_id;
+        if (!assignmentsByMember.has(memberId)) {
+          assignmentsByMember.set(memberId, []);
+        }
+        assignmentsByMember.get(memberId)!.push(taskId);
+      }
+      
+      console.log('Assignments by member:', assignmentsByMember);
+      
+      // Separate tasks that belong to groups vs individual tasks
+      const individualTasks = transformedTasksWithGroupId.filter(task => !task.group_id);
+      const groupTasks = transformedTasksWithGroupId.filter(task => task.group_id);
+      
+      // Assign tasks to their respective groups
+      const groupsWithTasks = transformedGroups.map(group => ({
+        ...group,
+        tasks: groupTasks
+          .filter(task => task.group_id === group.id)
+          .map(task => {
+            // Remove group_id to match Task interface
+            const { group_id, ...taskWithoutGroupId } = task;
+            return taskWithoutGroupId;
+          })
+      }));
+      
+      // Remove group_id from individual tasks to match Task interface
+      const individualTasksWithoutGroupId = individualTasks.map(task => {
+        const { group_id, ...taskWithoutGroupId } = task;
+        return taskWithoutGroupId;
+      });
+      
+      // Distribute tasks and groups to the correct family members
+      console.log('Current enhanced family members:', enhancedMembers);
+      console.log('Assignments by member:', assignmentsByMember);
+      console.log('Individual tasks without group_id:', individualTasksWithoutGroupId);
+      
+      setEnhancedFamilyMembers(members =>
+        members.map(member => {
+          const memberTaskIds = assignmentsByMember.get(member.id) || [];
+          const memberIndividualTasks = individualTasksWithoutGroupId.filter(task => 
+            memberTaskIds.includes(task.id)
+          );
+          
+          console.log(`Member ${member.name} (${member.id}):`, {
+            memberTaskIds,
+            memberIndividualTasks: memberIndividualTasks.length
+          });
+          
+          return {
+            ...member,
+            groups: groupsWithTasks, // For now, all groups go to all members
+            individualTasks: memberIndividualTasks
+          };
+        })
+      );
+      
+      console.log('Loaded routine data with proper task assignments');
+      
+    } catch (e: any) {
+      console.error('Error loading routine data:', e);
+    }
+  };
+
+  // Save progress function
+  const saveProgress = async () => {
+    if (!routineName.trim()) return;
+    
+    setIsSavingProgress(true);
+    try {
+      // Ensure routine exists
+      const routineData = await ensureRoutineExists();
+      if (!routineData) {
+        setError('Failed to create routine. Please try again.');
+        return;
+      }
+      
+      // Update routine name if changed
+      if (routineData.name !== routineName.trim()) {
+        await patchRoutine(routineData.id, { name: routineName.trim() });
+      }
+      
+      // Collect all unique unsaved tasks and groups across all family members
+      const allGroups = new Map<string, TaskGroup>();
+      const allTasks = new Map<string, Task>();
+      const taskAssignments = new Map<string, string[]>(); // taskId -> memberIds
+      const groupAssignments = new Map<string, string[]>(); // groupId -> memberIds
+      
+      for (const member of enhancedFamilyMembers) {
+        // Collect unsaved groups
+        for (const group of member.groups) {
+          if (!group.is_saved && !allGroups.has(group.id)) {
+            allGroups.set(group.id, group);
+            groupAssignments.set(group.id, []);
+          }
+          if (!group.is_saved) {
+            groupAssignments.get(group.id)!.push(member.id);
+          }
+        }
+        
+        // Collect unsaved individual tasks
+        for (const task of member.individualTasks) {
+          if (!task.is_saved && !allTasks.has(task.id)) {
+            allTasks.set(task.id, task);
+            taskAssignments.set(task.id, []);
+          }
+          if (!task.is_saved) {
+            taskAssignments.get(task.id)!.push(member.id);
+          }
+        }
+      }
+      
+      // Save unique groups
+      const savedGroups = new Map<string, string>(); // originalId -> savedId
+      for (const [originalId, group] of allGroups) {
+        try {
+          const savedGroup = await addRoutineGroup(routineData.id, {
+            name: group.name,
+            time_of_day: group.time_of_day,
+            from_group_template_id: group.is_system ? group.template_id : undefined
+          });
+          savedGroups.set(originalId, savedGroup.id);
+          
+          // Mark group as saved in the UI state
+          setEnhancedFamilyMembers(members =>
+            members.map(member => ({
+              ...member,
+              groups: member.groups.map((g: TaskGroup) => 
+                g.id === originalId ? { ...g, is_saved: true } : g
+              )
+            }))
+          );
+        } catch (e: any) {
+          console.error('Error saving group:', e);
+        }
+      }
+      
+      // Save unique tasks
+      const savedTasks = new Map<string, string>(); // originalId -> savedId
+      for (const [originalId, task] of allTasks) {
+        try {
+          const savedTask = await addRoutineTask(routineData.id, {
+            name: task.name,
+            description: task.description,
+            points: task.points,
+            duration_mins: task.estimatedMinutes,
+            time_of_day: task.time_of_day,
+            from_task_template_id: task.is_system ? task.template_id : undefined
+          });
+          savedTasks.set(originalId, savedTask.id);
+          
+          // Mark task as saved in the UI state
+          setEnhancedFamilyMembers(members =>
+            members.map(member => ({
+              ...member,
+              individualTasks: member.individualTasks.map((t: Task) => 
+                t.id === originalId ? { ...t, is_saved: true } : t
+              )
+            }))
+          );
+        } catch (e: any) {
+          console.error('Error saving task:', e);
+        }
+      }
+      
+      // Create task assignments for individual tasks
+      for (const [originalTaskId, memberIds] of taskAssignments) {
+        const savedTaskId = savedTasks.get(originalTaskId);
+        if (savedTaskId) {
+          for (const memberId of memberIds) {
+            try {
+              await createTaskAssignment(routineData.id, savedTaskId, memberId);
+              console.log(`Assigned task ${savedTaskId} to member ${memberId}`);
+            } catch (e: any) {
+              console.error('Error creating task assignment:', e);
+            }
+          }
+        }
+      }
+      
+      // TODO: Add group assignments (for now, groups are just templates)
+      console.log('Saved groups:', savedGroups);
+      console.log('Saved tasks:', savedTasks);
+      console.log('Task assignments created successfully');
+      
+      setHasUnsavedChanges(false);
+      setError(null);
+    } catch (e: any) {
+      console.error('Error saving progress:', e);
+      setError(e?.message || 'Failed to save progress. Please try again.');
+    } finally {
+      setIsSavingProgress(false);
+    }
+  };
 
   // Filter tasks and groups based on show options
   const filteredGroups = showOnlyTasks ? [] : libraryGroups
@@ -476,14 +787,54 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                 <div className="space-y-4">
                   <div>
                     <Label htmlFor="routineName">Routine Name</Label>
-                    <Input
-                      id="routineName"
-                      placeholder="My Family Routine"
-                      value={routineName}
-                      onChange={(e) => setRoutineName(e.target.value)}
-                      className="bg-white"
-                      disabled={busy}
-                    />
+                    <div className="relative">
+                      <Input
+                        id="routineName"
+                        placeholder="My Family Routine"
+                        value={routineName}
+                        onChange={(e) => {
+                          const newName = e.target.value;
+                          setRoutineName(newName);
+                          
+                          // Mark as having unsaved changes if name is different from current routine
+                          if (routine && routine.name !== newName.trim()) {
+                            setHasUnsavedChanges(true);
+                          } else if (routine && routine.name === newName.trim()) {
+                            setHasUnsavedChanges(false);
+                          }
+                        }}
+                        className="bg-white"
+                        disabled={busy}
+                      />
+                    </div>
+                    {!routineName.trim() && (
+                      <p className="text-sm text-amber-600 mt-1">
+                        Routine name is required to save your routine
+                      </p>
+                    )}
+                    {(hasUnsavedChanges || routine) && routineName.trim() && (
+                      <div className="flex items-center justify-between mt-2">
+                        <p className="text-sm text-blue-600">
+                          {hasUnsavedChanges ? "You have unsaved changes" : "Routine saved"}
+                        </p>
+                        <Button
+                          onClick={saveProgress}
+                          disabled={isSavingProgress}
+                          size="sm"
+                          variant="outline"
+                          className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                        >
+                          {isSavingProgress ? (
+                            <>
+                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-2"></div>
+                              Saving...
+                            </>
+                          ) : (
+                            'Save Progress'
+                          )}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                   
                   {totalTasks > 0 && (
@@ -561,10 +912,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                           {/* Individual Tasks */}
                           {member.individualTasks.map((task: Task) => (
                             <div key={task.id} className={`flex items-center space-x-3 p-3 ${member.taskBgColor} rounded-lg border border-gray-200`}>
-                              <Checkbox
-                                checked={selectedTasks.includes(task.id)}
-                                onCheckedChange={() => toggleTaskSelection(task.id)}
-                              />
                               <div className="w-4 h-4 rounded border border-gray-400 flex items-center justify-center bg-white">
                                 {task.completed && <Check className="w-3 h-3 text-green-600" />}
                               </div>
@@ -581,54 +928,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                               </Button>
                             </div>
                           ))}
-
-                          {/* Group Selected Tasks Button */}
-                          {selectedTasks.length > 0 && (
-                            <Dialog open={isCreatingGroupFromTasks} onOpenChange={setIsCreatingGroupFromTasks}>
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                className="w-full text-xs bg-white"
-                                onClick={() => setIsCreatingGroupFromTasks(true)}
-                              >
-                                <Folder className="w-3 h-3 mr-1" />
-                                Group Selected ({selectedTasks.length})
-                              </Button>
-                              <DialogContent className="bg-white">
-                                <DialogHeader>
-                                  <DialogTitle>Create Group from Selected Tasks</DialogTitle>
-                                </DialogHeader>
-                                <div className="space-y-4">
-                                  <div>
-                                    <Label>Group Name</Label>
-                                    <Input
-                                      value={newGroup.name}
-                                      onChange={(e) => setNewGroup({...newGroup, name: e.target.value})}
-                                      placeholder="Enter group name"
-                                      className="bg-white"
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label>Description (optional)</Label>
-                                    <Textarea
-                                      value={newGroup.description}
-                                      onChange={(e) => setNewGroup({...newGroup, description: e.target.value})}
-                                      placeholder="Describe this group"
-                                      rows={2}
-                                      className="bg-white"
-                                    />
-                                  </div>
-                                  <Button 
-                                    onClick={() => createGroupFromSelectedTasks(member.id)}
-                                    disabled={!newGroup.name.trim()}
-                                    className="w-full"
-                                  >
-                                    Create Group
-                                  </Button>
-                                </div>
-                              </DialogContent>
-                            </Dialog>
-                          )}
                         </>
                       )}
                     </CardContent>
@@ -652,7 +951,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
               <Button
                 onClick={handleSaveRoutine}
-                disabled={totalTasks === 0 || busy}
+                disabled={totalTasks === 0 || busy || !routineName.trim()}
                 className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white flex items-center justify-center space-x-2 flex-1"
               >
                 {busy ? (
@@ -669,9 +968,12 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
               </Button>
             </div>
 
-            {totalTasks === 0 && (
+            {(totalTasks === 0 || !routineName.trim()) && (
               <p className="text-center text-sm text-amber-600">
-                Drag tasks and groups from the library panel to family members
+                {!routineName.trim() 
+                  ? "Please enter a routine name to continue"
+                  : "Drag tasks and groups from the library panel to family members"
+                }
               </p>
             )}
           </div>
