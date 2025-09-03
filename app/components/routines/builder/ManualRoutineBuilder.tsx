@@ -469,7 +469,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   const totalTasks = enhancedFamilyMembers.reduce((sum, member) => sum + getTotalTasks(member), 0)
 
   const panelWidth = isPanelCollapsed ? 'w-12' : 'w-72'
-  const mainPadding = isPanelCollapsed ? 'pr-12' : 'pr-72'
 
   // Lazy routine creation - only create when user actually starts building
   const ensureRoutineExists = async () => {
@@ -755,37 +754,11 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   const filteredTasks = showOnlyGroups ? [] : libraryTasks
 
   return (
-    <div className={`${onComplete ? 'min-h-0' : 'min-h-screen'} bg-white`}>
-      <div className="flex">
+    <div className={`${onComplete ? 'min-h-0' : 'min-h-screen'} bg-gray-50 flex flex-col`}>
+      <div className="flex flex-1 overflow-hidden">
         {/* Main Content */}
-        <div className={`flex-1 p-2 ${mainPadding} transition-all duration-300`}>
-          <div className="max-w-full mx-auto space-y-2">
-            {/* Header - Only show when not in onboarding mode */}
-            {!onComplete && (
-              <div className="space-y-1">
-                <div className="flex items-center gap-6">
-                  {/* Segmented Progress Bar - Left side */}
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-gray-600">Step 3 of 3</span>
-                    <div className="flex gap-1">
-                      {/* Step 1 - Completed */}
-                      <div className="w-8 h-2 bg-orange-500 rounded-full"></div>
-                      {/* Step 2 - Completed */}
-                      <div className="w-8 h-2 bg-orange-500 rounded-full"></div>
-                      {/* Step 3 - Current/Completed */}
-                      <div className="w-8 h-2 bg-orange-500 rounded-full"></div>
-                    </div>
-                    <span className="text-sm font-medium text-orange-500">100%</span>
-                  </div>
-                  
-                  {/* Title and subtitle - Right side */}
-                  <div className="text-left">
-                    <h1 className="text-xl font-semibold text-gray-900">Create Your Own Routine</h1>
-                    <p className="text-xs text-gray-600">Drag tasks from the library to build your custom routine</p>
-                  </div>
-                </div>
-              </div>
-            )}
+        <div className="flex-1 p-6 overflow-auto">
+          <div className="space-y-2">
 
             {/* Error Display */}
             {error && (
@@ -855,7 +828,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
             </Card>
 
             {/* Family Members Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
+            <div className="grid grid-cols-4 gap-4">
               {enhancedFamilyMembers.map((member) => {
                 const totalTasks = getTotalTasks(member)
                 
@@ -939,16 +912,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
             {/* Save Button */}
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
-              {!onComplete ? (
-                <Button
-                  variant="outline"
-                  onClick={() => router.push('/onboarding/custom')}
-                  className="flex items-center justify-center space-x-2 bg-white"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>Back to Options</span>
-                </Button>
-              ) : null}
+
 
               <Button
                 onClick={handleSaveRoutine}
@@ -981,7 +945,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         </div>
 
         {/* Right Panel - Task Library */}
-        <div className={`fixed right-0 top-0 h-full ${panelWidth} bg-white border-l border-gray-200 overflow-y-auto transition-all duration-300 z-10 shadow-lg`}>
+        <div className={`${panelWidth} bg-white border-l border-gray-200 overflow-y-auto transition-all duration-300 flex flex-col`}>
           {/* Collapse/Expand Button */}
           <div className="p-3 border-b border-gray-200 bg-gray-50">
             <Button
@@ -993,6 +957,15 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
               {isPanelCollapsed ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
             </Button>
           </div>
+
+          {/* Collapsed State Label */}
+          {isPanelCollapsed && (
+            <div className="flex items-center justify-center h-full">
+              <div className="transform -rotate-90 text-gray-600 font-medium text-base tracking-wide whitespace-nowrap">
+                Task Library
+              </div>
+            </div>
+          )}
 
           {!isPanelCollapsed && (
             <div className="p-2 space-y-3">

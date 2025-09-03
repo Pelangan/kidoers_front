@@ -6,6 +6,8 @@ import CreateRoutineStep from "./steps/CreateRoutineStep";
 import ChooseRoutineMethodStep from "./steps/ChooseRoutineMethodStep";
 import { useRouter } from "next/navigation";
 import { apiService } from "../../lib/api";
+import { Button } from "../../../components/ui/button";
+import { ChevronLeft } from "lucide-react";
 
 interface OnboardingWizardProps {
   onComplete: () => void;
@@ -82,74 +84,77 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   }
 
   return (
-    <div className="min-h-screen bg-gradient-soft">
-      <div className={currentStep === 3 ? "w-full py-8" : "container mx-auto px-4 py-8"}>
-        <div className="mb-0">
-          {currentStep === 3 ? (
-            /* Step 3 - Progress bar on left, title centered */
-            <div className="flex items-center mb-2">
-              {/* Progress Bar - Left side */}
-              <div className="flex items-center gap-3 ml-6">
-                <span className="text-sm text-gray-600">Step {currentStep} of {totalSteps}</span>
-                <div className="flex gap-1">
-                  {/* Step 1 */}
-                  <div className={`w-8 h-2 rounded-full ${currentStep >= 1 ? 'bg-orange-500' : 'bg-gray-200'}`}></div>
-                  {/* Step 2 */}
-                  <div className={`w-8 h-2 rounded-full ${currentStep >= 2 ? 'bg-orange-500' : 'bg-gray-200'}`}></div>
-                  {/* Step 3 */}
-                  <div className={`w-8 h-2 rounded-full ${currentStep >= 3 ? 'bg-orange-500' : 'bg-gray-200'}`}></div>
-                </div>
-                <span className="text-sm font-medium text-orange-500">
-                  {Math.round((currentStep / totalSteps) * 100)}%
-                </span>
-              </div>
-
-              {/* Title - Centered */}
-              <div className="flex-1 text-center">
-                <h1 className="text-3xl font-bold text-gray-800 mb-1">Create Your Own Routine</h1>
-                <p className="text-sm text-gray-600">Drag tasks from the library to build your custom routine.</p>
-              </div>
-
-              {/* Spacer to balance the layout */}
-              <div className="w-48"></div>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Header - Only for Step 3 */}
+      {currentStep === 3 && (
+        <header className="bg-white border-b px-6 py-3">
+          <div className="flex items-center justify-between">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="flex items-center gap-2"
+              onClick={() => setCurrentStep(2)}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back
+            </Button>
+            <div className="text-center">
+              <h1 className="text-xl font-semibold text-balance">Create Your Own Routine</h1>
+              <p className="text-sm text-muted-foreground">Drag tasks from the library to build your custom routine.</p>
             </div>
-          ) : (
-            /* Steps 1 & 2 - Original centered layout */
-            <>
-              {/* Progress Bar - Top Left */}
-              <div className="flex items-center gap-3 mb-2 ml-6">
-                <span className="text-sm text-gray-600">Step {currentStep} of {totalSteps}</span>
-                <div className="flex gap-1">
-                  {/* Step 1 */}
-                  <div className={`w-8 h-2 rounded-full ${currentStep >= 1 ? 'bg-orange-500' : 'bg-gray-200'}`}></div>
-                  {/* Step 2 */}
-                  <div className={`w-8 h-2 rounded-full ${currentStep >= 2 ? 'bg-orange-500' : 'bg-gray-200'}`}></div>
-                  {/* Step 3 */}
-                  <div className={`w-8 h-2 rounded-full ${currentStep >= 3 ? 'bg-orange-500' : 'bg-gray-200'}`}></div>
-                </div>
-                <span className="text-sm font-medium text-orange-500">
-                  {Math.round((currentStep / totalSteps) * 100)}%
-                </span>
-              </div>
+            <div className="w-20" />
+          </div>
 
-              {/* Centered Title and Subtitle */}
-              <div className="text-center">
-                {currentStep === 1 && (
-                  <>
-                    <h1 className="text-4xl font-bold text-gray-800 mb-1">Welcome to Kidoers</h1>
-                    <p className="text-base text-gray-600">Let's get your family set up in just a few steps</p>
-                  </>
-                )}
-                {currentStep === 2 && (
-                  <>
-                    <h1 className="text-4xl font-bold text-gray-800 mb-1">Choose How to Create Your Routine</h1>
-                    <p className="text-base text-gray-600">Pick the approach that fits your style. You can always change it later.</p>
-                  </>
-                )}
+          <div className="flex justify-center mt-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Step {currentStep} of {totalSteps}</span>
+              <div className="w-64 bg-gray-200 rounded-full h-2">
+                <div className="bg-orange-500 h-2 rounded-full w-full"></div>
               </div>
-            </>
-          )}
-        </div>
+              <span className="text-sm font-medium text-orange-500">
+                {Math.round((currentStep / totalSteps) * 100)}%
+              </span>
+            </div>
+          </div>
+        </header>
+      )}
+
+      <div className={currentStep === 3 ? "flex-1 overflow-hidden" : "container mx-auto px-4 py-8"}>
+        {currentStep !== 3 && (
+          <div className="mb-0">
+            {/* Progress Bar - Top Left */}
+            <div className="flex items-center gap-3 mb-2 ml-6">
+              <span className="text-sm text-gray-600">Step {currentStep} of {totalSteps}</span>
+              <div className="flex gap-1">
+                {/* Step 1 */}
+                <div className={`w-8 h-2 rounded-full ${currentStep >= 1 ? 'bg-orange-500' : 'bg-gray-200'}`}></div>
+                {/* Step 2 */}
+                <div className={`w-8 h-2 rounded-full ${currentStep >= 2 ? 'bg-orange-500' : 'bg-gray-200'}`}></div>
+                {/* Step 3 */}
+                <div className={`w-8 h-2 rounded-full ${currentStep >= 3 ? 'bg-orange-500' : 'bg-gray-200'}`}></div>
+              </div>
+              <span className="text-sm font-medium text-orange-500">
+                {Math.round((currentStep / totalSteps) * 100)}%
+              </span>
+            </div>
+
+            {/* Centered Title and Subtitle */}
+            <div className="text-center">
+              {currentStep === 1 && (
+                <>
+                  <h1 className="text-4xl font-bold text-gray-800 mb-1">Welcome to Kidoers</h1>
+                  <p className="text-base text-gray-600">Let's get your family set up in just a few steps</p>
+                </>
+              )}
+              {currentStep === 2 && (
+                <>
+                  <h1 className="text-4xl font-bold text-gray-800 mb-1">Choose How to Create Your Routine</h1>
+                  <p className="text-base text-gray-600">Pick the approach that fits your style. You can always change it later.</p>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className={currentStep === 3 ? "w-full" : "max-w-2xl mx-auto"}>
           {currentStep === 1 && (
