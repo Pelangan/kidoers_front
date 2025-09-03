@@ -468,8 +468,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
   const totalTasks = enhancedFamilyMembers.reduce((sum, member) => sum + getTotalTasks(member), 0)
 
-  const panelWidth = isPanelCollapsed ? 'w-12' : 'w-96'
-  const mainPadding = isPanelCollapsed ? 'pr-12' : 'pr-96'
+  const panelWidth = isPanelCollapsed ? 'w-12' : 'w-72'
+  const mainPadding = isPanelCollapsed ? 'pr-12' : 'pr-72'
 
   // Lazy routine creation - only create when user actually starts building
   const ensureRoutineExists = async () => {
@@ -758,16 +758,32 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     <div className={`${onComplete ? 'min-h-0' : 'min-h-screen'} bg-white`}>
       <div className="flex">
         {/* Main Content */}
-        <div className={`flex-1 p-6 ${mainPadding} transition-all duration-300`}>
-          <div className="max-w-full mx-auto space-y-6">
+        <div className={`flex-1 p-2 ${mainPadding} transition-all duration-300`}>
+          <div className="max-w-full mx-auto space-y-2">
             {/* Header - Only show when not in onboarding mode */}
             {!onComplete && (
-              <div className="text-center space-y-4">
-                <div className="w-16 h-16 bg-gradient-to-r from-orange-400 to-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Save className="w-8 h-8 text-white" />
+              <div className="space-y-1">
+                <div className="flex items-center gap-6">
+                  {/* Segmented Progress Bar - Left side */}
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-gray-600">Step 3 of 3</span>
+                    <div className="flex gap-1">
+                      {/* Step 1 - Completed */}
+                      <div className="w-8 h-2 bg-orange-500 rounded-full"></div>
+                      {/* Step 2 - Completed */}
+                      <div className="w-8 h-2 bg-orange-500 rounded-full"></div>
+                      {/* Step 3 - Current/Completed */}
+                      <div className="w-8 h-2 bg-orange-500 rounded-full"></div>
+                    </div>
+                    <span className="text-sm font-medium text-orange-500">100%</span>
+                  </div>
+                  
+                  {/* Title and subtitle - Right side */}
+                  <div className="text-left">
+                    <h1 className="text-xl font-semibold text-gray-900">Create Your Own Routine</h1>
+                    <p className="text-xs text-gray-600">Drag tasks from the library to build your custom routine</p>
+                  </div>
                 </div>
-                <h1 className="text-3xl font-bold text-gray-900">Create Your Own Routine</h1>
-                <p className="text-gray-600">Drag tasks and groups from the library to build your custom routine</p>
               </div>
             )}
 
@@ -780,43 +796,40 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
             {/* Routine Details */}
             <Card className="bg-white border border-gray-200">
-              <CardHeader>
-                <CardTitle>Routine Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="routineName">Routine Name</Label>
-                    <div className="relative">
-                      <Input
-                        id="routineName"
-                        placeholder="My Family Routine"
-                        value={routineName}
-                        onChange={(e) => {
-                          const newName = e.target.value;
-                          setRoutineName(newName);
-                          
-                          // Mark as having unsaved changes if name is different from current routine
-                          if (routine && routine.name !== newName.trim()) {
-                            setHasUnsavedChanges(true);
-                          } else if (routine && routine.name === newName.trim()) {
-                            setHasUnsavedChanges(false);
-                          }
-                        }}
-                        className="bg-white"
-                        disabled={busy}
-                      />
-                    </div>
-                    {!routineName.trim() && (
-                      <p className="text-sm text-amber-600 mt-1">
-                        Routine name is required to save your routine
-                      </p>
-                    )}
-                    {(hasUnsavedChanges || routine) && routineName.trim() && (
-                      <div className="flex items-center justify-between mt-2">
-                        <p className="text-sm text-blue-600">
-                          {hasUnsavedChanges ? "You have unsaved changes" : "Routine saved"}
+              <CardContent className="pt-2">
+                <div className="space-y-2">
+                  <div className="flex items-end gap-4">
+                    <div className="flex-1 max-w-md">
+                      <Label htmlFor="routineName">Routine Name</Label>
+                      <div className="relative">
+                        <Input
+                          id="routineName"
+                          placeholder="My Family Routine"
+                          value={routineName}
+                          onChange={(e) => {
+                            const newName = e.target.value;
+                            setRoutineName(newName);
+                            
+                            // Mark as having unsaved changes if name is different from current routine
+                            if (routine && routine.name !== newName.trim()) {
+                              setHasUnsavedChanges(true);
+                            } else if (routine && routine.name === newName.trim()) {
+                              setHasUnsavedChanges(false);
+                            }
+                          }}
+                          className="bg-white"
+                          disabled={busy}
+                        />
+                      </div>
+                      {!routineName.trim() && (
+                        <p className="text-sm text-amber-600 mt-1">
+                          Routine name is required to save your routine
                         </p>
+                      )}
+                    </div>
+                    
+                    {(hasUnsavedChanges || routine) && routineName.trim() && (
+                      <div className="flex-shrink-0">
                         <Button
                           onClick={saveProgress}
                           disabled={isSavingProgress}
@@ -836,42 +849,30 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                       </div>
                     )}
                   </div>
-                  
-                  {totalTasks > 0 && (
-                    <div className="flex items-center space-x-6 text-sm text-gray-600">
-                      <div className="flex items-center space-x-1">
-                        <span className="font-medium">{totalTasks}</span>
-                        <span>total tasks</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <span className="font-medium">{enhancedFamilyMembers.length}</span>
-                        <span>family members</span>
-                      </div>
-                    </div>
-                  )}
+
                 </div>
               </CardContent>
             </Card>
 
             {/* Family Members Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
               {enhancedFamilyMembers.map((member) => {
                 const totalTasks = getTotalTasks(member)
                 
                 return (
                   <Card 
                     key={member.id} 
-                    className={`${member.color} ${member.borderColor} border-2 hover:shadow-lg transition-all min-h-80`}
+                    className={`${member.color} ${member.borderColor} border-2 hover:shadow-lg transition-all min-h-64`}
                     onDragOver={handleDragOver}
                     onDrop={(e) => handleDropOnMember(e, member.id)}
                   >
-                    <CardHeader className="pb-4">
-                      <CardTitle className="text-lg text-gray-900">{member.name}</CardTitle>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base text-gray-900">{member.name}</CardTitle>
                     </CardHeader>
 
-                    <CardContent className="space-y-3">
+                    <CardContent className="space-y-1">
                       {totalTasks === 0 ? (
-                        <div className="text-center py-12 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
+                        <div className="text-center py-6 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
                           <User className="w-8 h-8 mx-auto mb-2 opacity-50" />
                           <p className="text-sm">Drop tasks here</p>
                           <p className="text-xs">Drag from the library panel</p>
@@ -880,7 +881,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                         <>
                           {/* Groups */}
                           {member.groups.map((group: TaskGroup) => (
-                            <div key={group.id} className="space-y-2">
+                            <div key={group.id} className="space-y-1">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-2">
                                   <Folder className="w-4 h-4 text-gray-600" />
@@ -897,7 +898,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                               </div>
                               
                               {group.tasks.map((task: Task) => (
-                                <div key={task.id} className={`ml-6 flex items-center space-x-3 p-3 ${member.taskBgColor} rounded-lg border border-gray-200`}>
+                                <div key={task.id} className={`ml-4 flex items-center space-x-2 p-1.5 ${member.taskBgColor} rounded-lg border border-gray-200`}>
                                   <div className="w-4 h-4 rounded border border-gray-400 flex items-center justify-center bg-white">
                                     {task.completed && <Check className="w-3 h-3 text-green-600" />}
                                   </div>
@@ -911,7 +912,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
                           {/* Individual Tasks */}
                           {member.individualTasks.map((task: Task) => (
-                            <div key={task.id} className={`flex items-center space-x-3 p-3 ${member.taskBgColor} rounded-lg border border-gray-200`}>
+                            <div key={task.id} className={`flex items-center space-x-2 p-1.5 ${member.taskBgColor} rounded-lg border border-gray-200`}>
                               <div className="w-4 h-4 rounded border border-gray-400 flex items-center justify-center bg-white">
                                 {task.completed && <Check className="w-3 h-3 text-green-600" />}
                               </div>
@@ -994,14 +995,14 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           </div>
 
           {!isPanelCollapsed && (
-            <div className="p-4 space-y-6">
+            <div className="p-2 space-y-3">
               <div className="text-center">
-                <h2 className="text-xl font-bold text-gray-900">Task Library</h2>
-                <p className="text-sm text-gray-600">Drag tasks and groups to your routine</p>
+                <h2 className="text-lg font-bold text-gray-900">Task Library</h2>
+                <p className="text-xs text-gray-600">Drag tasks and groups to your routine</p>
               </div>
 
               {/* Filter Options */}
-              <div className="flex gap-2">
+              <div className="flex gap-1">
                 <Button
                   variant={!showOnlyTasks && !showOnlyGroups ? "default" : "outline"}
                   size="sm"
@@ -1009,7 +1010,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                     setShowOnlyTasks(false)
                     setShowOnlyGroups(false)
                   }}
-                  className="flex-1 text-xs"
+                  className="flex-1 text-xs py-1"
                 >
                   All
                 </Button>
@@ -1020,7 +1021,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                     setShowOnlyGroups(true)
                     setShowOnlyTasks(false)
                   }}
-                  className="flex-1 text-xs"
+                  className="flex-1 text-xs py-1"
                 >
                   Groups Only
                 </Button>
@@ -1031,7 +1032,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                     setShowOnlyTasks(true)
                     setShowOnlyGroups(false)
                   }}
-                  className="flex-1 text-xs"
+                  className="flex-1 text-xs py-1"
                 >
                   Tasks Only
                 </Button>
@@ -1039,7 +1040,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
               {/* Task Groups */}
               {libraryLoading ? (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <h3 className="font-semibold text-gray-900 flex items-center space-x-2">
                     <Folder className="w-5 h-5" />
                     <span>Task Groups</span>
@@ -1050,23 +1051,23 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                   </div>
                 </div>
               ) : filteredGroups.length > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <h3 className="font-semibold text-gray-900 flex items-center space-x-2">
                     <Folder className="w-5 h-5" />
                     <span>Task Groups</span>
                   </h3>
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {filteredGroups.map((group: TaskGroup) => (
                       <div
                         key={group.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, 'group', group)}
-                        className={`p-4 rounded-lg border-2 cursor-move hover:shadow-md transition-all ${group.color}`}
+                        className={`p-2 rounded-lg border-2 cursor-move hover:shadow-md transition-all ${group.color}`}
                       >
                         <div className="flex items-start space-x-2">
                           <GripVertical className="w-4 h-4 text-gray-400 mt-0.5" />
                           <div className="flex-1">
-                            <div className="flex items-center space-x-2 mb-2">
+                            <div className="flex items-center space-x-2 mb-1">
                               <h4 className="font-semibold text-sm">{group.name}</h4>
                               <Badge variant="outline" className="text-xs">
                                 {group.tasks.length} tasks
@@ -1077,7 +1078,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                                 </Badge>
                               )}
                             </div>
-                            <p className="text-xs text-gray-600 mb-3">{group.description}</p>
+                            <p className="text-xs text-gray-600 mb-2">{group.description}</p>
                             <div className="space-y-1">
                               {group.tasks.slice(0, 3).map((task: Task) => (
                                 <div key={task.id} className="text-xs text-gray-700 flex items-center space-x-2">
@@ -1104,7 +1105,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
               {/* Individual Tasks */}
               {libraryLoading ? (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <h3 className="font-semibold text-gray-900 flex items-center space-x-2">
                     <ListTodo className="w-5 h-5" />
                     <span>Individual Tasks</span>
@@ -1115,18 +1116,18 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                   </div>
                 </div>
               ) : filteredTasks.length > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <h3 className="font-semibold text-gray-900 flex items-center space-x-2">
                     <ListTodo className="w-5 h-5" />
                     <span>Individual Tasks</span>
                   </h3>
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {filteredTasks.map((task: Task) => (
                       <div
                         key={task.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, 'task', task)}
-                        className="p-3 bg-gray-50 rounded-lg border cursor-move hover:bg-gray-100 transition-colors"
+                        className="p-1.5 bg-gray-50 rounded-lg border cursor-move hover:bg-gray-100 transition-colors"
                       >
                         <div className="flex items-start space-x-2">
                           <GripVertical className="w-4 h-4 text-gray-400 mt-0.5" />
@@ -1137,7 +1138,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                                 {task.points}pts
                               </Badge>
                             </div>
-                            <p className="text-xs text-gray-600 mb-2">{task.description}</p>
+                            <p className="text-xs text-gray-600 mb-1">{task.description}</p>
                             <div className="flex items-center space-x-2">
                               {task.is_system && (
                                 <Badge className="text-xs bg-purple-100 text-purple-800">
@@ -1157,7 +1158,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
               ) : null}
 
               {/* Instructions */}
-              <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="bg-blue-50 p-2 rounded-lg">
                 <h4 className="font-medium text-blue-900 text-sm mb-2">How to use:</h4>
                 <ul className="text-xs text-blue-800 space-y-1">
                   <li>• Drag tasks to family member cards</li>
