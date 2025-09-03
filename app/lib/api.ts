@@ -256,6 +256,15 @@ class ApiService {
     return this.makeRequest<OnboardingStatus>('/onboarding/status')
   }
 
+  async completeOnboarding(familyId: string): Promise<any> {
+    return this.makeRequest<any>('/onboarding/complete', {
+      method: 'POST',
+      body: JSON.stringify({
+        family_id: familyId
+      })
+    })
+  }
+
   async startOnboarding(payload: {
     family_name: string;
     members?: Array<{

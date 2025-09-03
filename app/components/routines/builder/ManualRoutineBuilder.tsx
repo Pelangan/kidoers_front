@@ -445,8 +445,14 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       // Publish the routine
       await patchRoutine(routineData.id, { status: "active" })
       
-      // If we have an onComplete callback (onboarding flow), use it
+      // If we have an onComplete callback (onboarding flow), mark onboarding as completed
       if (onComplete) {
+        // Mark onboarding as completed via API
+        try {
+          await apiService.completeOnboarding(familyId!)
+        } catch (error) {
+          console.error('Failed to mark onboarding as completed:', error)
+        }
         onComplete()
       } else {
         // Otherwise, navigate to dashboard (standalone mode)

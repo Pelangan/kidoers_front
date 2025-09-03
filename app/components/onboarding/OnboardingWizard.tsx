@@ -43,7 +43,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
           return;
         }
 
-        // Completed from another tab etc.
+        // If no in_progress family or all families are complete, go to dashboard
         router.push("/dashboard");
       } catch (e: any) {
         console.error("Failed to load onboarding status", e);

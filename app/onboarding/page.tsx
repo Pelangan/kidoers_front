@@ -37,7 +37,7 @@ export default function OnboardingPage() {
           return;
         }
 
-        // Completed → Dashboard
+        // If no in_progress family or all families are complete, go to dashboard
         router.push("/dashboard");
       } catch (e) {
         console.error(e);
