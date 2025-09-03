@@ -468,7 +468,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
   const totalTasks = enhancedFamilyMembers.reduce((sum, member) => sum + getTotalTasks(member), 0)
 
-  const panelWidth = isPanelCollapsed ? 'w-12' : 'w-72'
+  const panelWidth = isPanelCollapsed ? 'w-12' : 'w-80'
 
   // Lazy routine creation - only create when user actually starts building
   const ensureRoutineExists = async () => {
@@ -1009,6 +1009,18 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                 >
                   Tasks Only
                 </Button>
+              </div>
+
+              {/* Create Options */}
+              <div className="mt-3 space-y-1">
+                <button className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1">
+                  <Plus className="h-3 w-3" />
+                  Create new task
+                </button>
+                <button className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1">
+                  <Plus className="h-3 w-3" />
+                  Create new group
+                </button>
               </div>
 
               {/* Task Groups */}
