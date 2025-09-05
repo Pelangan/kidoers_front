@@ -9,9 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../../../components
 import { Badge } from "../../../../components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../../components/ui/dialog"
-import { ArrowLeft, Plus, Trash2, Save, GripVertical, User, Folder, Users, Baby, UserCheck, Check, ChevronLeft, ChevronRight, ListTodo } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Save, GripVertical, User, Folder, Users, Baby, UserCheck, Check, ChevronLeft, ChevronRight, ListTodo, Settings } from 'lucide-react'
 import type { FamilyMember } from '../../../lib/api'
-import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, updateOnboardingStep, listLibraryGroups, listLibraryTasks, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments } from '../../../lib/api'
+import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, updateOnboardingStep, listLibraryGroups, listLibraryTasks, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances } from '../../../lib/api'
+import RoutineDetailsModal, { type RoutineScheduleData } from './RoutineDetailsModal'
 
 interface ManualRoutineBuilderProps {
   familyId?: string
@@ -74,6 +75,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   const [error, setError] = useState<string|null>(null)
   const [isSavingProgress, setIsSavingProgress] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [showRoutineDetails, setShowRoutineDetails] = useState(false)
+  const [routineScheduleData, setRoutineScheduleData] = useState<RoutineScheduleData | null>(null)
 
   // Apply to options
   const applyToOptions: ApplyToOption[] = [
@@ -427,6 +430,28 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
 
 
+  const handleSaveRoutineDetails = async (scheduleData: RoutineScheduleData) => {
+    try {
+      // Ensure routine exists before saving schedule
+      const routineData = await ensureRoutineExists()
+      if (!routineData) {
+        setError('Failed to create routine. Please try again.')
+        return
+      }
+      
+      // Save schedule data
+      setRoutineScheduleData(scheduleData)
+      setShowRoutineDetails(false)
+      
+      // Create the schedule
+      await createRoutineSchedule(routineData.id, scheduleData)
+      console.log('Routine schedule saved successfully:', scheduleData)
+    } catch (err) {
+      console.error('Error saving routine details:', err)
+      setError('Failed to save routine details. Please try again.')
+    }
+  }
+
   const handleSaveRoutine = async () => {
     setBusy(true)
     try {
@@ -444,6 +469,21 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       
       // Publish the routine
       await patchRoutine(routineData.id, { status: "active" })
+      
+      // Generate task instances if we have schedule data
+      if (routineScheduleData && familyId) {
+        try {
+          const today = new Date()
+          const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
+          await generateTaskInstances(familyId, {
+            start_date: today,
+            end_date: nextWeek
+          })
+        } catch (error) {
+          console.error('Failed to generate task instances:', error)
+          // Don't fail the whole process if instance generation fails
+        }
+      }
       
       // If we have an onComplete callback (onboarding flow), mark onboarding as completed
       if (onComplete) {
@@ -805,6 +845,25 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                           Routine name is required to save your routine
                         </p>
                       )}
+                    </div>
+                    
+                    {/* Routine Details Button */}
+                    <div className="flex-shrink-0">
+                      <Button
+                        variant={routineScheduleData ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setShowRoutineDetails(true)}
+                        disabled={busy}
+                        className="flex items-center space-x-2"
+                      >
+                        <Settings className="h-4 w-4" />
+                        <span>
+                          {routineScheduleData ? 'Schedule Set' : 'Schedule'}
+                        </span>
+                        {routineScheduleData && (
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        )}
+                      </Button>
                     </div>
                     
                     {(hasUnsavedChanges || routine) && routineName.trim() && (
@@ -1207,6 +1266,16 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Routine Details Modal */}
+        <RoutineDetailsModal
+          isOpen={showRoutineDetails}
+          onClose={() => setShowRoutineDetails(false)}
+          onSave={handleSaveRoutineDetails}
+          initialScheduleData={routineScheduleData || undefined}
+          totalTasks={totalTasks}
+          familyMembers={enhancedFamilyMembers.length}
+        />
       </div>
     </div>
   )

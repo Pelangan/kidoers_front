@@ -239,6 +239,72 @@ interface Chore {
 }
 ```
 
+## 🎯 Task Instance System
+
+### New Data Models
+
+#### Task Instance
+```typescript
+interface TaskInstance {
+  id: string
+  routine_id: string
+  routine_task_id: string
+  task_assignment_id: string
+  member_id: string
+  due_date: string
+  time_of_day: "morning" | "afternoon" | "evening" | "night" | "any"
+  due_at?: string
+  status: "pending" | "completed" | "overdue" | "skipped"
+  completed_at?: string
+  verified_by?: string
+  points_awarded: number
+  notes?: string
+  created_at: string
+}
+```
+
+#### Routine Schedule
+```typescript
+interface RoutineSchedule {
+  id: string
+  routine_id: string
+  scope: "everyday" | "weekdays" | "weekends" | "custom"
+  days_of_week: string[]
+  start_date?: string
+  end_date?: string
+  timezone: string
+  is_active: boolean
+  created_at: string
+}
+```
+
+#### Schedule Exception
+```typescript
+interface ScheduleException {
+  id: string
+  routine_schedule_id: string
+  date: string
+  is_skipped: boolean
+  note?: string
+}
+```
+
+### Task Instance Generation Rules
+1. **Task Generation**: A task generates on a date if:
+   - It has a non-empty `routine_tasks.days_of_week` that matches, OR
+   - The routine has an active schedule (`routine_schedules`) that matches (and no skip exception that day)
+2. **Idempotency**: Instances are unique per `(task_assignment_id, due_date)`
+3. **Time of Day**: Used for UI grouping; `due_at` is optional exact datetime
+4. **Status Flow**: `pending` → `completed` → `verified` (optional parent verification)
+
+### Key Features
+- **Automatic Generation**: Task instances are generated based on routine schedules and task assignments
+- **Flexible Scheduling**: Support for daily, weekly, custom schedules with exceptions
+- **Parent Verification**: Parents can verify child task completions
+- **Points System**: Integrated with existing reward system
+- **Timezone Support**: All operations respect family timezone settings
+- **Bulk Operations**: Generate instances for date ranges efficiently
+
 ### Multiple Assignment Feature
 When assigning chores to multiple family members:
 - **Individual Instances**: Each member gets their own chore instance
@@ -424,12 +490,41 @@ interface Reward {
 - **`GET /routines/{routine_id}/assignments`**: Retrieves all task assignments for a routine
 - **`DELETE /routines/{routine_id}/tasks/{task_id}/assignments/{assignment_id}`**: Deletes a task assignment
 
+### Task Instance Management API Endpoints
+- **`GET /families/{family_id}/task-instances`**: Get task instances with filtering (date, member, status, time_of_day)
+- **`GET /families/{family_id}/task-instances/{instance_id}`**: Get specific task instance
+- **`PATCH /families/{family_id}/task-instances/{instance_id}`**: Update task instance (status, notes, due_at)
+- **`POST /families/{family_id}/task-instances/{instance_id}/complete`**: Mark task as completed
+- **`POST /families/{family_id}/task-instances/{instance_id}/verify`**: Verify task completion (for parents)
+
+### Routine Schedule Management API Endpoints
+- **`POST /routines/{routine_id}/schedules`**: Create a new schedule for a routine
+- **`GET /routines/{routine_id}/schedules`**: Get all schedules for a routine
+- **`PATCH /routines/{routine_id}/schedules/{schedule_id}`**: Update a schedule
+- **`DELETE /routines/{routine_id}/schedules/{schedule_id}`**: Delete a schedule
+- **`POST /routines/{routine_id}/schedules/{schedule_id}/exceptions`**: Create a schedule exception
+- **`GET /routines/{routine_id}/schedules/{schedule_id}/exceptions`**: Get schedule exceptions
+- **`PATCH /routines/{routine_id}/schedules/{schedule_id}/exceptions/{exception_id}`**: Update exception
+- **`DELETE /routines/{routine_id}/schedules/{schedule_id}/exceptions/{exception_id}`**: Delete exception
+
+### Task Instance Generation API Endpoints
+- **`POST /families/{family_id}/generate-instances`**: Generate task instances for a date range
+- **`POST /families/{family_id}/generate-instances/{date}`**: Generate task instances for a specific date
+- **`POST /families/{family_id}/reconcile-instances/{date}`**: Reconcile instances for a date
+
+### Dashboard & Summary API Endpoints
+- **`GET /families/{family_id}/dashboard`**: Get family dashboard data (pending tasks, completed today, etc.)
+- **`GET /families/{family_id}/members/{member_id}/progress`**: Get member's task progress
+- **`GET /families/{family_id}/calendar/{date}`**: Get tasks for a specific date
+
 ### Data Flow
 1. **Lazy Routine Creation**: Creates draft routine only when user starts building (types name or adds tasks)
 2. **Family Loading**: Fetches family members with their selected colors
 3. **Library Loading**: Dynamically loads task groups and tasks from backend
 4. **Manual Progress Saving**: Users explicitly save progress with dedicated button
 5. **Publishing**: Routine status changes from draft to active when onboarding is completed
+6. **Task Instance Generation**: Automatically generates task instances based on routine schedules and task assignments
+7. **Task Execution**: Family members complete tasks, parents verify completion, points are awarded
 
 ## 💾 Data Storage System
 

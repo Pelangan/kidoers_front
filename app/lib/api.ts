@@ -652,3 +652,77 @@ export async function updateOnboardingStep(familyId: string, step: string) {
     body: JSON.stringify({ family_id: familyId, step }),
   });
 }
+
+// Routine Schedule Management
+export async function createRoutineSchedule(routineId: string, scheduleData: {
+  scope: 'everyday' | 'weekdays' | 'weekends' | 'custom';
+  days_of_week: string[];
+  start_date?: Date;
+  end_date?: Date;
+  timezone: string;
+  is_active: boolean;
+}) {
+  const payload = {
+    ...scheduleData,
+    start_date: scheduleData.start_date?.toISOString().split('T')[0],
+    end_date: scheduleData.end_date?.toISOString().split('T')[0],
+  };
+  
+  console.log('Creating routine schedule:', {
+    routineId,
+    payload,
+    url: `/routines/${routineId}/schedules`
+  });
+  
+  return apiService.makeRequest<{
+    id: string;
+    routine_id: string;
+    scope: string;
+    days_of_week: string[];
+    start_date: string | null;
+    end_date: string | null;
+    timezone: string;
+    is_active: boolean;
+    created_at: string;
+  }>(`/routines/${routineId}/schedules`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// Get routine schedules
+export async function getRoutineSchedules(routineId: string) {
+  console.log('Getting routine schedules for routine:', routineId);
+  
+  return apiService.makeRequest<{
+    id: string;
+    routine_id: string;
+    scope: string;
+    days_of_week: string[];
+    start_date: string | null;
+    end_date: string | null;
+    timezone: string;
+    is_active: boolean;
+    created_at: string;
+  }[]>(`/routines/${routineId}/schedules`, {
+    method: "GET",
+  });
+}
+
+// Task Instance Generation
+export async function generateTaskInstances(familyId: string, dateRange: {
+  start_date: Date;
+  end_date: Date;
+}) {
+  return apiService.makeRequest<{
+    message: string;
+    instances_created: number;
+    date_range: string;
+  }>(`/families/${familyId}/generate-instances`, {
+    method: "POST",
+    body: JSON.stringify({
+      start_date: dateRange.start_date.toISOString().split('T')[0],
+      end_date: dateRange.end_date.toISOString().split('T')[0],
+    }),
+  });
+}
