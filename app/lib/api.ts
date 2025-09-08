@@ -663,9 +663,12 @@ export async function createRoutineSchedule(routineId: string, scheduleData: {
   is_active: boolean;
 }) {
   const payload = {
-    ...scheduleData,
-    start_date: scheduleData.start_date?.toISOString().split('T')[0],
-    end_date: scheduleData.end_date?.toISOString().split('T')[0],
+    scope: scheduleData.scope,
+    days_of_week: scheduleData.days_of_week || [],
+    start_date: scheduleData.start_date?.toISOString().split('T')[0] || null,
+    end_date: scheduleData.end_date?.toISOString().split('T')[0] || null,
+    timezone: scheduleData.timezone,
+    is_active: scheduleData.is_active,
   };
   
   console.log('Creating routine schedule:', {

@@ -111,9 +111,21 @@ export default function RoutineDetailsModal({
   }
 
   const handleSave = () => {
+    let daysOfWeek: string[] = []
+    
+    if (scope === 'everyday') {
+      daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+    } else if (scope === 'weekdays') {
+      daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
+    } else if (scope === 'weekends') {
+      daysOfWeek = ['saturday', 'sunday']
+    } else {
+      daysOfWeek = selectedDays
+    }
+
     const scheduleData: RoutineScheduleData = {
       scope,
-      days_of_week: scope === 'everyday' ? [] : selectedDays,
+      days_of_week: daysOfWeek,
       start_date: startDate,
       end_date: endDate,
       timezone: 'Europe/Madrid', // Default timezone
