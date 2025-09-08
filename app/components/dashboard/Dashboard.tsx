@@ -1,13 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import ChoresView from "./views/ChoresView"
 import CalendarView from "./views/CalendarView"
 import SettingsView from "./views/SettingsView"
 import FamilyMembersView from "./views/FamilyMembersView"
 import Sidebar from "./Sidebar"
+import ManualRoutineBuilder from "../routines/builder/ManualRoutineBuilder"
+import { apiService } from "../../lib/api"
 
-export type ViewType = "chores" | "calendar" | "rewards" | "settings" | "family-members"
+export type ViewType = "chores" | "calendar" | "rewards" | "settings" | "family-members" | "routine-builder"
 
 interface DashboardProps {
   onSignOut: () => void
@@ -16,11 +18,39 @@ interface DashboardProps {
 export default function Dashboard({ onSignOut }: DashboardProps) {
   const [currentView, setCurrentView] = useState<ViewType>("chores")
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [familyId, setFamilyId] = useState<string | null>(null)
+  
+  // Debug view changes
+  useEffect(() => {
+    console.log('Dashboard: currentView changed to:', currentView)
+  }, [currentView])
+  
+  // Load family ID when component mounts
+  useEffect(() => {
+    const loadFamilyId = async () => {
+      try {
+        const status = await apiService.getOnboardingStatus()
+        if (status.current_family) {
+          console.log('Dashboard: Loaded family ID:', status.current_family.id)
+          setFamilyId(status.current_family.id)
+        }
+      } catch (error) {
+        console.error('Failed to load family ID:', error)
+      }
+    }
+    loadFamilyId()
+  }, [])
+
+  const handleNavigateToRoutineBuilder = () => {
+    console.log('Dashboard: handleNavigateToRoutineBuilder called, setting view to routine-builder')
+    setCurrentView("routine-builder")
+  }
 
   const renderView = () => {
+    console.log('Dashboard: renderView called with currentView:', currentView)
     switch (currentView) {
       case "chores":
-        return <ChoresView />
+        return <ChoresView onNavigateToRoutineBuilder={handleNavigateToRoutineBuilder} />
       case "calendar":
         return <CalendarView />
       case "rewards":
@@ -37,6 +67,13 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
         return <SettingsView />
       case "family-members":
         return <FamilyMembersView familyName="Family" />
+      case "routine-builder":
+        return <ManualRoutineBuilder 
+          familyId={familyId || undefined}
+          isEditMode={true} 
+          onComplete={() => setCurrentView("chores")} 
+          onBack={() => setCurrentView("chores")} 
+        />
       default:
         return <ChoresView />
     }

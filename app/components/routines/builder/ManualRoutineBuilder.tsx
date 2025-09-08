@@ -11,12 +11,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../../components/ui/dialog"
 import { ArrowLeft, Plus, Trash2, Save, GripVertical, User, Folder, Users, Baby, UserCheck, Check, ChevronLeft, ChevronRight, ListTodo, Settings } from 'lucide-react'
 import type { FamilyMember } from '../../../lib/api'
-import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, updateOnboardingStep, listLibraryGroups, listLibraryTasks, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances } from '../../../lib/api'
+import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, updateOnboardingStep, listLibraryGroups, listLibraryTasks, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules } from '../../../lib/api'
 import RoutineDetailsModal, { type RoutineScheduleData } from './RoutineDetailsModal'
 
 interface ManualRoutineBuilderProps {
   familyId?: string
   onComplete?: () => void
+  isEditMode?: boolean
+  onBack?: () => void
 }
 
 interface Task {
@@ -58,10 +60,20 @@ interface PendingDrop {
   targetMemberName: string
 }
 
-export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplete }: ManualRoutineBuilderProps = {}) {
+export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplete, isEditMode = false, onBack }: ManualRoutineBuilderProps = {}) {
+  console.log('ManualRoutineBuilder: Component mounted with props:', { propFamilyId, isEditMode, hasOnComplete: !!onComplete, hasOnBack: !!onBack });
   const router = useRouter()
   const sp = useSearchParams()
   const familyId = propFamilyId || sp?.get("family")
+  console.log('ManualRoutineBuilder: Final familyId:', familyId)
+  
+  // Debug component lifecycle
+  useEffect(() => {
+    console.log('ManualRoutineBuilder: Component mounted/updated')
+    return () => {
+      console.log('ManualRoutineBuilder: Component unmounting')
+    }
+  }, [])
   
   const [routine, setRoutine] = useState<{ id: string; family_id: string; name: string; status: "draft"|"active"|"archived" }|null>(null)
   const [routineName, setRoutineName] = useState('My Routine')
@@ -135,7 +147,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         return;
       }
       
-      console.log('ManualRoutineBuilder: Starting loadAllData, familyId:', familyId);
+      console.log('ManualRoutineBuilder: Starting loadAllData, familyId:', familyId, 'isEditMode:', isEditMode);
       
       setBusy(true);
       setLibraryLoading(true);
@@ -144,30 +156,34 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       try {
         console.log('Starting to load all data for family:', familyId);
         
-        // Check current onboarding step and only update if needed
-        console.log('ManualRoutineBuilder: Checking current onboarding step...');
-        try {
-          const onboardingStatus = await apiService.getOnboardingStatus();
-          console.log('Current onboarding status:', onboardingStatus);
-          
-          if (onboardingStatus.has_family && onboardingStatus.in_progress) {
-            const currentStep = onboardingStatus.in_progress.setup_step;
-            console.log('Current step:', currentStep);
+        // Check current onboarding step and only update if needed (skip in edit mode)
+        if (!isEditMode) {
+          console.log('ManualRoutineBuilder: Checking current onboarding step...');
+          try {
+            const onboardingStatus = await apiService.getOnboardingStatus();
+            console.log('Current onboarding status:', onboardingStatus);
             
-            if (currentStep !== 'create_routine') {
-              console.log('Updating step from', currentStep, 'to create_routine');
+            if (onboardingStatus.has_family && onboardingStatus.in_progress) {
+              const currentStep = onboardingStatus.in_progress.setup_step;
+              console.log('Current step:', currentStep);
+              
+              if (currentStep !== 'create_routine') {
+                console.log('Updating step from', currentStep, 'to create_routine');
+                await updateOnboardingStep(familyId, "create_routine");
+                console.log('ManualRoutineBuilder: Onboarding step updated successfully');
+              } else {
+                console.log('Step already set to create_routine, skipping update');
+              }
+            } else {
+              console.log('No onboarding in progress, updating step to create_routine');
               await updateOnboardingStep(familyId, "create_routine");
               console.log('ManualRoutineBuilder: Onboarding step updated successfully');
-            } else {
-              console.log('Step already set to create_routine, skipping update');
             }
-          } else {
-            console.log('No onboarding in progress, updating step to create_routine');
-            await updateOnboardingStep(familyId, "create_routine");
-            console.log('ManualRoutineBuilder: Onboarding step updated successfully');
+          } catch (error) {
+            console.log('ManualRoutineBuilder: Error checking/updating step:', error);
           }
-        } catch (error) {
-          console.log('ManualRoutineBuilder: Error checking/updating step:', error);
+        } else {
+          console.log('ManualRoutineBuilder: In edit mode, skipping onboarding step update');
         }
         
         // Load all data concurrently
@@ -179,30 +195,33 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         
         console.log('All API data loaded:', { members, groupsData, tasksData });
         
-        // Try to load existing onboarding routine
+        // Try to load existing active routine
         let existingRoutine = null;
         try {
-          console.log('Loading existing onboarding routine...');
-          existingRoutine = await getOnboardingRoutine(familyId);
-          console.log('Existing routine found:', existingRoutine);
-          setRoutine({
-            id: existingRoutine.id,
-            family_id: existingRoutine.family_id,
-            name: existingRoutine.name,
-            status: existingRoutine.status as "draft"|"active"|"archived"
-          });
-          setRoutineName(existingRoutine.name);
+          console.log('Loading existing routines for family...');
+          const routines = await apiService.makeRequest<any[]>(`/routines?family_id=${familyId}`);
+          console.log('Routines found:', routines);
           
-          // Mark as having no unsaved changes since we just loaded the routine
-          setHasUnsavedChanges(false);
-        } catch (e: any) {
-          // Check if this is an expected 404 (no routine exists yet)
-          if (e.message && e.message.includes('404')) {
-            console.log('No existing onboarding routine found, will create new one when needed');
+          // Find the active routine
+          existingRoutine = routines.find(r => r.status === 'active');
+          
+          if (existingRoutine) {
+            console.log('Active routine found:', existingRoutine);
+            setRoutine({
+              id: existingRoutine.id,
+              family_id: existingRoutine.family_id,
+              name: existingRoutine.name,
+              status: existingRoutine.status as "draft"|"active"|"archived"
+            });
+            setRoutineName(existingRoutine.name);
+            
+            // Mark as having no unsaved changes since we just loaded the routine
+            setHasUnsavedChanges(false);
           } else {
-            // This is an unexpected error, log it but don't set error state
-            console.warn('Unexpected error loading routine:', e);
+            console.log('No active routine found, will create new one when needed');
           }
+        } catch (e: any) {
+          console.warn('Error loading routines:', e);
         }
         
         // Set family members
@@ -453,6 +472,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   }
 
   const handleSaveRoutine = async () => {
+    console.log('ManualRoutineBuilder: handleSaveRoutine called, isEditMode:', isEditMode, 'onComplete:', !!onComplete);
     setBusy(true)
     try {
       // First save any unsaved progress
@@ -485,8 +505,9 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         }
       }
       
-      // If we have an onComplete callback (onboarding flow), mark onboarding as completed
-      if (onComplete) {
+      // If we have an onComplete callback and we're not in edit mode (onboarding flow), mark onboarding as completed
+      if (onComplete && !isEditMode) {
+        console.log('ManualRoutineBuilder: Calling onComplete (onboarding flow)');
         // Mark onboarding as completed via API
         try {
           await apiService.completeOnboarding(familyId!)
@@ -494,10 +515,14 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           console.error('Failed to mark onboarding as completed:', error)
         }
         onComplete()
-      } else {
+      } else if (!isEditMode) {
+        console.log('ManualRoutineBuilder: Navigating to dashboard (standalone mode)');
         // Otherwise, navigate to dashboard (standalone mode)
         router.push('/dashboard')
+      } else {
+        console.log('ManualRoutineBuilder: In edit mode, staying in routine builder');
       }
+      // If isEditMode is true, stay in the routine builder (don't call onComplete or navigate)
     } catch (error) {
       console.error('Failed to save routine:', error)
       setError('Failed to save routine. Please try again.')
@@ -659,6 +684,35 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       
       console.log('Loaded routine data with proper task assignments');
       
+      // Load routine schedule data
+      try {
+        console.log('Loading routine schedule data...');
+        const schedules = await getRoutineSchedules(routineId);
+        console.log('Loaded schedules:', schedules);
+        
+        // Find the active schedule
+        const activeSchedule = schedules.find(s => s.is_active);
+        if (activeSchedule) {
+          console.log('Active schedule found:', activeSchedule);
+          // Convert the schedule data to the format expected by RoutineDetailsModal
+          const scheduleData: RoutineScheduleData = {
+            scope: activeSchedule.scope as 'everyday' | 'weekdays' | 'weekends' | 'custom',
+            days_of_week: activeSchedule.days_of_week || [],
+            start_date: activeSchedule.start_date ? new Date(activeSchedule.start_date) : undefined,
+            end_date: activeSchedule.end_date ? new Date(activeSchedule.end_date) : undefined,
+            timezone: activeSchedule.timezone || 'UTC',
+            is_active: true
+          };
+          setRoutineScheduleData(scheduleData);
+          console.log('Set routine schedule data:', scheduleData);
+        } else {
+          console.log('No active schedule found');
+        }
+      } catch (scheduleError: any) {
+        console.log('No schedule data found or error loading schedule:', scheduleError);
+        // This is not a critical error, so we don't set an error state
+      }
+      
     } catch (e: any) {
       console.error('Error loading routine data:', e);
     }
@@ -810,6 +864,20 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3">
                 {error}
+              </div>
+            )}
+
+            {/* Back Button for Edit Mode */}
+            {isEditMode && onBack && (
+              <div className="mb-4">
+                <Button
+                  onClick={onBack}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Back to Chores
+                </Button>
               </div>
             )}
 

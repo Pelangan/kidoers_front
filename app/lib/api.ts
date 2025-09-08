@@ -44,7 +44,7 @@ export interface User {
 
 /** Types mirrored from backend responses */
 export type OnboardingStatus =
-  | { has_family: false; in_progress: null }
+  | { has_family: false; in_progress: null; current_family: null }
   | { has_family: true; in_progress: null | {
       id: string;
       name: string;
@@ -52,7 +52,14 @@ export type OnboardingStatus =
       setup_step: "create_family" | "choose_flow" | "create_routine" | null;
       subscription_plan?: "free" | "premium";
       trial_start?: string; trial_end?: string;
-    }};
+    }; current_family: {
+      id: string;
+      name: string;
+      setup_state: "not_started" | "in_progress" | "complete";
+      setup_step: "create_family" | "choose_flow" | "create_routine" | null;
+      subscription_plan?: "free" | "premium";
+      trial_start?: string; trial_end?: string;
+    } | null };
 
 // API service class
 class ApiService {
