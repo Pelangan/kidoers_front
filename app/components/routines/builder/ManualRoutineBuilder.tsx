@@ -416,9 +416,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   }
 
   const addGroupToCalendar = async (memberId: string, group: TaskGroup, applyTo: string, day: string, routineData?: any) => {
-    // Use provided routine data or ensure routine exists
-    const routine = routineData || await ensureRoutineExists();
-    if (!routine) return;
+    // Don't create routine yet - just add to local state
+    // Routine will be created when user clicks "Save Progress"
     
     const applyToOption = applyToOptions.find(option => option.id === applyTo)
     if (!applyToOption) return
@@ -468,9 +467,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   }
 
   const addTaskToCalendar = async (memberId: string, task: Task, applyTo: string, day: string, routineData?: any) => {
-    // Use provided routine data or ensure routine exists
-    const routine = routineData || await ensureRoutineExists();
-    if (!routine) return;
+    // Don't create routine yet - just add to local state
+    // Routine will be created when user clicks "Save Progress"
     
     const applyToOption = applyToOptions.find(option => option.id === applyTo)
     if (!applyToOption) return
@@ -937,33 +935,65 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         }
       }
       
-      // Save unique tasks
+      // Save unique tasks - deduplicate by task properties, not by day
       const savedTasks = new Map<string, string>(); // originalId -> savedId
+      const taskDefinitions = new Map<string, { task: Task, allDays: string[], allMembers: string[] }>();
+      
+      // First, collect all unique task definitions and their combined days/members
       for (const [originalId, task] of allTasks) {
+        const assignment = taskAssignments.get(originalId);
+        const daysOfWeek = assignment?.days || [];
+        const memberIds = assignment?.memberIds || [];
+        
+        // Create a unique key for task deduplication (same task = same definition)
+        const taskKey = `${task.name}-${task.time_of_day}-${task.points}-${task.estimatedMinutes}`;
+        
+        if (taskDefinitions.has(taskKey)) {
+          // Merge days and members for existing task
+          const existing = taskDefinitions.get(taskKey)!;
+          existing.allDays = [...new Set([...existing.allDays, ...daysOfWeek])];
+          existing.allMembers = [...new Set([...existing.allMembers, ...memberIds])];
+        } else {
+          // New task definition
+          taskDefinitions.set(taskKey, {
+            task,
+            allDays: daysOfWeek,
+            allMembers: memberIds
+          });
+        }
+      }
+      
+      // Now save each unique task definition once
+      for (const [taskKey, { task, allDays, allMembers }] of taskDefinitions) {
         try {
-          const assignment = taskAssignments.get(originalId);
-          const daysOfWeek = assignment?.days || [];
-          
           const savedTask = await addRoutineTask(routineData.id, {
             name: task.name,
             description: task.description,
             points: task.points,
             duration_mins: task.estimatedMinutes,
             time_of_day: task.time_of_day,
-            days_of_week: daysOfWeek,
+            days_of_week: allDays, // All days combined into one array
             from_task_template_id: task.is_system ? task.template_id : undefined
           });
-          savedTasks.set(originalId, savedTask.id);
           
-          // Mark task as saved in the UI state
+          // Map all original task IDs to the single saved task ID
+          for (const [originalId, originalTask] of allTasks) {
+            const originalKey = `${originalTask.name}-${originalTask.time_of_day}-${originalTask.points}-${originalTask.estimatedMinutes}`;
+            if (originalKey === taskKey) {
+              savedTasks.set(originalId, savedTask.id);
+            }
+          }
+          
+          // Mark task as saved in the UI state for all days
           setCalendarTasks(prev => {
             const newCalendarTasks = { ...prev };
-            for (const day of daysOfWeek) {
+            for (const day of allDays) {
               newCalendarTasks[day] = {
                 ...newCalendarTasks[day],
-                individualTasks: newCalendarTasks[day].individualTasks.map((t: Task) => 
-                  t.id === originalId ? { ...t, is_saved: true } : t
-                )
+                individualTasks: newCalendarTasks[day].individualTasks.map((t: Task) => {
+                  const currentTaskKey = `${t.name}-${t.time_of_day}-${t.points}-${t.estimatedMinutes}`;
+                  return currentTaskKey === taskKey ? { ...t, is_saved: true } : t;
+                })
               };
             }
             return newCalendarTasks;
@@ -973,14 +1003,15 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         }
       }
       
-      // Create task assignments for individual tasks
-      for (const [originalTaskId, assignment] of taskAssignments) {
-        const savedTaskId = savedTasks.get(originalTaskId);
+      // Create task assignments for unique task definitions
+      for (const [taskKey, { task, allDays, allMembers }] of taskDefinitions) {
+        // Get the saved task ID for this definition
+        const savedTaskId = savedTasks.get(task.id);
         if (savedTaskId) {
-          for (const memberId of assignment.memberIds) {
+          for (const memberId of allMembers) {
             try {
               await createTaskAssignment(routineData.id, savedTaskId, memberId);
-              console.log(`Assigned task ${savedTaskId} to member ${memberId} for days: ${assignment.days.join(', ')}`);
+              console.log(`Assigned task ${savedTaskId} to member ${memberId} for days: ${allDays.join(', ')}`);
             } catch (e: any) {
               console.error('Error creating task assignment:', e);
             }
