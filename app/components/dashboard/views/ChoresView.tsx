@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, ChevronRight, Edit3, User } from "lucide-react"
 import { apiService } from "../../../lib/api"
@@ -48,10 +48,11 @@ interface EnhancedFamilyMember {
 }
 
 interface ChoresViewProps {
+  familyId?: string | null
   onNavigateToRoutineBuilder?: () => void
 }
 
-export default function ChoresView({ onNavigateToRoutineBuilder }: ChoresViewProps = {}) {
+export default function ChoresView({ familyId: propFamilyId, onNavigateToRoutineBuilder }: ChoresViewProps = {}) {
   console.log('ChoresView: Component rendered with onNavigateToRoutineBuilder:', !!onNavigateToRoutineBuilder)
   const router = useRouter()
   const [enhancedFamilyMembers, setEnhancedFamilyMembers] = useState<EnhancedFamilyMember[]>([])
@@ -60,6 +61,7 @@ export default function ChoresView({ onNavigateToRoutineBuilder }: ChoresViewPro
   const [loading, setLoading] = useState(true)
   const [currentDate, setCurrentDate] = useState(new Date())
   const [error, setError] = useState<string | null>(null)
+  const [isLoadingData, setIsLoadingData] = useState(false) // Prevent duplicate API calls
 
   // Color mapping function for family members - updated for chores view styling
   const getMemberColors = (color: string) => {
@@ -77,50 +79,46 @@ export default function ChoresView({ onNavigateToRoutineBuilder }: ChoresViewPro
   }
 
   useEffect(() => {
-    loadData()
-  }, [currentDate])
+    console.log('🔄 ChoresView: useEffect triggered, currentDate:', currentDate.toISOString().split('T')[0], 'familyId:', propFamilyId)
+    if (propFamilyId) {
+      loadData()
+    }
+  }, [currentDate, propFamilyId])
 
   const loadData = async () => {
+    console.log('📊 ChoresView: loadData() started')
+    
+    // Prevent duplicate calls
+    if (isLoadingData) {
+      console.log('⏸️ ChoresView: loadData() already in progress, skipping')
+      return
+    }
+    
+    setIsLoadingData(true)
     try {
       setLoading(true)
       setError(null)
 
-      // Get onboarding status to get family information
-      const onboardingStatus = await apiService.getOnboardingStatus()
-      if (!onboardingStatus.has_family) {
-        setError("No family found. Please complete onboarding first.")
+      // Use familyId from props instead of calling getOnboardingStatus again
+      if (!propFamilyId) {
+        setError("No family ID provided. Please refresh the page.")
         return
       }
-
-      // Get family ID from onboarding status
-      let currentFamilyId: string
-      if (onboardingStatus.in_progress) {
-        // Family is in progress, use the in_progress family ID
-        currentFamilyId = onboardingStatus.in_progress.id
-        setFamilyName(onboardingStatus.in_progress.name)
-      } else if (onboardingStatus.current_family) {
-        // Family is complete, use the current_family ID
-        currentFamilyId = onboardingStatus.current_family.id
-        setFamilyName(onboardingStatus.current_family.name)
-      } else {
-        setError("Unable to determine family ID. Please refresh the page.")
-        return
-      }
-
-      // Store family ID for later use
-      setFamilyId(currentFamilyId)
-
+      
       // Get family members
-      const members = await apiService.getFamilyMembers(currentFamilyId)
+      console.log('👥 ChoresView: Calling getFamilyMembers()')
+      const members = await apiService.getFamilyMembers(propFamilyId)
       
       // Get today's task instances
       const today = currentDate.toISOString().split('T')[0]
+      console.log('📅 ChoresView: Calling task-instances for date:', today)
       const taskInstances = await apiService.makeRequest<TaskInstance[]>(
-        `/families/${currentFamilyId}/task-instances?start_date=${today}&end_date=${today}`
+        `/families/${propFamilyId}/task-instances?start_date=${today}&end_date=${today}`
       )
 
       // Get routine data to get task names and group information
-      const routines = await apiService.makeRequest<any[]>(`/routines?family_id=${currentFamilyId}`)
+      console.log('📋 ChoresView: Calling routines?family_id')
+      const routines = await apiService.makeRequest<any[]>(`/routines?family_id=${propFamilyId}`)
       const activeRoutine = routines.find(r => r.status === 'active')
       
       if (!activeRoutine) {
@@ -129,6 +127,7 @@ export default function ChoresView({ onNavigateToRoutineBuilder }: ChoresViewPro
       }
 
       // Get routine tasks and groups
+      console.log('🔧 ChoresView: Calling routine tasks and groups')
       const [routineTasks, routineGroups] = await Promise.all([
         apiService.makeRequest<any[]>(`/routines/${activeRoutine.id}/tasks`),
         apiService.makeRequest<any[]>(`/routines/${activeRoutine.id}/groups`)
@@ -218,6 +217,7 @@ export default function ChoresView({ onNavigateToRoutineBuilder }: ChoresViewPro
       setError(err.message || 'Failed to load chores data')
     } finally {
       setLoading(false)
+      setIsLoadingData(false) // Reset loading state
     }
   }
 

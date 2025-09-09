@@ -32,6 +32,7 @@ interface Task {
   time_of_day?: "morning" | "afternoon" | "evening" | "night"
   template_id?: string // Store the original template ID
   is_saved?: boolean // Track if this task has been saved to backend
+  days_of_week?: string[] // Days when this task should appear
 }
 
 interface TaskGroup {
@@ -67,11 +68,11 @@ interface DaySelection {
 }
 
 export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplete, isEditMode = false, onBack }: ManualRoutineBuilderProps = {}) {
-  console.log('ManualRoutineBuilder: Component mounted with props:', { propFamilyId, isEditMode, hasOnComplete: !!onComplete, hasOnBack: !!onBack });
+  console.log('🚀 ManualRoutineBuilder: Component mounted with props:', { propFamilyId, isEditMode, hasOnComplete: !!onComplete, hasOnBack: !!onBack });
   const router = useRouter()
   const sp = useSearchParams()
   const familyId = propFamilyId || sp?.get("family")
-  console.log('ManualRoutineBuilder: Final familyId:', familyId)
+  console.log('🏠 ManualRoutineBuilder: Final familyId:', familyId)
   
   // Debug component lifecycle
   useEffect(() => {
@@ -91,6 +92,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   const [showOnlyGroups, setShowOnlyGroups] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string|null>(null)
+  const [isLoadingData, setIsLoadingData] = useState(false)
   const [isSavingProgress, setIsSavingProgress] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [showRoutineDetails, setShowRoutineDetails] = useState(false)
@@ -158,15 +160,24 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
   // Load all initial data (family members, existing routine, and library data)
   useEffect(() => {
+    console.log('🔄 ManualRoutineBuilder: useEffect triggered - familyId:', familyId, 'isEditMode:', isEditMode);
     let isMounted = true;
     
     const loadAllData = async () => {
       if (!familyId) {
+        console.log('⚠️ ManualRoutineBuilder: No familyId, redirecting to onboarding');
         router.push("/onboarding"); // safety
         return;
       }
       
-      console.log('ManualRoutineBuilder: Starting loadAllData, familyId:', familyId, 'isEditMode:', isEditMode);
+      // Prevent duplicate calls
+      if (isLoadingData) {
+        console.log('⏸️ ManualRoutineBuilder: Already loading data, skipping duplicate call');
+        return;
+      }
+      
+      console.log('🚀 ManualRoutineBuilder: Starting loadAllData, familyId:', familyId, 'isEditMode:', isEditMode);
+      setIsLoadingData(true);
       
       setBusy(true);
       setLibraryLoading(true);
@@ -206,20 +217,30 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         }
         
         // Load all data concurrently
+        console.log('🔄 ManualRoutineBuilder: Starting concurrent API calls...');
+        console.log('📞 ManualRoutineBuilder: Calling getFamilyMembers()');
+        console.log('📞 ManualRoutineBuilder: Calling listLibraryGroups()');
+        console.log('📞 ManualRoutineBuilder: Calling listLibraryTasks()');
+        
         const [members, groupsData, tasksData] = await Promise.all([
           apiService.getFamilyMembers(familyId),
           listLibraryGroups('', true),
           listLibraryTasks('')
         ]);
         
-        console.log('All API data loaded:', { members, groupsData, tasksData });
+        console.log('✅ ManualRoutineBuilder: All API data loaded:', { 
+          membersCount: members?.length || 0, 
+          groupsCount: groupsData?.length || 0, 
+          tasksCount: tasksData?.length || 0 
+        });
         
         // Try to load existing active routine
         let existingRoutine = null;
         try {
-          console.log('Loading existing routines for family...');
+          console.log('📋 ManualRoutineBuilder: Loading existing routines for family...');
+          console.log('📞 ManualRoutineBuilder: Calling /routines?family_id=' + familyId);
           const routines = await apiService.makeRequest<any[]>(`/routines?family_id=${familyId}`);
-          console.log('Routines found:', routines);
+          console.log('✅ ManualRoutineBuilder: Routines found:', routines?.length || 0, 'routines');
           
           // Find the active routine
           existingRoutine = routines.find(r => r.status === 'active');
@@ -303,6 +324,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         if (isMounted) {
           setBusy(false);
           setLibraryLoading(false);
+          setIsLoadingData(false);
         }
       }
     }
@@ -310,6 +332,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     loadAllData()
     
     return () => {
+      console.log('🧹 ManualRoutineBuilder: useEffect cleanup - setting isMounted = false');
       isMounted = false;
     }
   }, [familyId]) // Removed router dependency to prevent unnecessary re-runs
@@ -701,13 +724,16 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   // Load existing routine data (groups and tasks)
   const loadExistingRoutineData = async (routineId: string, enhancedMembers: any[]) => {
     try {
-      console.log('Loading existing routine data...');
+      console.log('🔄 ManualRoutineBuilder: Loading existing routine data for routineId:', routineId);
       
       // Load groups and tasks first
+      console.log('📞 ManualRoutineBuilder: Calling getRoutineGroups()');
+      console.log('📞 ManualRoutineBuilder: Calling getRoutineTasks()');
       const [groups, tasks] = await Promise.all([
         getRoutineGroups(routineId),
         getRoutineTasks(routineId)
       ]);
+      console.log('✅ ManualRoutineBuilder: Groups and tasks loaded:', { groupsCount: groups?.length || 0, tasksCount: tasks?.length || 0 });
       
       // Try to load assignments (might not exist yet)
       let assignments: Array<{
@@ -717,9 +743,11 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         order_index: number;
       }> = [];
       try {
+        console.log('📞 ManualRoutineBuilder: Calling getRoutineAssignments()');
         assignments = await getRoutineAssignments(routineId);
+        console.log('✅ ManualRoutineBuilder: Assignments loaded:', assignments?.length || 0, 'assignments');
       } catch (e: any) {
-        console.log('No task assignments found yet, will create them when tasks are saved');
+        console.log('⚠️ ManualRoutineBuilder: No task assignments found yet, will create them when tasks are saved');
       }
       
       console.log('Loaded groups:', groups);
@@ -748,7 +776,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         time_of_day: task.time_of_day as "morning" | "afternoon" | "evening" | "night" | undefined,
         is_saved: true, // These are already saved in the backend
         template_id: undefined, // We don't have this info from the backend yet
-        group_id: task.group_id // Keep this for processing, then remove it
+        group_id: task.group_id, // Keep this for processing, then remove it
+        days_of_week: task.days_of_week // Include days_of_week from backend
       }));
       
       console.log('Transformed groups:', transformedGroups);
@@ -783,10 +812,13 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           })
       }));
       
-      // Remove group_id from individual tasks to match Task interface
+      // Remove group_id from individual tasks to match Task interface, but keep days_of_week
       const individualTasksWithoutGroupId = individualTasks.map(task => {
         const { group_id, ...taskWithoutGroupId } = task;
-        return taskWithoutGroupId;
+        return {
+          ...taskWithoutGroupId,
+          days_of_week: task.days_of_week // Keep the days_of_week from the original task
+        };
       });
       
       // Distribute tasks and groups to the correct family members
@@ -816,11 +848,66 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       
       console.log('Loaded routine data with proper task assignments');
       
+      // Now populate the calendar with tasks based on their days_of_week
+      const newCalendarTasks = { ...calendarTasks };
+      
+      // Process individual tasks
+      for (const task of individualTasksWithoutGroupId) {
+        const memberTaskIds = assignmentsByMember.get(selectedMemberId || enhancedMembers[0]?.id) || [];
+        if (memberTaskIds.includes(task.id) && task.days_of_week) {
+          // Add this task to each day it's scheduled for
+          for (const day of task.days_of_week) {
+            if (newCalendarTasks[day]) {
+              newCalendarTasks[day] = {
+                ...newCalendarTasks[day],
+                individualTasks: [
+                  ...newCalendarTasks[day].individualTasks,
+                  {
+                    ...task,
+                    id: `${task.id}-${selectedMemberId || enhancedMembers[0]?.id}-${day}-${Date.now()}`, // Unique ID for UI
+                    template_id: task.id // Store original task ID
+                  }
+                ]
+              };
+            }
+          }
+        }
+      }
+      
+      // Process group tasks
+      for (const group of groupsWithTasks) {
+        const memberTaskIds = assignmentsByMember.get(selectedMemberId || enhancedMembers[0]?.id) || [];
+        const memberGroupTasks = group.tasks.filter(task => memberTaskIds.includes(task.id));
+        
+        if (memberGroupTasks.length > 0) {
+          // For now, add groups to all days (we could make this more sophisticated)
+          const daysToAdd = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+          for (const day of daysToAdd) {
+            if (newCalendarTasks[day]) {
+              newCalendarTasks[day] = {
+                ...newCalendarTasks[day],
+                groups: [
+                  ...newCalendarTasks[day].groups,
+                  {
+                    ...group,
+                    tasks: memberGroupTasks
+                  }
+                ]
+              };
+            }
+          }
+        }
+      }
+      
+      setCalendarTasks(newCalendarTasks);
+      console.log('Populated calendar with existing tasks:', newCalendarTasks);
+      
       // Load routine schedule data
       try {
-        console.log('Loading routine schedule data...');
+        console.log('📅 ManualRoutineBuilder: Loading routine schedule data...');
+        console.log('📞 ManualRoutineBuilder: Calling getRoutineSchedules()');
         const schedules = await getRoutineSchedules(routineId);
-        console.log('Loaded schedules:', schedules);
+        console.log('✅ ManualRoutineBuilder: Schedules loaded:', schedules?.length || 0, 'schedules');
         
         // Find the active schedule
         const activeSchedule = schedules.find(s => s.is_active);

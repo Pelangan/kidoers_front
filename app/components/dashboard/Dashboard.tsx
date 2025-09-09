@@ -28,18 +28,26 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
   // Load family ID when component mounts
   useEffect(() => {
     const loadFamilyId = async () => {
+      console.log('🏠 Dashboard: loadFamilyId() started')
       try {
+        console.log('🔍 Dashboard: Calling getOnboardingStatus()')
         const status = await apiService.getOnboardingStatus()
         if (status.current_family) {
-          console.log('Dashboard: Loaded family ID:', status.current_family.id)
+          console.log('✅ Dashboard: Loaded family ID:', status.current_family.id)
           setFamilyId(status.current_family.id)
         }
       } catch (error) {
-        console.error('Failed to load family ID:', error)
+        console.error('❌ Dashboard: Failed to load family ID:', error)
       }
     }
-    loadFamilyId()
-  }, [])
+    
+    // Only load if we don't already have a family ID
+    if (!familyId) {
+      loadFamilyId()
+    } else {
+      console.log('⏸️ Dashboard: Family ID already loaded, skipping')
+    }
+  }, []) // Remove familyId from dependencies to prevent infinite loop
 
   const handleNavigateToRoutineBuilder = () => {
     console.log('Dashboard: handleNavigateToRoutineBuilder called, setting view to routine-builder')
@@ -50,7 +58,10 @@ export default function Dashboard({ onSignOut }: DashboardProps) {
     console.log('Dashboard: renderView called with currentView:', currentView)
     switch (currentView) {
       case "chores":
-        return <ChoresView onNavigateToRoutineBuilder={handleNavigateToRoutineBuilder} />
+        return <ChoresView 
+          familyId={familyId} 
+          onNavigateToRoutineBuilder={handleNavigateToRoutineBuilder} 
+        />
       case "calendar":
         return <CalendarView />
       case "rewards":

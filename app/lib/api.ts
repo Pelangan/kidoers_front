@@ -106,10 +106,11 @@ class ApiService {
   ): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`
     const headers = await this.getAuthHeaders()
-    console.log('API_BASE_URL:', API_BASE_URL)
-    console.log('endpoint:', endpoint)
-    console.log('Making request to:', url)
-    console.log('Request headers:', headers)
+    
+    // Log all API requests
+    console.log(`🌐 API Request: ${options.method || 'GET'} ${endpoint}`)
+    console.log(`   URL: ${url}`)
+    console.log(`   Timestamp: ${new Date().toISOString()}`)
     
     const config: RequestInit = {
       ...options,
