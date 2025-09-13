@@ -9,9 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../../../components
 import { Badge } from "../../../../components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../../components/ui/dialog"
-import { ArrowLeft, Plus, Trash2, Save, GripVertical, User, Folder, Users, Baby, UserCheck, Check, ChevronLeft, ChevronRight, ListTodo, Settings } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Save, GripVertical, User, Folder, Users, Baby, UserCheck, Check, ChevronLeft, ChevronRight, ListTodo, Settings, Move } from 'lucide-react'
 import type { FamilyMember } from '../../../lib/api'
-import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, updateOnboardingStep, listLibraryGroups, listLibraryTasks, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules } from '../../../lib/api'
+
+import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, updateOnboardingStep, listLibraryGroups, listLibraryTasks, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules, assignGroupTemplateToMembers, assignExistingGroupToMembers, getRoutineFullData } from '../../../lib/api'
 import RoutineDetailsModal, { type RoutineScheduleData } from './RoutineDetailsModal'
 
 interface ManualRoutineBuilderProps {
@@ -33,6 +34,11 @@ interface Task {
   template_id?: string // Store the original template ID
   is_saved?: boolean // Track if this task has been saved to backend
   days_of_week?: string[] // Days when this task should appear
+  from_group?: { // Track which group this task came from
+    id: string
+    name: string
+    template_id?: string
+  }
 }
 
 interface TaskGroup {
@@ -60,6 +66,8 @@ interface PendingDrop {
   targetMemberId: string
   targetMemberName: string
   targetDay: string
+  selectedTasks?: Task[] // For individual task selection within groups
+  fromGroup?: TaskGroup // Track which group a task came from
 }
 
 interface DaySelection {
@@ -69,6 +77,7 @@ interface DaySelection {
 
 export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplete, isEditMode = false, onBack }: ManualRoutineBuilderProps = {}) {
   console.log('🚀 ManualRoutineBuilder: Component mounted with props:', { propFamilyId, isEditMode, hasOnComplete: !!onComplete, hasOnBack: !!onBack });
+  console.log('🔍 Edit Mode Debug - isEditMode value:', isEditMode, 'type:', typeof isEditMode);
   const router = useRouter()
   const sp = useSearchParams()
   const familyId = propFamilyId || sp?.get("family")
@@ -84,7 +93,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   
   const [routine, setRoutine] = useState<{ id: string; family_id: string; name: string; status: "draft"|"active"|"archived" }|null>(null)
   const [routineName, setRoutineName] = useState('My Routine')
-  const [draggedItem, setDraggedItem] = useState<{ type: 'task' | 'group', item: Task | TaskGroup } | null>(null)
+  const [draggedItem, setDraggedItem] = useState<{ type: 'task' | 'group', item: Task | TaskGroup, fromGroup?: TaskGroup } | null>(null)
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false)
   const [pendingDrop, setPendingDrop] = useState<PendingDrop | null>(null)
   const [showApplyToPopup, setShowApplyToPopup] = useState(false)
@@ -98,6 +107,10 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   const [showRoutineDetails, setShowRoutineDetails] = useState(false)
   const [routineScheduleData, setRoutineScheduleData] = useState<RoutineScheduleData | null>(null)
   const [daySelection, setDaySelection] = useState<DaySelection>({ mode: 'single', selectedDays: [] })
+  const [viewMode, setViewMode] = useState<'calendar' | 'group'>('calendar')
+  const [selectedTaskGroup, setSelectedTaskGroup] = useState<TaskGroup | null>(null)
+  const [showTaskSelection, setShowTaskSelection] = useState(false)
+  const [selectedTasksInGroup, setSelectedTasksInGroup] = useState<Task[]>([])
 
   // Apply to options
   const applyToOptions: ApplyToOption[] = [
@@ -282,6 +295,13 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           }
         })
         setEnhancedFamilyMembers(enhanced)
+        console.log('Enhanced family members loaded:', enhanced)
+        
+        // Set the first family member as selected by default
+        if (enhanced.length > 0 && !selectedMemberId) {
+          setSelectedMemberId(enhanced[0].id)
+          console.log('Set default selected member:', enhanced[0].id, enhanced[0].name)
+        }
         
         // Load existing routine data after enhanced family members are set
         if (existingRoutine) {
@@ -344,6 +364,10 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   const [libraryTasks, setLibraryTasks] = useState<Task[]>([])
   const [libraryLoading, setLibraryLoading] = useState(false)
 
+  // Task reordering state (only in edit mode)
+  const [draggedTask, setDraggedTask] = useState<{task: Task, day: string, memberId: string} | null>(null)
+  const [dragOverPosition, setDragOverPosition] = useState<{day: string, memberId: string, position: 'before' | 'after', targetTaskId?: string} | null>(null)
+
   // Pre-defined task groups (now using API data)
   const [predefinedGroups] = useState<TaskGroup[]>([])
 
@@ -353,8 +377,9 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
 
   // Drag and drop handlers
-  const handleDragStart = (e: React.DragEvent, type: 'task' | 'group', item: Task | TaskGroup) => {
-    setDraggedItem({ type, item })
+  const handleDragStart = (e: React.DragEvent, type: 'task' | 'group', item: Task | TaskGroup, fromGroup?: TaskGroup) => {
+    console.log('Drag started:', { type, item: item.name, fromGroup: fromGroup?.name })
+    setDraggedItem({ type, item, fromGroup })
     e.dataTransfer.effectAllowed = 'move'
   }
 
@@ -365,18 +390,39 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
   const handleDropOnDay = (e: React.DragEvent, day: string) => {
     e.preventDefault()
-    if (!draggedItem || !selectedMemberId) return
+    console.log('Drop on day:', { day, draggedItem, selectedMemberId })
+    
+    if (!draggedItem || !selectedMemberId) {
+      console.log('No dragged item or selected member:', { draggedItem, selectedMemberId })
+      return
+    }
 
     const member = enhancedFamilyMembers.find(m => m.id === selectedMemberId)
-    if (!member) return
+    if (!member) {
+      console.log('Member not found:', selectedMemberId)
+      return
+    }
+
+    // If it's a group, show task selection first
+    if (draggedItem.type === 'group') {
+      console.log('Group dropped, showing task selection')
+      const group = draggedItem.item as TaskGroup
+      setSelectedTaskGroup(group)
+      setSelectedTasksInGroup([])
+      setShowTaskSelection(true)
+      setDraggedItem(null)
+      return
+    }
 
     // Set up pending drop and show popup
+    console.log('Setting up pending drop for task:', draggedItem.item)
     setPendingDrop({
       type: draggedItem.type,
       item: draggedItem.item,
       targetMemberId: selectedMemberId,
       targetMemberName: member.name,
-      targetDay: day
+      targetDay: day,
+      fromGroup: draggedItem.fromGroup
     })
     
     // Initialize day selection with the dropped day
@@ -387,7 +433,20 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   }
 
   const handleApplyToSelection = async (applyToId: string) => {
-    if (!pendingDrop) return
+    console.log('🚀 handleApplyToSelection called with applyToId:', applyToId)
+    
+    if (!pendingDrop) {
+      console.log('❌ No pending drop found')
+      return
+    }
+
+    console.log('📋 Applying task/group:', {
+      type: pendingDrop.type,
+      item: pendingDrop.item,
+      targetMemberId: pendingDrop.targetMemberId,
+      applyToId,
+      daySelection
+    })
 
     // Determine which days to add the task to based on day selection
     let targetDays: string[] = []
@@ -400,12 +459,64 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       targetDays = daySelection.selectedDays
     }
 
-    // Add task/group to all selected days (only UI updates, no backend calls)
+    console.log('Target days:', targetDays)
+
+    // Determine which members should receive the task based on applyToId
+    let targetMemberIds: string[] = []
+    
+    console.log('🔍 Assignment Debug Info:')
+    console.log('- applyToId:', applyToId)
+    console.log('- enhancedFamilyMembers:', enhancedFamilyMembers)
+    console.log('- Member roles:', enhancedFamilyMembers.map(m => ({ id: m.id, name: m.name, role: m.role })))
+    console.log('- Full member details:', enhancedFamilyMembers.map(m => ({ 
+      id: m.id, 
+      name: m.name, 
+      role: m.role, 
+      type: m.type,
+      allFields: Object.keys(m),
+      memberObject: m
+    })))
+    
+    if (applyToId === 'none') {
+      // Only the member the task was dropped on
+      targetMemberIds = [pendingDrop.targetMemberId]
+      console.log('- Selected: This member only, targetMemberIds:', targetMemberIds)
+    } else if (applyToId === 'all-kids') {
+      // All children in the family
+      const kids = enhancedFamilyMembers.filter(member => member.type === 'child')
+      targetMemberIds = kids.map(member => member.id)
+      console.log('- Selected: All kids')
+      console.log('- Kids found:', kids)
+      console.log('- Kids IDs:', targetMemberIds)
+    } else if (applyToId === 'all-parents') {
+      // All parents in the family
+      const parents = enhancedFamilyMembers.filter(member => member.type === 'parent')
+      targetMemberIds = parents.map(member => member.id)
+      console.log('- Selected: All parents')
+      console.log('- Parents found:', parents)
+      console.log('- Parents IDs:', targetMemberIds)
+    } else if (applyToId === 'all-family') {
+      // All family members
+      targetMemberIds = enhancedFamilyMembers.map(member => member.id)
+      console.log('- Selected: All family, targetMemberIds:', targetMemberIds)
+    } else {
+      // Fallback to single member
+      targetMemberIds = [pendingDrop.targetMemberId]
+      console.log('- Fallback: Single member, targetMemberIds:', targetMemberIds)
+    }
+    
+    console.log('Target members for applyToId:', applyToId, targetMemberIds)
+
+    // Add task/group to all selected days for all target members (only UI updates, no backend calls)
     for (const day of targetDays) {
-      if (pendingDrop.type === 'task') {
-        addTaskToCalendarUI(pendingDrop.targetMemberId, pendingDrop.item as Task, applyToId, day)
-      } else if (pendingDrop.type === 'group') {
-        addGroupToCalendarUI(pendingDrop.targetMemberId, pendingDrop.item as TaskGroup, applyToId, day)
+      for (const memberId of targetMemberIds) {
+        if (pendingDrop.type === 'task') {
+          console.log(`Adding task to ${day} for member ${memberId}`)
+          addTaskToCalendarUI(memberId, pendingDrop.item as Task, applyToId, day, pendingDrop.fromGroup)
+        } else if (pendingDrop.type === 'group') {
+          console.log(`Adding group to ${day} for member ${memberId}`)
+          addGroupToCalendarUI(memberId, pendingDrop.item as TaskGroup, applyToId, day, pendingDrop.selectedTasks)
+        }
       }
     }
 
@@ -415,10 +526,169 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     setDaySelection({ mode: 'single', selectedDays: [] })
   }
 
+  const handleTaskSelection = (task: Task, isSelected: boolean) => {
+    if (isSelected) {
+      setSelectedTasksInGroup(prev => [...prev, task])
+    } else {
+      setSelectedTasksInGroup(prev => prev.filter(t => t.id !== task.id))
+    }
+  }
+
+  const handleSelectAllTasks = () => {
+    if (selectedTaskGroup) {
+      setSelectedTasksInGroup(selectedTaskGroup.tasks)
+    }
+  }
+
+  const handleDeselectAllTasks = () => {
+    setSelectedTasksInGroup([])
+  }
+
+  const handleConfirmTaskSelection = () => {
+    if (!selectedTaskGroup || selectedTasksInGroup.length === 0 || !selectedMemberId) return
+
+    const member = enhancedFamilyMembers.find(m => m.id === selectedMemberId)
+    if (!member) return
+
+    // Set up pending drop with selected tasks - we'll get the day from the drag operation
+    setPendingDrop({
+      type: 'group',
+      item: selectedTaskGroup,
+      targetMemberId: selectedMemberId,
+      targetMemberName: member.name,
+      targetDay: 'monday', // Default day, will be updated when user selects days
+      selectedTasks: selectedTasksInGroup
+    })
+    
+    // Initialize day selection
+    setDaySelection({ mode: 'single', selectedDays: [] })
+    
+    setShowTaskSelection(false)
+    setShowApplyToPopup(true)
+  }
+
+  // Task reordering handlers (works in both edit mode and normal mode)
+  const handleTaskDragStart = (e: React.DragEvent, task: Task, day: string, memberId: string) => {
+    console.log('🚀 DRAG START EVENT TRIGGERED!', { task: task.name, day, memberId })
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', '')
+    
+    setDraggedTask({ task, day, memberId })
+    console.log('✅ Started dragging task:', task.name, 'from day:', day, 'member:', memberId)
+  }
+
+  const handleTaskDragOver = (e: React.DragEvent, day: string, memberId: string, position: 'before' | 'after', targetTaskId?: string) => {
+    if (!draggedTask) return
+    
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    
+    const newDragOverPosition = { day, memberId, position, targetTaskId }
+    console.log('🎯 Drag over position:', newDragOverPosition)
+    setDragOverPosition(newDragOverPosition)
+  }
+
+  const handleTaskDragLeave = () => {
+    setDragOverPosition(null)
+  }
+
+  const handleTaskDrop = (e: React.DragEvent, targetDay: string, targetMemberId: string) => {
+    if (!draggedTask) {
+      console.log('❌ No dragged task on drop')
+      return
+    }
+    
+    e.preventDefault()
+    
+    const { task, day: sourceDay, memberId: sourceMemberId } = draggedTask
+    
+    console.log('🎯 Task dropped:', {
+      task: task.name,
+      sourceDay,
+      sourceMemberId,
+      targetDay,
+      targetMemberId,
+      dragOverPosition
+    })
+    
+    // Don't reorder if dropped in the same position AND no drag over position is specified
+    if (sourceDay === targetDay && sourceMemberId === targetMemberId && (!dragOverPosition || !dragOverPosition.targetTaskId)) {
+      console.log('⚠️ Dropped in same position with no specific target, no reorder needed')
+      setDraggedTask(null)
+      setDragOverPosition(null)
+      return
+    }
+
+    // Move the task to the new position
+    console.log('✅ Proceeding with reorder - dragOverPosition:', dragOverPosition)
+    moveTaskToPosition(task, sourceDay, sourceMemberId, targetDay, targetMemberId, dragOverPosition)
+    
+    setDraggedTask(null)
+    setDragOverPosition(null)
+  }
+
+  const moveTaskToPosition = (task: Task, sourceDay: string, sourceMemberId: string, targetDay: string, targetMemberId: string, currentDragOverPosition: any) => {
+    console.log('🔄 moveTaskToPosition called:', {
+      task: task.name,
+      sourceDay,
+      sourceMemberId,
+      targetDay,
+      targetMemberId,
+      currentDragOverPosition
+    })
+
+    setCalendarTasks(prev => {
+      const newCalendarTasks = { ...prev }
+      
+      // Find and remove task from source position
+      const sourceDayTasks = newCalendarTasks[sourceDay]
+      const sourceTaskIndex = sourceDayTasks.individualTasks.findIndex((t: Task) => t.id === task.id)
+      
+      if (sourceTaskIndex === -1) {
+        console.log('❌ Task not found in source position')
+        return newCalendarTasks
+      }
+      
+      // Remove task from source
+      const [movedTask] = sourceDayTasks.individualTasks.splice(sourceTaskIndex, 1)
+      console.log('✅ Removed task from source at index:', sourceTaskIndex)
+      
+      // Add task to target position
+      const targetDayTasks = newCalendarTasks[targetDay]
+      
+      if (currentDragOverPosition && currentDragOverPosition.targetTaskId && currentDragOverPosition.day === targetDay) {
+        // Insert at specific position
+        const targetIndex = targetDayTasks.individualTasks.findIndex((t: Task) => t.id === currentDragOverPosition.targetTaskId)
+        if (targetIndex !== -1) {
+          const insertIndex = currentDragOverPosition.position === 'before' ? targetIndex : targetIndex + 1
+          targetDayTasks.individualTasks.splice(insertIndex, 0, movedTask)
+          console.log('✅ Inserted task at specific position:', insertIndex)
+        } else {
+          targetDayTasks.individualTasks.push(movedTask)
+          console.log('✅ Added task to end (target not found)')
+        }
+      } else {
+        // Add to end
+        targetDayTasks.individualTasks.push(movedTask)
+        console.log('✅ Added task to end (no specific position)')
+      }
+      
+      console.log('📊 Final task order for', targetDay, ':', targetDayTasks.individualTasks.map(t => t.name))
+      
+      return newCalendarTasks
+    })
+    
+    setHasUnsavedChanges(true)
+    console.log('✅ Task reordering completed')
+  }
+
   // UI-only function for adding groups to calendar (no backend calls)
-  const addGroupToCalendarUI = (memberId: string, group: TaskGroup, applyTo: string, day: string) => {
-    const applyToOption = applyToOptions.find(option => option.id === applyTo)
-    if (!applyToOption) return
+  const addGroupToCalendarUI = (memberId: string, group: TaskGroup, applyTo: string, day: string, selectedTasks?: Task[]) => {
+
+    // If specific tasks are selected, create a group with only those tasks
+    const groupToAdd = selectedTasks && selectedTasks.length > 0 
+      ? { ...group, tasks: selectedTasks }
+      : group
 
     // Add group to calendar for the specified day
     setCalendarTasks(prev => ({
@@ -426,7 +696,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       [day]: {
         ...prev[day],
         groups: [...prev[day].groups, { 
-          ...group, 
+          ...groupToAdd, 
           id: `${group.id}-${memberId}-${day}-${Date.now()}`,
           template_id: group.id, // Store the original template ID
           is_saved: false // Mark as unsaved
@@ -467,26 +737,38 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   }
 
   // UI-only function for adding tasks to calendar (no backend calls)
-  const addTaskToCalendarUI = (memberId: string, task: Task, applyTo: string, day: string) => {
-    const applyToOption = applyToOptions.find(option => option.id === applyTo)
-    if (!applyToOption) return
+  const addTaskToCalendarUI = (memberId: string, task: Task, applyTo: string, day: string, fromGroup?: TaskGroup) => {
+    console.log('addTaskToCalendarUI called:', { memberId, task: task.name, applyTo, day, fromGroup })
+
+    const newTaskId = `${task.id}-${memberId}-${day}-${Date.now()}`
+    console.log('Creating new task with ID:', newTaskId)
 
     // Add task to calendar for the specified day
-    setCalendarTasks(prev => ({
+    setCalendarTasks(prev => {
+      const newState = {
       ...prev,
       [day]: {
         ...prev[day],
         individualTasks: [...prev[day].individualTasks, { 
           ...task, 
-          id: `${task.id}-${memberId}-${day}-${Date.now()}`,
+            id: newTaskId,
           template_id: task.id, // Store the original template ID
-          is_saved: false // Mark as unsaved
-        }]
+            is_saved: false, // Mark as unsaved
+            from_group: fromGroup ? {
+              id: fromGroup.id,
+              name: fromGroup.name,
+              template_id: fromGroup.template_id
+            } : undefined
+          }]
+        }
       }
-    }))
+      console.log('Updated calendar state:', newState)
+      return newState
+    })
     
     // Mark as having unsaved changes
     setHasUnsavedChanges(true);
+    console.log('Task added to calendar successfully')
   }
 
   const addTaskToCalendar = async (memberId: string, task: Task, applyTo: string, day: string, routineData?: any) => {
@@ -646,9 +928,108 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     }
   }
 
+  // Helper function to extract member ID from task/group ID
+  const extractMemberIdFromId = (id: string): string => {
+    // ID format: templateId-memberId-day-timestamp
+    // Since UUIDs contain dashes, we need to find the member ID by looking for the pattern
+    // The member ID is the second UUID in the string (after the template UUID)
+    const parts = id.split('-')
+    
+    // If we have at least 9 parts (template UUID has 5 parts, member UUID has 5 parts)
+    if (parts.length >= 9) {
+      // Template UUID: parts[0-4], Member UUID: parts[5-9]
+      return `${parts[5]}-${parts[6]}-${parts[7]}-${parts[8]}-${parts[9]}`
+    }
+    
+    // Fallback: try to find member ID by looking for the selected member ID in the string
+    if (selectedMemberId && id.includes(selectedMemberId)) {
+      return selectedMemberId
+    }
+    
+    // Last resort: return empty string
+    return ''
+  }
+
   const getTotalTasksForDay = (day: string) => {
     const dayTasks = calendarTasks[day]
-    return dayTasks.groups.reduce((sum: number, group: TaskGroup) => sum + group.tasks.length, 0) + dayTasks.individualTasks.length
+    
+    console.log(`getTotalTasksForDay(${day}):`, { 
+      dayTasks, 
+      selectedMemberId,
+      totalIndividualTasks: dayTasks?.individualTasks?.length || 0,
+      totalGroups: dayTasks?.groups?.length || 0
+    })
+    
+    if (!dayTasks) {
+      console.log(`getTotalTasksForDay(${day}): No day tasks found`)
+      return 0
+    }
+    
+    // Filter groups by selected member
+    const filteredGroups = dayTasks.groups.filter((group: TaskGroup) => {
+      const groupMemberId = extractMemberIdFromId(group.id)
+      const matches = groupMemberId === selectedMemberId
+      console.log(`Filtering group ${group.name} (${group.id}):`, { groupMemberId, selectedMemberId, matches })
+      return matches
+    })
+    
+    // Filter individual tasks by selected member
+    const filteredIndividualTasks = dayTasks.individualTasks.filter((task: Task) => {
+      const taskMemberId = extractMemberIdFromId(task.id)
+      const matches = taskMemberId === selectedMemberId
+      console.log(`Filtering task ${task.name} (${task.id}):`, { taskMemberId, selectedMemberId, matches })
+      return matches
+    })
+    
+    const total = filteredGroups.reduce((sum: number, group: TaskGroup) => sum + group.tasks.length, 0) + filteredIndividualTasks.length
+    console.log(`getTotalTasksForDay(${day}) result:`, { filteredGroups: filteredGroups.length, filteredIndividualTasks: filteredIndividualTasks.length, total })
+    return total
+  }
+
+  // Get all unique task groups that have been assigned to the selected member
+  const getAssignedTaskGroups = () => {
+    const groups = new Map<string, TaskGroup>()
+    
+    Object.values(calendarTasks).forEach(dayTasks => {
+      dayTasks.groups
+        .filter((group: TaskGroup) => {
+          const groupMemberId = extractMemberIdFromId(group.id)
+          return groupMemberId === selectedMemberId
+        })
+        .forEach(group => {
+          if (!groups.has(group.template_id || group.id)) {
+            groups.set(group.template_id || group.id, group)
+          }
+        })
+    })
+    
+    return Array.from(groups.values())
+  }
+
+  // Get tasks for a specific group across all days for the selected member
+  const getTasksForGroup = (group: TaskGroup) => {
+    const tasks: Array<{ task: Task, member: any, day: string }> = []
+    
+    Object.entries(calendarTasks).forEach(([day, dayTasks]) => {
+      dayTasks.groups
+        .filter((assignedGroup: TaskGroup) => {
+          // Only include groups assigned to the selected member
+          const groupMemberId = extractMemberIdFromId(assignedGroup.id)
+          return groupMemberId === selectedMemberId
+        })
+        .forEach(assignedGroup => {
+          if (assignedGroup.template_id === group.template_id || assignedGroup.id === group.id) {
+            assignedGroup.tasks.forEach(task => {
+              const member = enhancedFamilyMembers.find(m => m.id === selectedMemberId)
+              if (member) {
+                tasks.push({ task, member, day })
+              }
+            })
+          }
+        })
+    })
+    
+    return tasks
   }
 
   const totalTasks = Object.keys(calendarTasks).reduce((sum, day) => sum + getTotalTasksForDay(day), 0)
@@ -721,126 +1102,112 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     }
   };
 
-  // Load existing routine data (groups and tasks)
+  // Load existing routine data using the new full-data endpoint
   const loadExistingRoutineData = async (routineId: string, enhancedMembers: any[]) => {
     try {
       console.log('🔄 ManualRoutineBuilder: Loading existing routine data for routineId:', routineId);
       
-      // Load groups and tasks first
-      console.log('📞 ManualRoutineBuilder: Calling getRoutineGroups()');
-      console.log('📞 ManualRoutineBuilder: Calling getRoutineTasks()');
-      const [groups, tasks] = await Promise.all([
-        getRoutineGroups(routineId),
-        getRoutineTasks(routineId)
-      ]);
-      console.log('✅ ManualRoutineBuilder: Groups and tasks loaded:', { groupsCount: groups?.length || 0, tasksCount: tasks?.length || 0 });
-      
-      // Try to load assignments (might not exist yet)
-      let assignments: Array<{
-        id: string;
-        routine_task_id: string;
-        member_id: string;
-        order_index: number;
-      }> = [];
-      try {
-        console.log('📞 ManualRoutineBuilder: Calling getRoutineAssignments()');
-        assignments = await getRoutineAssignments(routineId);
-        console.log('✅ ManualRoutineBuilder: Assignments loaded:', assignments?.length || 0, 'assignments');
-      } catch (e: any) {
-        console.log('⚠️ ManualRoutineBuilder: No task assignments found yet, will create them when tasks are saved');
-      }
-      
-      console.log('Loaded groups:', groups);
-      console.log('Loaded tasks:', tasks);
-      console.log('Loaded assignments:', assignments);
+      // Load complete routine data
+      console.log('📞 ManualRoutineBuilder: Calling getRoutineFullData()');
+      const fullData = await getRoutineFullData(routineId);
+      console.log('✅ ManualRoutineBuilder: Full routine data loaded:', fullData);
       
       // Transform backend data to frontend format
-      const transformedGroups: TaskGroup[] = groups.map(group => ({
+      const transformedGroups: TaskGroup[] = fullData.groups.map(group => ({
         id: group.id,
         name: group.name,
         description: '',
-        tasks: [], // We'll populate this with tasks that belong to this group
+        tasks: group.tasks.map(task => ({
+          id: task.id,
+          name: task.name,
+          description: task.description || '',
+          points: task.points,
+          estimatedMinutes: task.duration_mins || 5,
+          time_of_day: task.time_of_day as "morning" | "afternoon" | "evening" | "night" | undefined,
+          is_saved: true,
+          template_id: undefined,
+          days_of_week: task.days_of_week
+        })),
         color: 'bg-blue-100 border-blue-300',
         time_of_day: group.time_of_day as "morning" | "afternoon" | "evening" | "night" | undefined,
-        is_saved: true, // These are already saved in the backend
-        template_id: undefined // We don't have this info from the backend yet
+        is_saved: true,
+        template_id: undefined
       }));
       
-      // Transform backend data to frontend format, preserving group_id for processing
-      const transformedTasksWithGroupId = tasks.map(task => ({
+      // Transform individual tasks
+      const individualTasks: Task[] = fullData.individual_tasks.map(task => ({
         id: task.id,
         name: task.name,
         description: task.description || '',
         points: task.points,
         estimatedMinutes: task.duration_mins || 5,
         time_of_day: task.time_of_day as "morning" | "afternoon" | "evening" | "night" | undefined,
-        is_saved: true, // These are already saved in the backend
-        template_id: undefined, // We don't have this info from the backend yet
-        group_id: task.group_id, // Keep this for processing, then remove it
-        days_of_week: task.days_of_week // Include days_of_week from backend
+        is_saved: true,
+        template_id: undefined,
+        days_of_week: task.days_of_week
       }));
       
       console.log('Transformed groups:', transformedGroups);
-      console.log('Transformed tasks with group_id:', transformedTasksWithGroupId);
+      console.log('Transformed individual tasks:', individualTasks);
       
       // Create a map of task assignments by member
       const assignmentsByMember = new Map<string, string[]>(); // memberId -> taskIds
-      for (const assignment of assignments) {
+      
+      // Process group tasks assignments
+      for (const group of fullData.groups) {
+        for (const task of group.tasks) {
+          for (const assignment of task.assignments) {
         const memberId = assignment.member_id;
         const taskId = assignment.routine_task_id;
         if (!assignmentsByMember.has(memberId)) {
           assignmentsByMember.set(memberId, []);
         }
         assignmentsByMember.get(memberId)!.push(taskId);
+          }
+        }
+      }
+      
+      // Process individual tasks assignments
+      for (const task of fullData.individual_tasks) {
+        for (const assignment of task.assignments) {
+          const memberId = assignment.member_id;
+          const taskId = assignment.routine_task_id;
+          if (!assignmentsByMember.has(memberId)) {
+            assignmentsByMember.set(memberId, []);
+          }
+          assignmentsByMember.get(memberId)!.push(taskId);
+        }
       }
       
       console.log('Assignments by member:', assignmentsByMember);
       
-      // Separate tasks that belong to groups vs individual tasks
-      const individualTasks = transformedTasksWithGroupId.filter(task => !task.group_id);
-      const groupTasks = transformedTasksWithGroupId.filter(task => task.group_id);
-      
-      // Assign tasks to their respective groups
-      const groupsWithTasks = transformedGroups.map(group => ({
-        ...group,
-        tasks: groupTasks
-          .filter(task => task.group_id === group.id)
-          .map(task => {
-            // Remove group_id to match Task interface
-            const { group_id, ...taskWithoutGroupId } = task;
-            return taskWithoutGroupId;
-          })
-      }));
-      
-      // Remove group_id from individual tasks to match Task interface, but keep days_of_week
-      const individualTasksWithoutGroupId = individualTasks.map(task => {
-        const { group_id, ...taskWithoutGroupId } = task;
-        return {
-          ...taskWithoutGroupId,
-          days_of_week: task.days_of_week // Keep the days_of_week from the original task
-        };
-      });
-      
       // Distribute tasks and groups to the correct family members
-      console.log('Current enhanced family members:', enhancedMembers);
-      console.log('Assignments by member:', assignmentsByMember);
-      console.log('Individual tasks without group_id:', individualTasksWithoutGroupId);
-      
       setEnhancedFamilyMembers(members =>
         members.map(member => {
           const memberTaskIds = assignmentsByMember.get(member.id) || [];
-          const memberIndividualTasks = individualTasksWithoutGroupId.filter(task => 
+          
+          // Filter groups that have tasks assigned to this member
+          const memberGroups = transformedGroups.filter(group => 
+            group.tasks.some(task => memberTaskIds.includes(task.id))
+          ).map(group => ({
+            ...group,
+            tasks: group.tasks.filter(task => memberTaskIds.includes(task.id))
+          }));
+          
+          // Filter individual tasks assigned to this member
+          const memberIndividualTasks = individualTasks.filter(task => 
             memberTaskIds.includes(task.id)
           );
           
           console.log(`Member ${member.name} (${member.id}):`, {
             memberTaskIds,
+            memberGroups: memberGroups.length,
             memberIndividualTasks: memberIndividualTasks.length
           });
           
           return {
             ...member,
-            groups: groupsWithTasks, // For now, all groups go to all members
+            groups: memberGroups,
             individualTasks: memberIndividualTasks
           };
         })
@@ -848,11 +1215,11 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       
       console.log('Loaded routine data with proper task assignments');
       
-      // Now populate the calendar with tasks based on their days_of_week
+      // Populate the calendar with tasks based on their days_of_week
       const newCalendarTasks = { ...calendarTasks };
       
       // Process individual tasks
-      for (const task of individualTasksWithoutGroupId) {
+      for (const task of individualTasks) {
         const memberTaskIds = assignmentsByMember.get(selectedMemberId || enhancedMembers[0]?.id) || [];
         if (memberTaskIds.includes(task.id) && task.days_of_week) {
           // Add this task to each day it's scheduled for
@@ -875,22 +1242,32 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       }
       
       // Process group tasks
-      for (const group of groupsWithTasks) {
+      for (const group of transformedGroups) {
         const memberTaskIds = assignmentsByMember.get(selectedMemberId || enhancedMembers[0]?.id) || [];
         const memberGroupTasks = group.tasks.filter(task => memberTaskIds.includes(task.id));
         
         if (memberGroupTasks.length > 0) {
-          // For now, add groups to all days (we could make this more sophisticated)
-          const daysToAdd = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-          for (const day of daysToAdd) {
+          // Add groups to days based on their tasks' days_of_week
+          const allDays = new Set<string>();
+          memberGroupTasks.forEach(task => {
+            if (task.days_of_week) {
+              task.days_of_week.forEach(day => allDays.add(day));
+            }
+          });
+          
+          for (const day of allDays) {
             if (newCalendarTasks[day]) {
+              const tasksForDay = memberGroupTasks.filter(task => 
+                task.days_of_week && task.days_of_week.includes(day)
+              );
+              
               newCalendarTasks[day] = {
                 ...newCalendarTasks[day],
                 groups: [
                   ...newCalendarTasks[day].groups,
                   {
                     ...group,
-                    tasks: memberGroupTasks
+                    tasks: tasksForDay
                   }
                 ]
               };
@@ -903,14 +1280,11 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       console.log('Populated calendar with existing tasks:', newCalendarTasks);
       
       // Load routine schedule data
-      try {
+      if (fullData.schedules && fullData.schedules.length > 0) {
         console.log('📅 ManualRoutineBuilder: Loading routine schedule data...');
-        console.log('📞 ManualRoutineBuilder: Calling getRoutineSchedules()');
-        const schedules = await getRoutineSchedules(routineId);
-        console.log('✅ ManualRoutineBuilder: Schedules loaded:', schedules?.length || 0, 'schedules');
         
         // Find the active schedule
-        const activeSchedule = schedules.find(s => s.is_active);
+        const activeSchedule = fullData.schedules.find(s => s.is_active);
         if (activeSchedule) {
           console.log('Active schedule found:', activeSchedule);
           // Convert the schedule data to the format expected by RoutineDetailsModal
@@ -927,9 +1301,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         } else {
           console.log('No active schedule found');
         }
-      } catch (scheduleError: any) {
-        console.log('No schedule data found or error loading schedule:', scheduleError);
-        // This is not a critical error, so we don't set an error state
       }
       
     } catch (e: any) {
@@ -937,7 +1308,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     }
   };
 
-  // Save progress function
+  // Save progress function using new group assignment endpoints
   const saveProgress = async () => {
     if (!routineName.trim()) return;
     
@@ -956,161 +1327,176 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       }
       
       // Collect all unique unsaved tasks and groups from calendar
-      const allGroups = new Map<string, TaskGroup>();
-      const allTasks = new Map<string, Task>();
-      const taskAssignments = new Map<string, { memberIds: string[], days: string[] }>(); // taskId -> {memberIds, days}
-      const groupAssignments = new Map<string, { memberIds: string[], days: string[] }>(); // groupId -> {memberIds, days}
+      const allGroups = new Map<string, { group: TaskGroup, memberIds: string[], days: string[] }>();
+      const allTasks = new Map<string, { task: Task, memberIds: string[], days: string[] }>();
       
       for (const [day, dayTasks] of Object.entries(calendarTasks)) {
         // Collect unsaved groups for this day
         for (const group of dayTasks.groups) {
-          if (!group.is_saved && !allGroups.has(group.id)) {
-            allGroups.set(group.id, group);
-            groupAssignments.set(group.id, { memberIds: [], days: [] });
-          }
           if (!group.is_saved) {
-            const assignment = groupAssignments.get(group.id)!;
-            if (!assignment.memberIds.includes(selectedMemberId!)) {
-              assignment.memberIds.push(selectedMemberId!);
-            }
-            if (!assignment.days.includes(day)) {
-              assignment.days.push(day);
+            if (!allGroups.has(group.template_id || group.id)) {
+              allGroups.set(group.template_id || group.id, { 
+                group, 
+                memberIds: [selectedMemberId!], 
+                days: [day] 
+              });
+            } else {
+              const existing = allGroups.get(group.template_id || group.id)!;
+              if (!existing.memberIds.includes(selectedMemberId!)) {
+                existing.memberIds.push(selectedMemberId!);
+              }
+              if (!existing.days.includes(day)) {
+                existing.days.push(day);
+              }
             }
           }
         }
         
         // Collect unsaved individual tasks for this day
         for (const task of dayTasks.individualTasks) {
-          if (!task.is_saved && !allTasks.has(task.id)) {
-            allTasks.set(task.id, task);
-            taskAssignments.set(task.id, { memberIds: [], days: [] });
-          }
           if (!task.is_saved) {
-            const assignment = taskAssignments.get(task.id)!;
-            if (!assignment.memberIds.includes(selectedMemberId!)) {
-              assignment.memberIds.push(selectedMemberId!);
-            }
-            if (!assignment.days.includes(day)) {
-              assignment.days.push(day);
+            if (!allTasks.has(task.template_id || task.id)) {
+              allTasks.set(task.template_id || task.id, { 
+                task, 
+                memberIds: [selectedMemberId!], 
+                days: [day] 
+              });
+            } else {
+              const existing = allTasks.get(task.template_id || task.id)!;
+              if (!existing.memberIds.includes(selectedMemberId!)) {
+                existing.memberIds.push(selectedMemberId!);
+              }
+              if (!existing.days.includes(day)) {
+                existing.days.push(day);
+              }
             }
           }
         }
       }
       
-      // Save unique groups
-      const savedGroups = new Map<string, string>(); // originalId -> savedId
-      for (const [originalId, group] of allGroups) {
+      // Save groups using the new group assignment endpoint
+      for (const [templateId, { group, memberIds, days }] of allGroups) {
         try {
+          console.log(`Saving group ${group.name} for members: ${memberIds.join(', ')} on days: ${days.join(', ')}`);
+          
+          if (group.template_id) {
+            // This is a group from a template - use the new group assignment endpoint
+            const selectedTaskIds = group.tasks.map(task => task.template_id || task.id);
+            
+            await assignGroupTemplateToMembers(routineData.id, group.template_id, {
+              member_ids: memberIds,
+              days_of_week: days,
+              selected_task_ids: selectedTaskIds,
+              time_of_day: group.time_of_day
+            });
+            
+            console.log(`Successfully assigned group template ${group.template_id} to members`);
+          } else {
+            // This is a custom group - create it first, then assign
           const savedGroup = await addRoutineGroup(routineData.id, {
             name: group.name,
             time_of_day: group.time_of_day,
-            from_group_template_id: group.is_system ? group.template_id : undefined
+            order_index: 0 // Groups will be ordered by creation order for now
           });
-          savedGroups.set(originalId, savedGroup.id);
+            
+            // For custom groups, we need to create individual tasks
+            for (let taskIndex = 0; taskIndex < group.tasks.length; taskIndex++) {
+              const task = group.tasks[taskIndex];
+              const savedTask = await addRoutineTask(routineData.id, {
+                group_id: savedGroup.id,
+                name: task.name,
+                description: task.description,
+                points: task.points,
+                duration_mins: task.estimatedMinutes,
+                time_of_day: task.time_of_day,
+                days_of_week: days,
+                order_index: taskIndex // Preserve order within the group
+              });
+              
+              // Create assignments for each member
+              console.log('🎯 Creating group task assignments:')
+              console.log('- Group Task ID:', savedTask.id)
+              console.log('- Member IDs:', memberIds)
+              console.log('- Days:', days.join(', '))
+              
+              for (let memberIndex = 0; memberIndex < memberIds.length; memberIndex++) {
+                const memberId = memberIds[memberIndex];
+                console.log(`Creating group assignment for member ${memberId}...`)
+                await createTaskAssignment(routineData.id, savedTask.id, memberId, memberIndex);
+                console.log(`✅ Assigned group task ${savedTask.id} to member ${memberId} for days: ${days.join(', ')}`);
+              }
+            }
+          }
           
           // Mark group as saved in the UI state
-          setEnhancedFamilyMembers(members =>
-            members.map(member => ({
-              ...member,
-              groups: member.groups.map((g: TaskGroup) => 
-                g.id === originalId ? { ...g, is_saved: true } : g
-              )
-            }))
-          );
+          setCalendarTasks(prev => {
+            const newCalendarTasks = { ...prev };
+            for (const day of days) {
+              newCalendarTasks[day] = {
+                ...newCalendarTasks[day],
+                groups: newCalendarTasks[day].groups.map((g: TaskGroup) => 
+                  (g.template_id || g.id) === templateId ? { ...g, is_saved: true } : g
+                )
+              };
+            }
+            return newCalendarTasks;
+          });
+          
         } catch (e: any) {
           console.error('Error saving group:', e);
         }
       }
       
-      // Save unique tasks - deduplicate by task properties, not by day
-      const savedTasks = new Map<string, string>(); // originalId -> savedId
-      const taskDefinitions = new Map<string, { task: Task, allDays: string[], allMembers: string[] }>();
-      
-      // First, collect all unique task definitions and their combined days/members
-      for (const [originalId, task] of allTasks) {
-        const assignment = taskAssignments.get(originalId);
-        const daysOfWeek = assignment?.days || [];
-        const memberIds = assignment?.memberIds || [];
-        
-        // Create a unique key for task deduplication (same task = same definition)
-        const taskKey = `${task.name}-${task.time_of_day}-${task.points}-${task.estimatedMinutes}`;
-        
-        if (taskDefinitions.has(taskKey)) {
-          // Merge days and members for existing task
-          const existing = taskDefinitions.get(taskKey)!;
-          existing.allDays = [...new Set([...existing.allDays, ...daysOfWeek])];
-          existing.allMembers = [...new Set([...existing.allMembers, ...memberIds])];
-        } else {
-          // New task definition
-          taskDefinitions.set(taskKey, {
-            task,
-            allDays: daysOfWeek,
-            allMembers: memberIds
-          });
-        }
-      }
-      
-      // Now save each unique task definition once
-      for (const [taskKey, { task, allDays, allMembers }] of taskDefinitions) {
+      // Save individual tasks
+      let individualTaskOrderIndex = 0;
+      for (const [templateId, { task, memberIds, days }] of allTasks) {
         try {
+          console.log(`Saving individual task ${task.name} for members: ${memberIds.join(', ')} on days: ${days.join(', ')}`);
+          
           const savedTask = await addRoutineTask(routineData.id, {
             name: task.name,
             description: task.description,
             points: task.points,
             duration_mins: task.estimatedMinutes,
             time_of_day: task.time_of_day,
-            days_of_week: allDays, // All days combined into one array
-            from_task_template_id: task.is_system ? task.template_id : undefined
+            days_of_week: days,
+            from_task_template_id: task.is_system ? task.template_id : undefined,
+            order_index: individualTaskOrderIndex++ // Preserve order of individual tasks
           });
           
-          // Map all original task IDs to the single saved task ID
-          for (const [originalId, originalTask] of allTasks) {
-            const originalKey = `${originalTask.name}-${originalTask.time_of_day}-${originalTask.points}-${originalTask.estimatedMinutes}`;
-            if (originalKey === taskKey) {
-              savedTasks.set(originalId, savedTask.id);
-            }
+          // Create assignments for each member
+          console.log('🎯 Creating task assignments:')
+          console.log('- Task ID:', savedTask.id)
+          console.log('- Member IDs:', memberIds)
+          console.log('- Days:', days.join(', '))
+          
+          for (let memberIndex = 0; memberIndex < memberIds.length; memberIndex++) {
+            const memberId = memberIds[memberIndex];
+            console.log(`Creating assignment for member ${memberId}...`)
+            await createTaskAssignment(routineData.id, savedTask.id, memberId, memberIndex);
+            console.log(`✅ Assigned task ${savedTask.id} to member ${memberId} for days: ${days.join(', ')}`);
           }
           
-          // Mark task as saved in the UI state for all days
+          // Mark task as saved in the UI state
           setCalendarTasks(prev => {
             const newCalendarTasks = { ...prev };
-            for (const day of allDays) {
+            for (const day of days) {
               newCalendarTasks[day] = {
                 ...newCalendarTasks[day],
-                individualTasks: newCalendarTasks[day].individualTasks.map((t: Task) => {
-                  const currentTaskKey = `${t.name}-${t.time_of_day}-${t.points}-${t.estimatedMinutes}`;
-                  return currentTaskKey === taskKey ? { ...t, is_saved: true } : t;
-                })
+                individualTasks: newCalendarTasks[day].individualTasks.map((t: Task) => 
+                  (t.template_id || t.id) === templateId ? { ...t, is_saved: true } : t
+                )
               };
             }
             return newCalendarTasks;
           });
-        } catch (e: any) {
-          console.error('Error saving task:', e);
-        }
-      }
-      
-      // Create task assignments for unique task definitions
-      for (const [taskKey, { task, allDays, allMembers }] of taskDefinitions) {
-        // Get the saved task ID for this definition
-        const savedTaskId = savedTasks.get(task.id);
-        if (savedTaskId) {
-          for (const memberId of allMembers) {
-            try {
-              await createTaskAssignment(routineData.id, savedTaskId, memberId);
-              console.log(`Assigned task ${savedTaskId} to member ${memberId} for days: ${allDays.join(', ')}`);
+          
             } catch (e: any) {
-              console.error('Error creating task assignment:', e);
-            }
-          }
+          console.error('Error saving individual task:', e);
         }
       }
       
-      // TODO: Add group assignments (for now, groups are just templates)
-      console.log('Saved groups:', savedGroups);
-      console.log('Saved tasks:', savedTasks);
-      console.log('Task assignments created successfully');
-      
+      console.log('Save progress completed successfully');
       setHasUnsavedChanges(false);
       setError(null);
     } catch (e: any) {
@@ -1191,8 +1577,12 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                     <div className="flex-1 max-w-md">
                       <Label className="text-sm font-medium text-gray-700">Select Family Member</Label>
                       <div className="flex flex-wrap gap-2 mt-1">
+                        {enhancedFamilyMembers.length === 0 && (
+                          <div className="text-sm text-gray-500">Loading family members...</div>
+                        )}
                         {enhancedFamilyMembers.map((member) => {
                           const colors = getMemberColors(member.color)
+                          console.log('Rendering member:', member.name, 'selectedMemberId:', selectedMemberId, 'isSelected:', selectedMemberId === member.id)
                           return (
                             <label
                               key={member.id}
@@ -1207,10 +1597,17 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                                 name="selectedMember"
                                 value={member.id}
                                 checked={selectedMemberId === member.id}
-                                onChange={(e) => setSelectedMemberId(e.target.value)}
+                                onChange={(e) => {
+                                  console.log('Family member selection changed:', e.target.value)
+                                  setSelectedMemberId(e.target.value)
+                                }}
                                 className="sr-only"
                               />
-                              <div className={`w-3 h-3 rounded-full ${selectedMemberId === member.id ? colors.border.replace('border-', 'bg-') : 'bg-gray-300'}`}></div>
+                              <div className={`w-3 h-3 rounded-full border-2 ${
+                                selectedMemberId === member.id 
+                                  ? `${colors.border} ${colors.border.replace('border-', 'bg-')}` 
+                                  : 'border-gray-300 bg-gray-300'
+                              }`}></div>
                               <span className="text-sm font-medium text-gray-900">{member.name}</span>
                             </label>
                           )
@@ -1249,8 +1646,70 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
               </CardContent>
             </Card>
 
-            {/* Calendar Grid */}
+            {/* View Mode Toggle */}
             {selectedMemberId && (
+              <Card className="bg-white border border-gray-200 mb-4">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          variant={viewMode === 'calendar' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setViewMode('calendar')}
+                          className="flex items-center space-x-2"
+                        >
+                          <Settings className="w-4 h-4" />
+                          <span>Calendar View</span>
+                        </Button>
+                        <Button
+                          variant={viewMode === 'group' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setViewMode('group')}
+                          className="flex items-center space-x-2"
+                        >
+                          <Folder className="w-4 h-4" />
+                          <span>Group View</span>
+                        </Button>
+                      </div>
+                      
+                      {viewMode === 'group' && (
+                        <div className="flex items-center space-x-2">
+                          <Label className="text-sm font-medium text-gray-700">Select task group:</Label>
+                          <Select
+                            value={selectedTaskGroup?.id || ''}
+                            onValueChange={(value) => {
+                              const group = getAssignedTaskGroups().find(g => g.id === value)
+                              setSelectedTaskGroup(group || null)
+                            }}
+                          >
+                            <SelectTrigger className="w-48">
+                              <SelectValue placeholder="Choose a task group" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getAssignedTaskGroups().map((group) => (
+                                <SelectItem key={group.id} value={group.id}>
+                                  {group.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {viewMode === 'group' && selectedTaskGroup && (
+                      <div className="text-sm text-gray-600">
+                        {getTasksForGroup(selectedTaskGroup).length} tasks assigned
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Calendar Grid */}
+            {selectedMemberId && viewMode === 'calendar' && (
               <Card className="bg-white border border-gray-200">
                 <CardContent className="p-0">
                   <div className="grid grid-cols-7 gap-0 min-h-96">
@@ -1259,6 +1718,14 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                       const totalDayTasks = getTotalTasksForDay(day)
                       const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
                       const dayIndex = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].indexOf(day)
+                      
+                      console.log(`Rendering day ${day}:`, { 
+                        dayTasks, 
+                        totalDayTasks, 
+                        selectedMemberId,
+                        individualTasks: dayTasks.individualTasks,
+                        groups: dayTasks.groups
+                      })
                       
                       return (
                         <div
@@ -1284,13 +1751,22 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                               </div>
                             ) : (
                               <>
-                                {/* Groups */}
-                                {dayTasks.groups.map((group: TaskGroup) => (
+                                {/* Groups - Filtered by Selected Member */}
+                                {dayTasks.groups
+                                  .filter((group: TaskGroup) => {
+                                    // Extract member ID from group ID (format: templateId-memberId-day-timestamp)
+                                    const groupMemberId = extractMemberIdFromId(group.id)
+                                    return groupMemberId === selectedMemberId
+                                  })
+                                  .map((group: TaskGroup) => (
                                   <div key={group.id} className="space-y-1">
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center space-x-1">
-                                        <Folder className="w-3 h-3 text-gray-600" />
+                                        <Folder className="w-3 h-3 text-purple-600" />
                                         <span className="font-medium text-xs text-gray-900">{group.name}</span>
+                                        <Badge variant="outline" className="text-xs bg-purple-100 text-purple-800">
+                                          group
+                                        </Badge>
                                       </div>
                                       <Button
                                         variant="ghost"
@@ -1303,27 +1779,103 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                                     </div>
                                     
                                     {group.tasks.map((task: Task) => (
-                                      <div key={task.id} className="ml-3 flex items-center space-x-1 p-1 bg-blue-50 rounded border border-gray-200">
-                                        <div className="w-3 h-3 rounded border border-gray-400 flex items-center justify-center bg-white">
-                                          {task.completed && <Check className="w-2 h-2 text-green-600" />}
+                                      <div 
+                                        key={task.id} 
+                                        className={`ml-3 flex items-center space-x-1 p-1 bg-purple-50 rounded border-l-4 border-purple-500 border border-gray-200 cursor-move ${
+                                          draggedTask?.task.id === task.id ? 'opacity-50' : ''
+                                        }`}
+                                        draggable={true}
+                                        onDragStart={(e) => handleTaskDragStart(e, task, day, selectedMemberId)}
+                                        onDragEnd={() => {
+                                          setDraggedTask(null)
+                                          setDragOverPosition(null)
+                                        }}
+                                      >
+                                        {/* Always show drag handle in routine builder */}
+                                        <div className="w-3 h-3 flex items-center justify-center text-gray-400">
+                                          <Move className="w-2 h-2" />
                                         </div>
+                                        
                                         <div className="flex-1">
                                           <div className="text-xs font-medium text-gray-900">{task.name}</div>
+                                          <div className="text-xs text-purple-600">from {group.name}</div>
                                         </div>
+                                        <div className="text-xs text-gray-500">{task.points}pts</div>
                                       </div>
                                     ))}
                                   </div>
                                 ))}
 
-                                {/* Individual Tasks */}
-                                {dayTasks.individualTasks.map((task: Task) => (
-                                  <div key={task.id} className="flex items-center space-x-1 p-1 bg-green-50 rounded border border-gray-200">
-                                    <div className="w-3 h-3 rounded border border-gray-400 flex items-center justify-center bg-white">
-                                      {task.completed && <Check className="w-2 h-2 text-green-600" />}
+                                {/* Individual Tasks - Filtered by Selected Member */}
+                                {dayTasks.individualTasks
+                                  .filter((task: Task) => {
+                                    const taskMemberId = extractMemberIdFromId(task.id)
+                                    const matches = taskMemberId === selectedMemberId
+                                    console.log('Filtering task:', { 
+                                      taskId: task.id, 
+                                      taskName: task.name, 
+                                      taskMemberId, 
+                                      selectedMemberId, 
+                                      matches 
+                                    })
+                                    return matches
+                                  })
+                                  .map((task: Task, taskIndex: number, taskArray: Task[]) => (
+                                  <div key={task.id}>
+                                    {/* Drop zone before this task */}
+                                    {(
+                                      <div
+                                        className={`h-1 transition-colors ${
+                                          dragOverPosition?.day === day && 
+                                          dragOverPosition?.memberId === selectedMemberId && 
+                                          dragOverPosition?.position === 'before' && 
+                                          dragOverPosition?.targetTaskId === task.id
+                                            ? 'bg-blue-500' 
+                                            : 'hover:bg-blue-200'
+                                        }`}
+                                        onDragOver={(e) => handleTaskDragOver(e, day, selectedMemberId, 'before', task.id)}
+                                        onDragLeave={handleTaskDragLeave}
+                                        onDrop={(e) => handleTaskDrop(e, day, selectedMemberId)}
+                                      />
+                                    )}
+                                    
+                                    <div 
+                                      className={`flex items-center space-x-1 p-1 rounded border border-gray-200 ${
+                                        task.from_group 
+                                          ? 'bg-purple-50 border-l-4 border-purple-500' 
+                                          : 'bg-green-50 border-l-4 border-green-500'
+                                      } cursor-move ${
+                                        draggedTask?.task.id === task.id ? 'opacity-50' : ''
+                                      }`}
+                                      draggable={true}
+                                      onDragStart={(e) => handleTaskDragStart(e, task, day, selectedMemberId)}
+                                      onDragEnd={() => {
+                                        setDraggedTask(null)
+                                        setDragOverPosition(null)
+                                      }}
+                                    >
+                                    {/* Always show drag handle in routine builder */}
+                                    <div className="w-3 h-3 flex items-center justify-center text-gray-400">
+                                      <Move className="w-2 h-2" />
                                     </div>
+                                    
+                                    
                                     <div className="flex-1">
                                       <div className="text-xs font-medium text-gray-900">{task.name}</div>
+                                      <div className={`text-xs flex items-center space-x-1 ${
+                                        task.from_group ? 'text-purple-600' : 'text-green-600'
+                                      }`}>
+                                        {task.from_group ? (
+                                          <>
+                                            <Folder className="w-3 h-3" />
+                                            <span>from {task.from_group.name}</span>
+                                          </>
+                                        ) : (
+                                          <span>individual task</span>
+                                        )}
                                     </div>
+                                    </div>
+                                    <div className="text-xs text-gray-500 mr-2">{task.points}pts</div>
                                     <Button
                                       variant="ghost"
                                       size="sm"
@@ -1333,6 +1885,24 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                                       <Trash2 className="w-2 h-2" />
                                     </Button>
                                   </div>
+                                  
+                                  {/* Drop zone after this task */}
+                                  {taskIndex === taskArray.length - 1 && (
+                                    <div
+                                      className={`h-1 transition-colors ${
+                                        dragOverPosition?.day === day && 
+                                        dragOverPosition?.memberId === selectedMemberId && 
+                                        dragOverPosition?.position === 'after' && 
+                                        dragOverPosition?.targetTaskId === task.id
+                                          ? 'bg-blue-500' 
+                                          : 'hover:bg-blue-200'
+                                      }`}
+                                      onDragOver={(e) => handleTaskDragOver(e, day, selectedMemberId, 'after', task.id)}
+                                      onDragLeave={handleTaskDragLeave}
+                                      onDrop={(e) => handleTaskDrop(e, day, selectedMemberId)}
+                                    />
+                                  )}
+                                </div>
                                 ))}
                               </>
                             )}
@@ -1341,6 +1911,121 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                       )
                     })}
                   </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Group View */}
+            {selectedMemberId && viewMode === 'group' && (
+              <Card className="bg-white border border-gray-200">
+                <CardContent className="p-0">
+                  {!selectedTaskGroup ? (
+                    <div className="text-center py-12">
+                      <Folder className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No Task Group Selected</h3>
+                      <p className="text-gray-500">Select a task group from the dropdown to view its schedule</p>
+                    </div>
+                  ) : (
+                    <div className="p-6">
+                      <div className="mb-6">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                          <h2 className="text-xl font-bold text-gray-900">{selectedTaskGroup.name}</h2>
+                        </div>
+                        <p className="text-gray-600">{selectedTaskGroup.description}</p>
+                      </div>
+                      
+                      {/* Group by Day Visualization */}
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold text-gray-900">Group by Day</h3>
+                        <div className="grid grid-cols-7 gap-4">
+                          {['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].map((day) => {
+                            const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+                            const dayIndex = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].indexOf(day)
+                            const dayTasks = getTasksForGroup(selectedTaskGroup).filter(t => t.day === day)
+                            
+                            return (
+                              <div key={day} className="space-y-2">
+                                <div className="text-center">
+                                  <div className="text-sm font-semibold text-gray-700">{dayNames[dayIndex]}</div>
+                                  <div className="text-xs text-gray-500 capitalize">{day}</div>
+                                </div>
+                                
+                                <div className="space-y-2 min-h-32">
+                                  {dayTasks.length === 0 ? (
+                                    <div className="text-center py-4 text-gray-400 text-sm">
+                                      No tasks
+                                    </div>
+                                  ) : (
+                                    dayTasks.map(({ task, member }, index) => {
+                                      const colors = getMemberColors(member.color)
+                                      return (
+                                        <div
+                                          key={`${task.id}-${index}`}
+                                          className={`p-2 rounded-lg border-l-4 border-purple-500 ${colors.bg} ${colors.border} border`}
+                                        >
+                                          <div className="flex items-center space-x-2">
+                                            <div className={`w-2 h-2 rounded-full ${colors.border.replace('border-', 'bg-')}`}></div>
+                                            <span className="text-sm font-medium text-gray-900">{task.name}</span>
+                                          </div>
+                                          <div className="text-xs text-gray-600 mt-1">
+                                            {member.name} • {task.points}pts
+                                          </div>
+                                        </div>
+                                      )
+                                    })
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                      
+                      {/* Group by Member Visualization */}
+                      <div className="mt-8 space-y-4">
+                        <h3 className="text-lg font-semibold text-gray-900">Group by Member</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                          {enhancedFamilyMembers.map((member) => {
+                            const memberTasks = getTasksForGroup(selectedTaskGroup).filter(t => t.member.id === member.id)
+                            const colors = getMemberColors(member.color)
+                            
+                            return (
+                              <div key={member.id} className="space-y-2">
+                                <div className="flex items-center space-x-2 mb-3">
+                                  <div className={`w-3 h-3 rounded-full ${colors.border.replace('border-', 'bg-')}`}></div>
+                                  <h4 className="font-semibold text-gray-900">{member.name}</h4>
+                                  <Badge variant="outline" className="text-xs">
+                                    {memberTasks.length} tasks
+                                  </Badge>
+                                </div>
+                                
+                                <div className="space-y-2">
+                                  {memberTasks.length === 0 ? (
+                                    <div className="text-center py-4 text-gray-400 text-sm">
+                                      No tasks assigned
+                                    </div>
+                                  ) : (
+                                    memberTasks.map(({ task, day }, index) => (
+                                      <div
+                                        key={`${task.id}-${index}`}
+                                        className={`p-2 rounded-lg border-l-4 border-purple-500 ${colors.bg} ${colors.border} border`}
+                                      >
+                                        <div className="text-sm font-medium text-gray-900">{task.name}</div>
+                                        <div className="text-xs text-gray-600 mt-1">
+                                          {day.charAt(0).toUpperCase() + day.slice(1)} • {task.points}pts
+                                        </div>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}
@@ -1480,12 +2165,17 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                     {filteredGroups.map((group: TaskGroup) => (
                       <div
                         key={group.id}
+                        className={`p-2 rounded-lg border-2 ${group.color}`}
+                      >
+                        {/* Group Header */}
+                        <div className="flex items-start space-x-2 mb-2">
+                          <div
                         draggable
                         onDragStart={(e) => handleDragStart(e, 'group', group)}
-                        className={`p-2 rounded-lg border-2 cursor-move hover:shadow-md transition-all ${group.color}`}
+                            className="cursor-move"
                       >
-                        <div className="flex items-start space-x-2">
                           <GripVertical className="w-4 h-4 text-gray-400 mt-0.5" />
+                          </div>
                           <div className="flex-1">
                             <div className="flex items-center space-x-2 mb-1">
                               <h4 className="font-semibold text-sm">{group.name}</h4>
@@ -1498,24 +2188,26 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                                 </Badge>
                               )}
                             </div>
-                            <p className="text-xs text-gray-600 mb-2">{group.description}</p>
-                            <div className="space-y-1">
-                              {group.tasks.slice(0, 3).map((task: Task) => (
-                                <div key={task.id} className="text-xs text-gray-700 flex items-center space-x-2">
-                                  <span>•</span>
-                                  <span className="flex-1">{task.name}</span>
+                            <p className="text-xs text-gray-600">{group.description}</p>
+                          </div>
+                        </div>
+                        
+                        {/* Individual Tasks - Directly Draggable */}
+                        <div className="space-y-1 ml-6">
+                          {group.tasks.map((task: Task) => (
+                            <div 
+                              key={task.id} 
+                              className="flex items-center space-x-2 text-xs p-1 rounded hover:bg-blue-50 transition-colors cursor-move"
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, 'task', task, group)}
+                            >
+                              <GripVertical className="w-3 h-3 text-gray-400" />
+                              <span className="flex-1 text-gray-700">{task.name}</span>
                                   <Badge variant="outline" className="text-xs">
                                     {task.points}pts
                                   </Badge>
                                 </div>
                               ))}
-                              {group.tasks.length > 3 && (
-                                <div className="text-xs text-gray-500">
-                                  +{group.tasks.length - 3} more...
-                                </div>
-                              )}
-                            </div>
-                          </div>
                         </div>
                       </div>
                     ))}
@@ -1541,25 +2233,24 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                     <ListTodo className="w-5 h-5" />
                     <span>Individual Tasks</span>
                   </h3>
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     {filteredTasks.map((task: Task) => (
                       <div
                         key={task.id}
+                        className="flex items-center space-x-2 p-1.5 bg-gray-50 rounded-lg border hover:bg-gray-100 transition-colors cursor-move"
                         draggable
                         onDragStart={(e) => handleDragStart(e, 'task', task)}
-                        className="p-1.5 bg-gray-50 rounded-lg border cursor-move hover:bg-gray-100 transition-colors"
                       >
-                        <div className="flex items-start space-x-2">
-                          <GripVertical className="w-4 h-4 text-gray-400 mt-0.5" />
+                        <GripVertical className="w-3 h-3 text-gray-400" />
                           <div className="flex-1">
-                            <div className="flex items-center space-x-2 mb-1">
+                          <div className="flex items-center space-x-2">
                               <h4 className="font-medium text-sm">{task.name}</h4>
                               <Badge variant="outline" className="text-xs">
                                 {task.points}pts
                               </Badge>
                             </div>
-                            <p className="text-xs text-gray-600 mb-1">{task.description}</p>
-                            <div className="flex items-center space-x-2">
+                          <p className="text-xs text-gray-600">{task.description}</p>
+                          <div className="flex items-center space-x-2 mt-1">
                               {task.is_system && (
                                 <Badge className="text-xs bg-purple-100 text-purple-800">
                                   system
@@ -1568,7 +2259,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                               <Badge variant="outline" className="text-xs">
                                 {task.estimatedMinutes}min
                               </Badge>
-                            </div>
                           </div>
                         </div>
                       </div>
@@ -1581,16 +2271,106 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
               <div className="bg-blue-50 p-2 rounded-lg">
                 <h4 className="font-medium text-blue-900 text-sm mb-2">How to use:</h4>
                 <ul className="text-xs text-blue-800 space-y-1">
-                  <li>• Drag tasks to family member cards</li>
+                  <li>• Drag entire groups to assign all tasks in the group</li>
+                  <li>• Drag individual tasks within groups</li>
+                  <li>• Drag individual tasks from the tasks section</li>
                   <li>• Choose who gets the task after dropping</li>
-                  <li>• Drag groups to add all tasks at once</li>
-                  <li>• Select individual tasks to group them</li>
                   <li>• Remove with trash icons</li>
                 </ul>
               </div>
             </div>
           )}
         </div>
+
+        {/* Task Selection Modal */}
+        <Dialog open={showTaskSelection} onOpenChange={setShowTaskSelection}>
+          <DialogContent className="sm:max-w-2xl bg-white">
+            <DialogHeader>
+              <DialogTitle>Select Tasks from {selectedTaskGroup?.name}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-6">
+              <p className="text-sm text-gray-600">
+                Choose which tasks from the "{selectedTaskGroup?.name}" group you want to assign. You can select individual tasks or all tasks.
+              </p>
+              
+              <div className="flex items-center space-x-4 mb-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSelectAllTasks}
+                  className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                >
+                  Select All
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDeselectAllTasks}
+                  className="text-gray-600 border-gray-600 hover:bg-gray-50"
+                >
+                  Deselect All
+                </Button>
+                <div className="text-sm text-gray-600">
+                  {selectedTasksInGroup.length} of {selectedTaskGroup?.tasks.length || 0} tasks selected
+                </div>
+              </div>
+              
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {selectedTaskGroup?.tasks.map((task) => {
+                  const isSelected = selectedTasksInGroup.some(t => t.id === task.id)
+                  return (
+                    <label
+                      key={task.id}
+                      className={`flex items-center space-x-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                        isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => handleTaskSelection(task, e.target.checked)}
+                        className="sr-only"
+                      />
+                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                        isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
+                      }`}>
+                        {isSelected && <Check className="w-3 h-3 text-white" />}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-medium text-sm text-gray-900">{task.name}</div>
+                        <div className="text-xs text-gray-600">{task.description}</div>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <Badge variant="outline" className="text-xs">
+                            {task.points}pts
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {task.estimatedMinutes}min
+                          </Badge>
+                        </div>
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+              
+              <div className="flex justify-end space-x-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowTaskSelection(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleConfirmTaskSelection}
+                  disabled={selectedTasksInGroup.length === 0}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Continue with {selectedTasksInGroup.length} selected tasks
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Apply To Popup */}
         <Dialog open={showApplyToPopup} onOpenChange={setShowApplyToPopup}>

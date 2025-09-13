@@ -595,7 +595,7 @@ export async function deleteTaskAssignment(routineId: string, taskId: string, as
 }
 
 // Groups & tasks within routine
-export async function addRoutineGroup(routineId: string, payload: { name?: string; time_of_day?: "morning"|"afternoon"|"evening"|"night"; from_group_template_id?: string }) {
+export async function addRoutineGroup(routineId: string, payload: { name?: string; time_of_day?: "morning"|"afternoon"|"evening"|"night"; from_group_template_id?: string; order_index?: number }) {
   return apiService.makeRequest<{
     id: string;
     routine_id: string;
@@ -618,6 +618,7 @@ export async function addRoutineTask(routineId: string, payload: {
   time_of_day?: "morning"|"afternoon"|"evening"|"night";
   frequency?: "daily"|"weekly"|"monthly"|"weekends";
   days_of_week?: string[];
+  order_index?: number;
 }) {
   return apiService.makeRequest<{
     id: string;
@@ -735,5 +736,112 @@ export async function generateTaskInstances(familyId: string, dateRange: {
       start_date: dateRange.start_date.toISOString().split('T')[0],
       end_date: dateRange.end_date.toISOString().split('T')[0],
     }),
+  });
+}
+
+// New Group Assignment Functions
+export async function assignGroupTemplateToMembers(routineId: string, groupTemplateId: string, payload: {
+  member_ids: string[];
+  days_of_week: string[];
+  selected_task_ids?: string[];
+  time_of_day?: "morning" | "afternoon" | "evening" | "night";
+}) {
+  return apiService.makeRequest<{
+    group_id: string;
+    tasks_created: number;
+    assignments_created: number;
+    members_assigned: string[];
+    days_assigned: string[];
+  }>(`/routines/${routineId}/groups/${groupTemplateId}/assign`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function assignExistingGroupToMembers(routineId: string, groupId: string, payload: {
+  member_ids: string[];
+  days_of_week: string[];
+  selected_task_ids?: string[];
+  time_of_day?: "morning" | "afternoon" | "evening" | "night";
+}) {
+  return apiService.makeRequest<{
+    group_id: string;
+    tasks_created: number;
+    assignments_created: number;
+    members_assigned: string[];
+    days_assigned: string[];
+  }>(`/routines/${routineId}/groups/${groupId}/assign`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getRoutineFullData(routineId: string) {
+  return apiService.makeRequest<{
+    routine: {
+      id: string;
+      family_id: string;
+      name: string;
+      status: string;
+      source: string;
+    };
+    groups: Array<{
+      id: string;
+      routine_id: string;
+      name: string;
+      time_of_day: string | null;
+      order_index: number;
+      tasks: Array<{
+        id: string;
+        routine_id: string;
+        group_id: string | null;
+        name: string;
+        description: string | null;
+        points: number;
+        duration_mins: number | null;
+        time_of_day: string | null;
+        frequency: string;
+        days_of_week: string[];
+        order_index: number;
+        assignments: Array<{
+          id: string;
+          routine_task_id: string;
+          member_id: string;
+          order_index: number;
+        }>;
+      }>;
+    }>;
+    individual_tasks: Array<{
+      id: string;
+      routine_id: string;
+      group_id: string | null;
+      name: string;
+      description: string | null;
+      points: number;
+      duration_mins: number | null;
+      time_of_day: string | null;
+      frequency: string;
+      days_of_week: string[];
+      order_index: number;
+      assignments: Array<{
+        id: string;
+        routine_task_id: string;
+        member_id: string;
+        order_index: number;
+      }>;
+    }>;
+    schedules: Array<{
+      id: string;
+      routine_id: string;
+      scope: string;
+      days_of_week: string[];
+      start_date: string | null;
+      end_date: string | null;
+      timezone: string;
+      is_active: boolean;
+      created_at: string;
+    }>;
+  }>(`/routines/${routineId}/full-data`, {
+    method: "GET",
   });
 }
