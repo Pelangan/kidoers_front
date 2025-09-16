@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../../co
 import { ArrowLeft, Plus, Trash2, Save, GripVertical, User, Folder, Users, Baby, UserCheck, Check, ChevronLeft, ChevronRight, ListTodo, Settings, Move } from 'lucide-react'
 import type { FamilyMember } from '../../../lib/api'
 
-import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, updateOnboardingStep, listLibraryGroups, listLibraryTasks, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules, assignGroupTemplateToMembers, assignExistingGroupToMembers, getRoutineFullData } from '../../../lib/api'
+import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, updateOnboardingStep, listLibraryGroups, listLibraryTasks, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules, assignGroupTemplateToMembers, assignExistingGroupToMembers, getRoutineFullData, bulkUpdateDayOrders, type DaySpecificOrder, type BulkDayOrderUpdate } from '../../../lib/api'
 import RoutineDetailsModal, { type RoutineScheduleData } from './RoutineDetailsModal'
 
 interface ManualRoutineBuilderProps {
@@ -76,18 +76,18 @@ interface DaySelection {
 }
 
 export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplete, isEditMode = false, onBack }: ManualRoutineBuilderProps = {}) {
-  console.log('🚀 ManualRoutineBuilder: Component mounted with props:', { propFamilyId, isEditMode, hasOnComplete: !!onComplete, hasOnBack: !!onBack });
-  console.log('🔍 Edit Mode Debug - isEditMode value:', isEditMode, 'type:', typeof isEditMode);
+  console.log('[KIDOERS-ROUTINE] 🚀 ManualRoutineBuilder: Component mounted with props:', { propFamilyId, isEditMode, hasOnComplete: !!onComplete, hasOnBack: !!onBack });
+  console.log('[KIDOERS-ROUTINE] 🔍 Edit Mode Debug - isEditMode value:', isEditMode, 'type:', typeof isEditMode);
   const router = useRouter()
   const sp = useSearchParams()
   const familyId = propFamilyId || sp?.get("family")
-  console.log('🏠 ManualRoutineBuilder: Final familyId:', familyId)
+  console.log('[KIDOERS-ROUTINE] 🏠 ManualRoutineBuilder: Final familyId:', familyId)
   
   // Debug component lifecycle
   useEffect(() => {
-    console.log('ManualRoutineBuilder: Component mounted/updated')
+    console.log('[KIDOERS-ROUTINE] ManualRoutineBuilder: Component mounted/updated')
     return () => {
-      console.log('ManualRoutineBuilder: Component unmounting')
+      console.log('[KIDOERS-ROUTINE] ManualRoutineBuilder: Component unmounting')
     }
   }, [])
   
@@ -173,23 +173,23 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
   // Load all initial data (family members, existing routine, and library data)
   useEffect(() => {
-    console.log('🔄 ManualRoutineBuilder: useEffect triggered - familyId:', familyId, 'isEditMode:', isEditMode);
+    console.log('[KIDOERS-ROUTINE] 🔄 ManualRoutineBuilder: useEffect triggered - familyId:', familyId, 'isEditMode:', isEditMode);
     let isMounted = true;
     
     const loadAllData = async () => {
       if (!familyId) {
-        console.log('⚠️ ManualRoutineBuilder: No familyId, redirecting to onboarding');
+        console.log('[KIDOERS-ROUTINE] ⚠️ ManualRoutineBuilder: No familyId, redirecting to onboarding');
         router.push("/onboarding"); // safety
         return;
       }
       
       // Prevent duplicate calls
       if (isLoadingData) {
-        console.log('⏸️ ManualRoutineBuilder: Already loading data, skipping duplicate call');
+        console.log('[KIDOERS-ROUTINE] ⏸️ ManualRoutineBuilder: Already loading data, skipping duplicate call');
         return;
       }
       
-      console.log('🚀 ManualRoutineBuilder: Starting loadAllData, familyId:', familyId, 'isEditMode:', isEditMode);
+      console.log('[KIDOERS-ROUTINE] 🚀 ManualRoutineBuilder: Starting loadAllData, familyId:', familyId, 'isEditMode:', isEditMode);
       setIsLoadingData(true);
       
       setBusy(true);
@@ -197,43 +197,43 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       setError(null);
       
       try {
-        console.log('Starting to load all data for family:', familyId);
+        console.log('[KIDOERS-ROUTINE] Starting to load all data for family:', familyId);
         
         // Check current onboarding step and only update if needed (skip in edit mode)
         if (!isEditMode) {
-          console.log('ManualRoutineBuilder: Checking current onboarding step...');
+          console.log('[KIDOERS-ROUTINE] ManualRoutineBuilder: Checking current onboarding step...');
           try {
             const onboardingStatus = await apiService.getOnboardingStatus();
-            console.log('Current onboarding status:', onboardingStatus);
+            console.log('[KIDOERS-ROUTINE] Current onboarding status:', onboardingStatus);
             
             if (onboardingStatus.has_family && onboardingStatus.in_progress) {
               const currentStep = onboardingStatus.in_progress.setup_step;
-              console.log('Current step:', currentStep);
+              console.log('[KIDOERS-ROUTINE] Current step:', currentStep);
               
               if (currentStep !== 'create_routine') {
-                console.log('Updating step from', currentStep, 'to create_routine');
+                console.log('[KIDOERS-ROUTINE] Updating step from', currentStep, 'to create_routine');
                 await updateOnboardingStep(familyId, "create_routine");
-                console.log('ManualRoutineBuilder: Onboarding step updated successfully');
+                console.log('[KIDOERS-ROUTINE] ManualRoutineBuilder: Onboarding step updated successfully');
               } else {
-                console.log('Step already set to create_routine, skipping update');
+                console.log('[KIDOERS-ROUTINE] Step already set to create_routine, skipping update');
               }
             } else {
-              console.log('No onboarding in progress, updating step to create_routine');
+              console.log('[KIDOERS-ROUTINE] No onboarding in progress, updating step to create_routine');
               await updateOnboardingStep(familyId, "create_routine");
-              console.log('ManualRoutineBuilder: Onboarding step updated successfully');
+              console.log('[KIDOERS-ROUTINE] ManualRoutineBuilder: Onboarding step updated successfully');
             }
           } catch (error) {
-            console.log('ManualRoutineBuilder: Error checking/updating step:', error);
+            console.log('[KIDOERS-ROUTINE] ManualRoutineBuilder: Error checking/updating step:', error);
           }
         } else {
-          console.log('ManualRoutineBuilder: In edit mode, skipping onboarding step update');
+          console.log('[KIDOERS-ROUTINE] ManualRoutineBuilder: In edit mode, skipping onboarding step update');
         }
         
         // Load all data concurrently
-        console.log('🔄 ManualRoutineBuilder: Starting concurrent API calls...');
-        console.log('📞 ManualRoutineBuilder: Calling getFamilyMembers()');
-        console.log('📞 ManualRoutineBuilder: Calling listLibraryGroups()');
-        console.log('📞 ManualRoutineBuilder: Calling listLibraryTasks()');
+        console.log('[KIDOERS-ROUTINE] 🔄 ManualRoutineBuilder: Starting concurrent API calls...');
+        console.log('[KIDOERS-ROUTINE] 📞 ManualRoutineBuilder: Calling getFamilyMembers()');
+        console.log('[KIDOERS-ROUTINE] 📞 ManualRoutineBuilder: Calling listLibraryGroups()');
+        console.log('[KIDOERS-ROUTINE] 📞 ManualRoutineBuilder: Calling listLibraryTasks()');
         
         const [members, groupsData, tasksData] = await Promise.all([
           apiService.getFamilyMembers(familyId),
@@ -241,7 +241,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           listLibraryTasks('')
         ]);
         
-        console.log('✅ ManualRoutineBuilder: All API data loaded:', { 
+        console.log('[KIDOERS-ROUTINE] ✅ ManualRoutineBuilder: All API data loaded:', { 
           membersCount: members?.length || 0, 
           groupsCount: groupsData?.length || 0, 
           tasksCount: tasksData?.length || 0 
@@ -250,16 +250,16 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         // Try to load existing active routine
         let existingRoutine = null;
         try {
-          console.log('📋 ManualRoutineBuilder: Loading existing routines for family...');
-          console.log('📞 ManualRoutineBuilder: Calling /routines?family_id=' + familyId);
+          console.log('[KIDOERS-ROUTINE] 📋 ManualRoutineBuilder: Loading existing routines for family...');
+          console.log('[KIDOERS-ROUTINE] 📞 ManualRoutineBuilder: Calling /routines?family_id=' + familyId);
           const routines = await apiService.makeRequest<any[]>(`/routines?family_id=${familyId}`);
-          console.log('✅ ManualRoutineBuilder: Routines found:', routines?.length || 0, 'routines');
+          console.log('[KIDOERS-ROUTINE] ✅ ManualRoutineBuilder: Routines found:', routines?.length || 0, 'routines');
           
           // Find the active routine
           existingRoutine = routines.find(r => r.status === 'active');
           
           if (existingRoutine) {
-            console.log('Active routine found:', existingRoutine);
+            console.log('[KIDOERS-ROUTINE] Active routine found:', existingRoutine);
             setRoutine({
               id: existingRoutine.id,
               family_id: existingRoutine.family_id,
@@ -271,10 +271,10 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
             // Mark as having no unsaved changes since we just loaded the routine
             setHasUnsavedChanges(false);
           } else {
-            console.log('No active routine found, will create new one when needed');
+            console.log('[KIDOERS-ROUTINE] No active routine found, will create new one when needed');
           }
         } catch (e: any) {
-          console.warn('Error loading routines:', e);
+          console.warn('[KIDOERS-ROUTINE] ','Error loading routines:', e);
         }
         
         // Set family members
@@ -295,12 +295,12 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           }
         })
         setEnhancedFamilyMembers(enhanced)
-        console.log('Enhanced family members loaded:', enhanced)
+        console.log('[KIDOERS-ROUTINE] Enhanced family members loaded:', enhanced)
         
         // Set the first family member as selected by default
         if (enhanced.length > 0 && !selectedMemberId) {
           setSelectedMemberId(enhanced[0].id)
-          console.log('Set default selected member:', enhanced[0].id, enhanced[0].name)
+          console.log('[KIDOERS-ROUTINE] Set default selected member:', enhanced[0].id, enhanced[0].name)
         }
         
         // Load existing routine data after enhanced family members are set
@@ -336,9 +336,9 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         setLibraryGroups(transformedGroups)
         setLibraryTasks(transformedTasks)
         
-        console.log('All data loaded successfully');
+        console.log('[KIDOERS-ROUTINE] All data loaded successfully');
       } catch (e: any) {
-        console.error('Error loading data:', e);
+        console.error('[KIDOERS-ROUTINE] ','Error loading data:', e);
         setError(e?.message || "Failed to load data");
       } finally {
         if (isMounted) {
@@ -352,7 +352,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     loadAllData()
     
     return () => {
-      console.log('🧹 ManualRoutineBuilder: useEffect cleanup - setting isMounted = false');
+      console.log('[KIDOERS-ROUTINE] 🧹 ManualRoutineBuilder: useEffect cleanup - setting isMounted = false');
       isMounted = false;
     }
   }, [familyId]) // Removed router dependency to prevent unnecessary re-runs
@@ -367,6 +367,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   // Task reordering state (only in edit mode)
   const [draggedTask, setDraggedTask] = useState<{task: Task, day: string, memberId: string} | null>(null)
   const [dragOverPosition, setDragOverPosition] = useState<{day: string, memberId: string, position: 'before' | 'after', targetTaskId?: string} | null>(null)
+  const [dayOrders, setDayOrders] = useState<DaySpecificOrder[]>([])
+  const [currentRoutineId, setCurrentRoutineId] = useState<string | null>(null)
 
   // Pre-defined task groups (now using API data)
   const [predefinedGroups] = useState<TaskGroup[]>([])
@@ -378,7 +380,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
   // Drag and drop handlers
   const handleDragStart = (e: React.DragEvent, type: 'task' | 'group', item: Task | TaskGroup, fromGroup?: TaskGroup) => {
-    console.log('Drag started:', { type, item: item.name, fromGroup: fromGroup?.name })
+    console.log('[DRAG-ORDER] Drag started:', { type, item: item.name, fromGroup: fromGroup?.name })
     setDraggedItem({ type, item, fromGroup })
     e.dataTransfer.effectAllowed = 'move'
   }
@@ -390,22 +392,22 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
   const handleDropOnDay = (e: React.DragEvent, day: string) => {
     e.preventDefault()
-    console.log('Drop on day:', { day, draggedItem, selectedMemberId })
+    console.log('[DRAG-ORDER] Drop on day:', { day, draggedItem, selectedMemberId })
     
     if (!draggedItem || !selectedMemberId) {
-      console.log('No dragged item or selected member:', { draggedItem, selectedMemberId })
+      console.log('[DRAG-ORDER] No dragged item or selected member:', { draggedItem, selectedMemberId })
       return
     }
 
     const member = enhancedFamilyMembers.find(m => m.id === selectedMemberId)
     if (!member) {
-      console.log('Member not found:', selectedMemberId)
+      console.log('[KIDOERS-ROUTINE] Member not found:', selectedMemberId)
       return
     }
 
     // If it's a group, show task selection first
     if (draggedItem.type === 'group') {
-      console.log('Group dropped, showing task selection')
+      console.log('[DRAG-ORDER] Group dropped, showing task selection')
       const group = draggedItem.item as TaskGroup
       setSelectedTaskGroup(group)
       setSelectedTasksInGroup([])
@@ -415,7 +417,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     }
 
     // Set up pending drop and show popup
-    console.log('Setting up pending drop for task:', draggedItem.item)
+    console.log('[DRAG-ORDER] Setting up pending drop for task:', draggedItem.item)
     setPendingDrop({
       type: draggedItem.type,
       item: draggedItem.item,
@@ -433,14 +435,14 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   }
 
   const handleApplyToSelection = async (applyToId: string) => {
-    console.log('🚀 handleApplyToSelection called with applyToId:', applyToId)
+    console.log('[KIDOERS-ROUTINE] 🚀 handleApplyToSelection called with applyToId:', applyToId)
     
     if (!pendingDrop) {
-      console.log('❌ No pending drop found')
+      console.log('[DRAG-ORDER] ❌ No pending drop found')
       return
     }
 
-    console.log('📋 Applying task/group:', {
+    console.log('[KIDOERS-ROUTINE] 📋 Applying task/group:', {
       type: pendingDrop.type,
       item: pendingDrop.item,
       targetMemberId: pendingDrop.targetMemberId,
@@ -459,16 +461,16 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       targetDays = daySelection.selectedDays
     }
 
-    console.log('Target days:', targetDays)
+    console.log('[KIDOERS-ROUTINE] Target days:', targetDays)
 
     // Determine which members should receive the task based on applyToId
     let targetMemberIds: string[] = []
     
-    console.log('🔍 Assignment Debug Info:')
-    console.log('- applyToId:', applyToId)
-    console.log('- enhancedFamilyMembers:', enhancedFamilyMembers)
-    console.log('- Member roles:', enhancedFamilyMembers.map(m => ({ id: m.id, name: m.name, role: m.role })))
-    console.log('- Full member details:', enhancedFamilyMembers.map(m => ({ 
+    console.log('[KIDOERS-ROUTINE] 🔍 Assignment Debug Info:')
+    console.log('[KIDOERS-ROUTINE] - applyToId:', applyToId)
+    console.log('[KIDOERS-ROUTINE] - enhancedFamilyMembers:', enhancedFamilyMembers)
+    console.log('[KIDOERS-ROUTINE] - Member roles:', enhancedFamilyMembers.map(m => ({ id: m.id, name: m.name, role: m.role })))
+    console.log('[KIDOERS-ROUTINE] - Full member details:', enhancedFamilyMembers.map(m => ({ 
       id: m.id, 
       name: m.name, 
       role: m.role, 
@@ -480,41 +482,41 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     if (applyToId === 'none') {
       // Only the member the task was dropped on
       targetMemberIds = [pendingDrop.targetMemberId]
-      console.log('- Selected: This member only, targetMemberIds:', targetMemberIds)
+      console.log('[KIDOERS-ROUTINE] - Selected: This member only, targetMemberIds:', targetMemberIds)
     } else if (applyToId === 'all-kids') {
       // All children in the family
       const kids = enhancedFamilyMembers.filter(member => member.type === 'child')
       targetMemberIds = kids.map(member => member.id)
-      console.log('- Selected: All kids')
-      console.log('- Kids found:', kids)
-      console.log('- Kids IDs:', targetMemberIds)
+      console.log('[KIDOERS-ROUTINE] - Selected: All kids')
+      console.log('[KIDOERS-ROUTINE] - Kids found:', kids)
+      console.log('[KIDOERS-ROUTINE] - Kids IDs:', targetMemberIds)
     } else if (applyToId === 'all-parents') {
       // All parents in the family
       const parents = enhancedFamilyMembers.filter(member => member.type === 'parent')
       targetMemberIds = parents.map(member => member.id)
-      console.log('- Selected: All parents')
-      console.log('- Parents found:', parents)
-      console.log('- Parents IDs:', targetMemberIds)
+      console.log('[KIDOERS-ROUTINE] - Selected: All parents')
+      console.log('[KIDOERS-ROUTINE] - Parents found:', parents)
+      console.log('[KIDOERS-ROUTINE] - Parents IDs:', targetMemberIds)
     } else if (applyToId === 'all-family') {
       // All family members
       targetMemberIds = enhancedFamilyMembers.map(member => member.id)
-      console.log('- Selected: All family, targetMemberIds:', targetMemberIds)
+      console.log('[KIDOERS-ROUTINE] - Selected: All family, targetMemberIds:', targetMemberIds)
     } else {
       // Fallback to single member
       targetMemberIds = [pendingDrop.targetMemberId]
-      console.log('- Fallback: Single member, targetMemberIds:', targetMemberIds)
+      console.log('[KIDOERS-ROUTINE] - Fallback: Single member, targetMemberIds:', targetMemberIds)
     }
     
-    console.log('Target members for applyToId:', applyToId, targetMemberIds)
+    console.log('[KIDOERS-ROUTINE] Target members for applyToId:', applyToId, targetMemberIds)
 
     // Add task/group to all selected days for all target members (only UI updates, no backend calls)
     for (const day of targetDays) {
       for (const memberId of targetMemberIds) {
         if (pendingDrop.type === 'task') {
-          console.log(`Adding task to ${day} for member ${memberId}`)
+          console.log('[KIDOERS-ROUTINE] ',`Adding task to ${day} for member ${memberId}`)
           addTaskToCalendarUI(memberId, pendingDrop.item as Task, applyToId, day, pendingDrop.fromGroup)
         } else if (pendingDrop.type === 'group') {
-          console.log(`Adding group to ${day} for member ${memberId}`)
+          console.log('[KIDOERS-ROUTINE] ',`Adding group to ${day} for member ${memberId}`)
           addGroupToCalendarUI(memberId, pendingDrop.item as TaskGroup, applyToId, day, pendingDrop.selectedTasks)
         }
       }
@@ -569,12 +571,13 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
   // Task reordering handlers (works in both edit mode and normal mode)
   const handleTaskDragStart = (e: React.DragEvent, task: Task, day: string, memberId: string) => {
-    console.log('🚀 DRAG START EVENT TRIGGERED!', { task: task.name, day, memberId })
+    console.log('[DRAG-ORDER] 🚀 DRAG START EVENT TRIGGERED!', { task: task.name, day, memberId })
+    console.log('[DRAG-ORDER] 🔧 DEBUG: handleTaskDragStart called with:', { task, day, memberId })
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', '')
     
     setDraggedTask({ task, day, memberId })
-    console.log('✅ Started dragging task:', task.name, 'from day:', day, 'member:', memberId)
+    console.log('[DRAG-ORDER] ✅ Started dragging task:', task.name, 'from day:', day, 'member:', memberId)
   }
 
   const handleTaskDragOver = (e: React.DragEvent, day: string, memberId: string, position: 'before' | 'after', targetTaskId?: string) => {
@@ -584,7 +587,16 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     e.dataTransfer.dropEffect = 'move'
     
     const newDragOverPosition = { day, memberId, position, targetTaskId }
-    console.log('🎯 Drag over position:', newDragOverPosition)
+    
+    // Only log when position actually changes to reduce noise
+    if (!dragOverPosition || 
+        dragOverPosition.day !== newDragOverPosition.day ||
+        dragOverPosition.memberId !== newDragOverPosition.memberId ||
+        dragOverPosition.position !== newDragOverPosition.position ||
+        dragOverPosition.targetTaskId !== newDragOverPosition.targetTaskId) {
+      console.log('[DRAG-ORDER] 🎯 Drag over position:', newDragOverPosition)
+    }
+    
     setDragOverPosition(newDragOverPosition)
   }
 
@@ -592,9 +604,9 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     setDragOverPosition(null)
   }
 
-  const handleTaskDrop = (e: React.DragEvent, targetDay: string, targetMemberId: string) => {
+  const handleTaskDrop = async (e: React.DragEvent, targetDay: string, targetMemberId: string) => {
     if (!draggedTask) {
-      console.log('❌ No dragged task on drop')
+      console.log('[DRAG-ORDER] ❌ No dragged task on drop')
       return
     }
     
@@ -602,7 +614,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     
     const { task, day: sourceDay, memberId: sourceMemberId } = draggedTask
     
-    console.log('🎯 Task dropped:', {
+    console.log('[DRAG-ORDER] 🎯 Task dropped:', {
       task: task.name,
       sourceDay,
       sourceMemberId,
@@ -613,22 +625,22 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     
     // Don't reorder if dropped in the same position AND no drag over position is specified
     if (sourceDay === targetDay && sourceMemberId === targetMemberId && (!dragOverPosition || !dragOverPosition.targetTaskId)) {
-      console.log('⚠️ Dropped in same position with no specific target, no reorder needed')
+      console.log('[DRAG-ORDER] ⚠️ Dropped in same position with no specific target, no reorder needed')
       setDraggedTask(null)
       setDragOverPosition(null)
       return
     }
 
     // Move the task to the new position
-    console.log('✅ Proceeding with reorder - dragOverPosition:', dragOverPosition)
-    moveTaskToPosition(task, sourceDay, sourceMemberId, targetDay, targetMemberId, dragOverPosition)
+    console.log('[DRAG-ORDER] ✅ Proceeding with reorder - dragOverPosition:', dragOverPosition)
+    await moveTaskToPosition(task, sourceDay, sourceMemberId, targetDay, targetMemberId, dragOverPosition)
     
     setDraggedTask(null)
     setDragOverPosition(null)
   }
 
-  const moveTaskToPosition = (task: Task, sourceDay: string, sourceMemberId: string, targetDay: string, targetMemberId: string, currentDragOverPosition: any) => {
-    console.log('🔄 moveTaskToPosition called:', {
+  const moveTaskToPosition = async (task: Task, sourceDay: string, sourceMemberId: string, targetDay: string, targetMemberId: string, currentDragOverPosition: any) => {
+    console.log('[KIDOERS-ROUTINE] 🔄 moveTaskToPosition called:', {
       task: task.name,
       sourceDay,
       sourceMemberId,
@@ -645,13 +657,13 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       const sourceTaskIndex = sourceDayTasks.individualTasks.findIndex((t: Task) => t.id === task.id)
       
       if (sourceTaskIndex === -1) {
-        console.log('❌ Task not found in source position')
+        console.log('[KIDOERS-ROUTINE] ❌ Task not found in source position')
         return newCalendarTasks
       }
       
       // Remove task from source
       const [movedTask] = sourceDayTasks.individualTasks.splice(sourceTaskIndex, 1)
-      console.log('✅ Removed task from source at index:', sourceTaskIndex)
+      console.log('[KIDOERS-ROUTINE] ✅ Removed task from source at index:', sourceTaskIndex)
       
       // Add task to target position
       const targetDayTasks = newCalendarTasks[targetDay]
@@ -662,24 +674,128 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         if (targetIndex !== -1) {
           const insertIndex = currentDragOverPosition.position === 'before' ? targetIndex : targetIndex + 1
           targetDayTasks.individualTasks.splice(insertIndex, 0, movedTask)
-          console.log('✅ Inserted task at specific position:', insertIndex)
+          console.log('[KIDOERS-ROUTINE] ✅ Inserted task at specific position:', insertIndex)
         } else {
           targetDayTasks.individualTasks.push(movedTask)
-          console.log('✅ Added task to end (target not found)')
+          console.log('[KIDOERS-ROUTINE] ✅ Added task to end (target not found)')
         }
       } else {
         // Add to end
         targetDayTasks.individualTasks.push(movedTask)
-        console.log('✅ Added task to end (no specific position)')
+        console.log('[KIDOERS-ROUTINE] ✅ Added task to end (no specific position)')
       }
       
-      console.log('📊 Final task order for', targetDay, ':', targetDayTasks.individualTasks.map(t => t.name))
+      console.log('[DRAG-ORDER] 📊 Final task order for', targetDay, ':', targetDayTasks.individualTasks.map(t => t.name))
       
       return newCalendarTasks
     })
     
     setHasUnsavedChanges(true)
-    console.log('✅ Task reordering completed')
+    
+    // Save day-specific order to backend
+    console.log('[DRAG-ORDER] 🔍 Checking save conditions:', {
+      currentRoutineId,
+      sourceDay,
+      targetDay,
+      sourceMemberId,
+      targetMemberId,
+      shouldSave: currentRoutineId && sourceDay === targetDay && sourceMemberId === targetMemberId
+    })
+    
+    if (sourceDay === targetDay && sourceMemberId === targetMemberId) {
+      // Ensure routine exists before saving
+      const routineData = await ensureRoutineExists()
+      if (routineData) {
+        // Get the updated tasks from the state after the update
+        setCalendarTasks(current => {
+          const updatedTasks = current[targetDay].individualTasks
+          console.log('[DRAG-ORDER] 🔄 About to save day-specific order with tasks:', updatedTasks.map((t: Task) => t.name))
+          // Call saveDaySpecificOrder asynchronously to avoid state update conflicts
+          setTimeout(() => {
+            saveDaySpecificOrder(targetDay, targetMemberId, updatedTasks)
+          }, 0)
+          return current
+        })
+      } else {
+        console.log('[DRAG-ORDER] ❌ Failed to create routine, cannot save day-specific order')
+      }
+    } else {
+      console.log('[DRAG-ORDER] ⚠️ Not saving day-specific order - conditions not met')
+    }
+    
+    console.log('[DRAG-ORDER] ✅ Task reordering completed')
+  }
+
+  // Get day-specific order for tasks
+  const getTasksWithDayOrder = (tasks: Task[], day: string, memberId: string): Task[] => {
+    if (!dayOrders.length) {
+      return tasks
+    }
+
+    // Find day-specific orders for this member/day
+    const memberDayOrders = dayOrders.filter(order => 
+      order.member_id === memberId && order.day_of_week === day
+    )
+
+    if (!memberDayOrders.length) {
+      return tasks
+    }
+
+    // Sort tasks by day-specific order
+    const sortedTasks = [...tasks].sort((a, b) => {
+      const orderA = memberDayOrders.find(order => order.routine_task_id === a.id)?.order_index ?? 999
+      const orderB = memberDayOrders.find(order => order.routine_task_id === b.id)?.order_index ?? 999
+      return orderA - orderB
+    })
+
+    console.log('[DRAG-ORDER] 📋 Sorted tasks by day order:', { day, memberId, tasks: sortedTasks.map(t => t.name) })
+    return sortedTasks
+  }
+
+  // Save day-specific order to backend
+  const saveDaySpecificOrder = async (day: string, memberId: string, tasks: Task[]) => {
+    if (!currentRoutineId) {
+      console.log('[DRAG-ORDER] ❌ No routine ID for saving day-specific order')
+      return
+    }
+
+    try {
+      console.log('[DRAG-ORDER] 💾 Saving day-specific order for:', { day, memberId, tasks: tasks.map(t => t.name) })
+      
+      const taskOrders = tasks.map((task, index) => ({
+        routine_task_id: extractRoutineTaskIdFromId(task.id),
+        order_index: index
+      }))
+
+      console.log('[DRAG-ORDER] 🔍 Task order mapping:', {
+        originalTaskIds: tasks.map(t => t.id),
+        extractedRoutineTaskIds: taskOrders.map(to => to.routine_task_id),
+        taskNames: tasks.map(t => t.name)
+      })
+
+      const bulkUpdate: BulkDayOrderUpdate = {
+        member_id: memberId,
+        day_of_week: day,
+        task_orders: taskOrders
+      }
+
+      const updatedOrders = await bulkUpdateDayOrders(currentRoutineId, bulkUpdate)
+      console.log('[DRAG-ORDER] ✅ Day-specific order saved:', updatedOrders)
+      
+      // Update local day orders state
+      setDayOrders(prev => {
+        // Remove existing orders for this member/day
+        const filtered = prev.filter(order => 
+          !(order.member_id === memberId && order.day_of_week === day)
+        )
+        // Add new orders
+        return [...filtered, ...updatedOrders]
+      })
+      
+    } catch (error) {
+      console.error('[DRAG-ORDER] ❌ Failed to save day-specific order:', error)
+      // TODO: Show user-friendly error message
+    }
   }
 
   // UI-only function for adding groups to calendar (no backend calls)
@@ -738,10 +854,10 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
   // UI-only function for adding tasks to calendar (no backend calls)
   const addTaskToCalendarUI = (memberId: string, task: Task, applyTo: string, day: string, fromGroup?: TaskGroup) => {
-    console.log('addTaskToCalendarUI called:', { memberId, task: task.name, applyTo, day, fromGroup })
+    console.log('[KIDOERS-ROUTINE] addTaskToCalendarUI called:', { memberId, task: task.name, applyTo, day, fromGroup })
 
     const newTaskId = `${task.id}-${memberId}-${day}-${Date.now()}`
-    console.log('Creating new task with ID:', newTaskId)
+    console.log('[KIDOERS-ROUTINE] Creating new task with ID:', newTaskId)
 
     // Add task to calendar for the specified day
     setCalendarTasks(prev => {
@@ -762,13 +878,13 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           }]
         }
       }
-      console.log('Updated calendar state:', newState)
+      console.log('[KIDOERS-ROUTINE] Updated calendar state:', newState)
       return newState
     })
     
     // Mark as having unsaved changes
     setHasUnsavedChanges(true);
-    console.log('Task added to calendar successfully')
+    console.log('[KIDOERS-ROUTINE] Task added to calendar successfully')
   }
 
   const addTaskToCalendar = async (memberId: string, task: Task, applyTo: string, day: string, routineData?: any) => {
@@ -838,15 +954,15 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       
       // Create the schedule
       await createRoutineSchedule(routineData.id, scheduleData)
-      console.log('Routine schedule saved successfully:', scheduleData)
+      console.log('[KIDOERS-ROUTINE] Routine schedule saved successfully:', scheduleData)
     } catch (err) {
-      console.error('Error saving routine details:', err)
+      console.error('[KIDOERS-ROUTINE] ','Error saving routine details:', err)
       setError('Failed to save routine details. Please try again.')
     }
   }
 
   const handleSaveRoutine = async () => {
-    console.log('ManualRoutineBuilder: handleSaveRoutine called, isEditMode:', isEditMode, 'onComplete:', !!onComplete);
+    console.log('[KIDOERS-ROUTINE] ManualRoutineBuilder: handleSaveRoutine called, isEditMode:', isEditMode, 'onComplete:', !!onComplete);
     setBusy(true)
     try {
       // First save any unsaved progress
@@ -879,9 +995,9 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         }
         
         await createRoutineSchedule(routineData.id, scheduleData)
-        console.log('Routine schedule created successfully')
+        console.log('[KIDOERS-ROUTINE] Routine schedule created successfully')
       } catch (scheduleError) {
-        console.error('Failed to create routine schedule:', scheduleError)
+        console.error('[KIDOERS-ROUTINE] ','Failed to create routine schedule:', scheduleError)
         // Don't fail the whole process if schedule creation fails
       }
 
@@ -897,31 +1013,31 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
             end_date: nextWeek
           })
         } catch (error) {
-          console.error('Failed to generate task instances:', error)
+          console.error('[KIDOERS-ROUTINE] ','Failed to generate task instances:', error)
           // Don't fail the whole process if instance generation fails
         }
       }
       
       // If we have an onComplete callback and we're not in edit mode (onboarding flow), mark onboarding as completed
       if (onComplete && !isEditMode) {
-        console.log('ManualRoutineBuilder: Calling onComplete (onboarding flow)');
+        console.log('[KIDOERS-ROUTINE] ManualRoutineBuilder: Calling onComplete (onboarding flow)');
         // Mark onboarding as completed via API
         try {
           await apiService.completeOnboarding(familyId!)
         } catch (error) {
-          console.error('Failed to mark onboarding as completed:', error)
+          console.error('[KIDOERS-ROUTINE] ','Failed to mark onboarding as completed:', error)
         }
         onComplete()
       } else if (!isEditMode) {
-        console.log('ManualRoutineBuilder: Navigating to dashboard (standalone mode)');
+        console.log('[KIDOERS-ROUTINE] ManualRoutineBuilder: Navigating to dashboard (standalone mode)');
         // Otherwise, navigate to dashboard (standalone mode)
         router.push('/dashboard')
       } else {
-        console.log('ManualRoutineBuilder: In edit mode, staying in routine builder');
+        console.log('[KIDOERS-ROUTINE] ManualRoutineBuilder: In edit mode, staying in routine builder');
       }
       // If isEditMode is true, stay in the routine builder (don't call onComplete or navigate)
     } catch (error) {
-      console.error('Failed to save routine:', error)
+      console.error('[KIDOERS-ROUTINE] ','Failed to save routine:', error)
       setError('Failed to save routine. Please try again.')
     } finally {
       setBusy(false)
@@ -950,10 +1066,24 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     return ''
   }
 
+  const extractRoutineTaskIdFromId = (id: string): string => {
+    // ID format: templateId-memberId-day-timestamp
+    // We need the templateId (routine_task_id) which is the first UUID
+    const parts = id.split('-')
+    
+    // If we have at least 5 parts (template UUID has 5 parts)
+    if (parts.length >= 5) {
+      // Template UUID: parts[0-4]
+      return `${parts[0]}-${parts[1]}-${parts[2]}-${parts[3]}-${parts[4]}`
+    }
+    
+    return id // Fallback to original ID
+  }
+
   const getTotalTasksForDay = (day: string) => {
     const dayTasks = calendarTasks[day]
     
-    console.log(`getTotalTasksForDay(${day}):`, { 
+    console.log('[KIDOERS-ROUTINE] ',`getTotalTasksForDay(${day}):`, { 
       dayTasks, 
       selectedMemberId,
       totalIndividualTasks: dayTasks?.individualTasks?.length || 0,
@@ -961,7 +1091,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     })
     
     if (!dayTasks) {
-      console.log(`getTotalTasksForDay(${day}): No day tasks found`)
+      console.log('[KIDOERS-ROUTINE] ',`getTotalTasksForDay(${day}): No day tasks found`)
       return 0
     }
     
@@ -969,7 +1099,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     const filteredGroups = dayTasks.groups.filter((group: TaskGroup) => {
       const groupMemberId = extractMemberIdFromId(group.id)
       const matches = groupMemberId === selectedMemberId
-      console.log(`Filtering group ${group.name} (${group.id}):`, { groupMemberId, selectedMemberId, matches })
+      console.log('[KIDOERS-ROUTINE] ',`Filtering group ${group.name} (${group.id}):`, { groupMemberId, selectedMemberId, matches })
       return matches
     })
     
@@ -977,12 +1107,12 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     const filteredIndividualTasks = dayTasks.individualTasks.filter((task: Task) => {
       const taskMemberId = extractMemberIdFromId(task.id)
       const matches = taskMemberId === selectedMemberId
-      console.log(`Filtering task ${task.name} (${task.id}):`, { taskMemberId, selectedMemberId, matches })
+      console.log('[KIDOERS-ROUTINE] ',`Filtering task ${task.name} (${task.id}):`, { taskMemberId, selectedMemberId, matches })
       return matches
     })
     
     const total = filteredGroups.reduce((sum: number, group: TaskGroup) => sum + group.tasks.length, 0) + filteredIndividualTasks.length
-    console.log(`getTotalTasksForDay(${day}) result:`, { filteredGroups: filteredGroups.length, filteredIndividualTasks: filteredIndividualTasks.length, total })
+    console.log('[KIDOERS-ROUTINE] ',`getTotalTasksForDay(${day}) result:`, { filteredGroups: filteredGroups.length, filteredIndividualTasks: filteredIndividualTasks.length, total })
     return total
   }
 
@@ -1084,9 +1214,9 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     if (!familyId) return null;
     
     try {
-      console.log('Creating routine draft lazily...');
+      console.log('[KIDOERS-ROUTINE] Creating routine draft lazily...');
       const created = await createRoutineDraft(familyId, routineName);
-      console.log('Routine draft created:', created);
+      console.log('[KIDOERS-ROUTINE] Routine draft created:', created);
       const routineData = {
         id: created.id,
         family_id: created.family_id,
@@ -1094,9 +1224,11 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         status: created.status as "draft"|"active"|"archived"
       };
       setRoutine(routineData);
+      setCurrentRoutineId(routineData.id);
+      console.log('[KIDOERS-ROUTINE] Set currentRoutineId to:', routineData.id);
       return routineData;
     } catch (e: any) {
-      console.error('Error creating routine:', e);
+      console.error('[KIDOERS-ROUTINE] ','Error creating routine:', e);
       setError(e?.message || "Failed to create routine");
       return null;
     }
@@ -1104,13 +1236,14 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
   // Load existing routine data using the new full-data endpoint
   const loadExistingRoutineData = async (routineId: string, enhancedMembers: any[]) => {
+    setCurrentRoutineId(routineId)
     try {
-      console.log('🔄 ManualRoutineBuilder: Loading existing routine data for routineId:', routineId);
+      console.log('[KIDOERS-ROUTINE] 🔄 ManualRoutineBuilder: Loading existing routine data for routineId:', routineId);
       
       // Load complete routine data
-      console.log('📞 ManualRoutineBuilder: Calling getRoutineFullData()');
+      console.log('[KIDOERS-ROUTINE] 📞 ManualRoutineBuilder: Calling getRoutineFullData()');
       const fullData = await getRoutineFullData(routineId);
-      console.log('✅ ManualRoutineBuilder: Full routine data loaded:', fullData);
+      console.log('[KIDOERS-ROUTINE] ✅ ManualRoutineBuilder: Full routine data loaded:', fullData);
       
       // Transform backend data to frontend format
       const transformedGroups: TaskGroup[] = fullData.groups.map(group => ({
@@ -1147,8 +1280,13 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         days_of_week: task.days_of_week
       }));
       
-      console.log('Transformed groups:', transformedGroups);
-      console.log('Transformed individual tasks:', individualTasks);
+      console.log('[KIDOERS-ROUTINE] Transformed groups:', transformedGroups);
+      console.log('[KIDOERS-ROUTINE] Transformed individual tasks:', individualTasks);
+      
+      // Load day-specific orders
+      console.log('[DRAG-ORDER] 📋 ManualRoutineBuilder: Loading day-specific orders');
+      setDayOrders(fullData.day_orders || []);
+      console.log('[DRAG-ORDER] ✅ ManualRoutineBuilder: Day orders loaded:', fullData.day_orders);
       
       // Create a map of task assignments by member
       const assignmentsByMember = new Map<string, string[]>(); // memberId -> taskIds
@@ -1179,7 +1317,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         }
       }
       
-      console.log('Assignments by member:', assignmentsByMember);
+      console.log('[KIDOERS-ROUTINE] Assignments by member:', assignmentsByMember);
       
       // Distribute tasks and groups to the correct family members
       setEnhancedFamilyMembers(members =>
@@ -1199,7 +1337,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
             memberTaskIds.includes(task.id)
           );
           
-          console.log(`Member ${member.name} (${member.id}):`, {
+          console.log('[KIDOERS-ROUTINE] ',`Member ${member.name} (${member.id}):`, {
             memberTaskIds,
             memberGroups: memberGroups.length,
             memberIndividualTasks: memberIndividualTasks.length
@@ -1213,7 +1351,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         })
       );
       
-      console.log('Loaded routine data with proper task assignments');
+      console.log('[KIDOERS-ROUTINE] Loaded routine data with proper task assignments');
       
       // Populate the calendar with tasks based on their days_of_week
       const newCalendarTasks = { ...calendarTasks };
@@ -1277,16 +1415,16 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       }
       
       setCalendarTasks(newCalendarTasks);
-      console.log('Populated calendar with existing tasks:', newCalendarTasks);
+      console.log('[KIDOERS-ROUTINE] Populated calendar with existing tasks:', newCalendarTasks);
       
       // Load routine schedule data
       if (fullData.schedules && fullData.schedules.length > 0) {
-        console.log('📅 ManualRoutineBuilder: Loading routine schedule data...');
+        console.log('[KIDOERS-ROUTINE] 📅 ManualRoutineBuilder: Loading routine schedule data...');
         
         // Find the active schedule
         const activeSchedule = fullData.schedules.find(s => s.is_active);
         if (activeSchedule) {
-          console.log('Active schedule found:', activeSchedule);
+          console.log('[KIDOERS-ROUTINE] Active schedule found:', activeSchedule);
           // Convert the schedule data to the format expected by RoutineDetailsModal
           const scheduleData: RoutineScheduleData = {
             scope: activeSchedule.scope as 'everyday' | 'weekdays' | 'weekends' | 'custom',
@@ -1297,14 +1435,14 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
             is_active: true
           };
           setRoutineScheduleData(scheduleData);
-          console.log('Set routine schedule data:', scheduleData);
+          console.log('[KIDOERS-ROUTINE] Set routine schedule data:', scheduleData);
         } else {
-          console.log('No active schedule found');
+          console.log('[KIDOERS-ROUTINE] No active schedule found');
         }
       }
       
     } catch (e: any) {
-      console.error('Error loading routine data:', e);
+      console.error('[KIDOERS-ROUTINE] ','Error loading routine data:', e);
     }
   };
 
@@ -1377,7 +1515,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       // Save groups using the new group assignment endpoint
       for (const [templateId, { group, memberIds, days }] of allGroups) {
         try {
-          console.log(`Saving group ${group.name} for members: ${memberIds.join(', ')} on days: ${days.join(', ')}`);
+          console.log('[KIDOERS-ROUTINE] ',`Saving group ${group.name} for members: ${memberIds.join(', ')} on days: ${days.join(', ')}`);
           
           if (group.template_id) {
             // This is a group from a template - use the new group assignment endpoint
@@ -1390,7 +1528,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
               time_of_day: group.time_of_day
             });
             
-            console.log(`Successfully assigned group template ${group.template_id} to members`);
+            console.log('[KIDOERS-ROUTINE] ',`Successfully assigned group template ${group.template_id} to members`);
           } else {
             // This is a custom group - create it first, then assign
           const savedGroup = await addRoutineGroup(routineData.id, {
@@ -1414,16 +1552,16 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
               });
               
               // Create assignments for each member
-              console.log('🎯 Creating group task assignments:')
-              console.log('- Group Task ID:', savedTask.id)
-              console.log('- Member IDs:', memberIds)
-              console.log('- Days:', days.join(', '))
+              console.log('[KIDOERS-ROUTINE] 🎯 Creating group task assignments:')
+              console.log('[KIDOERS-ROUTINE] - Group Task ID:', savedTask.id)
+              console.log('[KIDOERS-ROUTINE] - Member IDs:', memberIds)
+              console.log('[KIDOERS-ROUTINE] - Days:', days.join(', '))
               
               for (let memberIndex = 0; memberIndex < memberIds.length; memberIndex++) {
                 const memberId = memberIds[memberIndex];
-                console.log(`Creating group assignment for member ${memberId}...`)
+                console.log('[KIDOERS-ROUTINE] ',`Creating group assignment for member ${memberId}...`)
                 await createTaskAssignment(routineData.id, savedTask.id, memberId, memberIndex);
-                console.log(`✅ Assigned group task ${savedTask.id} to member ${memberId} for days: ${days.join(', ')}`);
+                console.log('[KIDOERS-ROUTINE] ',`✅ Assigned group task ${savedTask.id} to member ${memberId} for days: ${days.join(', ')}`);
               }
             }
           }
@@ -1443,7 +1581,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           });
           
         } catch (e: any) {
-          console.error('Error saving group:', e);
+          console.error('[KIDOERS-ROUTINE] ','Error saving group:', e);
         }
       }
       
@@ -1451,7 +1589,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       let individualTaskOrderIndex = 0;
       for (const [templateId, { task, memberIds, days }] of allTasks) {
         try {
-          console.log(`Saving individual task ${task.name} for members: ${memberIds.join(', ')} on days: ${days.join(', ')}`);
+          console.log('[KIDOERS-ROUTINE] ',`Saving individual task ${task.name} for members: ${memberIds.join(', ')} on days: ${days.join(', ')}`);
           
           const savedTask = await addRoutineTask(routineData.id, {
             name: task.name,
@@ -1465,16 +1603,16 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           });
           
           // Create assignments for each member
-          console.log('🎯 Creating task assignments:')
-          console.log('- Task ID:', savedTask.id)
-          console.log('- Member IDs:', memberIds)
-          console.log('- Days:', days.join(', '))
+          console.log('[KIDOERS-ROUTINE] 🎯 Creating task assignments:')
+          console.log('[KIDOERS-ROUTINE] - Task ID:', savedTask.id)
+          console.log('[KIDOERS-ROUTINE] - Member IDs:', memberIds)
+          console.log('[KIDOERS-ROUTINE] - Days:', days.join(', '))
           
           for (let memberIndex = 0; memberIndex < memberIds.length; memberIndex++) {
             const memberId = memberIds[memberIndex];
-            console.log(`Creating assignment for member ${memberId}...`)
+            console.log('[KIDOERS-ROUTINE] ',`Creating assignment for member ${memberId}...`)
             await createTaskAssignment(routineData.id, savedTask.id, memberId, memberIndex);
-            console.log(`✅ Assigned task ${savedTask.id} to member ${memberId} for days: ${days.join(', ')}`);
+            console.log('[KIDOERS-ROUTINE] ',`✅ Assigned task ${savedTask.id} to member ${memberId} for days: ${days.join(', ')}`);
           }
           
           // Mark task as saved in the UI state
@@ -1492,15 +1630,15 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           });
           
             } catch (e: any) {
-          console.error('Error saving individual task:', e);
+          console.error('[KIDOERS-ROUTINE] ','Error saving individual task:', e);
         }
       }
       
-      console.log('Save progress completed successfully');
+      console.log('[KIDOERS-ROUTINE] Save progress completed successfully');
       setHasUnsavedChanges(false);
       setError(null);
     } catch (e: any) {
-      console.error('Error saving progress:', e);
+      console.error('[KIDOERS-ROUTINE] ','Error saving progress:', e);
       setError(e?.message || 'Failed to save progress. Please try again.');
     } finally {
       setIsSavingProgress(false);
@@ -1582,7 +1720,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                         )}
                         {enhancedFamilyMembers.map((member) => {
                           const colors = getMemberColors(member.color)
-                          console.log('Rendering member:', member.name, 'selectedMemberId:', selectedMemberId, 'isSelected:', selectedMemberId === member.id)
+                          console.log('[KIDOERS-ROUTINE] Rendering member:', member.name, 'selectedMemberId:', selectedMemberId, 'isSelected:', selectedMemberId === member.id)
                           return (
                             <label
                               key={member.id}
@@ -1598,7 +1736,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                                 value={member.id}
                                 checked={selectedMemberId === member.id}
                                 onChange={(e) => {
-                                  console.log('Family member selection changed:', e.target.value)
+                                  console.log('[KIDOERS-ROUTINE] Family member selection changed:', e.target.value)
                                   setSelectedMemberId(e.target.value)
                                 }}
                                 className="sr-only"
@@ -1719,7 +1857,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                       const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
                       const dayIndex = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].indexOf(day)
                       
-                      console.log(`Rendering day ${day}:`, { 
+                      console.log('[KIDOERS-ROUTINE] ',`Rendering day ${day}:`, { 
                         dayTasks, 
                         totalDayTasks, 
                         selectedMemberId,
@@ -1807,11 +1945,11 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                                 ))}
 
                                 {/* Individual Tasks - Filtered by Selected Member */}
-                                {dayTasks.individualTasks
-                                  .filter((task: Task) => {
+                                {getTasksWithDayOrder(
+                                  dayTasks.individualTasks.filter((task: Task) => {
                                     const taskMemberId = extractMemberIdFromId(task.id)
                                     const matches = taskMemberId === selectedMemberId
-                                    console.log('Filtering task:', { 
+                                    console.log('[KIDOERS-ROUTINE] Filtering task:', { 
                                       taskId: task.id, 
                                       taskName: task.name, 
                                       taskMemberId, 
@@ -1819,7 +1957,10 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                                       matches 
                                     })
                                     return matches
-                                  })
+                                  }), 
+                                  day, 
+                                  selectedMemberId
+                                )
                                   .map((task: Task, taskIndex: number, taskArray: Task[]) => (
                                   <div key={task.id}>
                                     {/* Drop zone before this task */}

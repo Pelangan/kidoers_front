@@ -42,6 +42,44 @@ export interface User {
   onboarding_status: string
 }
 
+// Day-specific order types
+export interface DaySpecificOrder {
+  id: string
+  routine_id: string
+  member_id: string
+  day_of_week: string
+  routine_task_id: string
+  order_index: number
+  created_at: string
+}
+
+export interface DaySpecificOrderCreate {
+  routine_id: string
+  member_id: string
+  day_of_week: string
+  routine_task_id: string
+  order_index: number
+}
+
+export interface DaySpecificOrderUpdate {
+  order_index: number
+}
+
+export interface BulkDayOrderUpdate {
+  member_id: string
+  day_of_week: string
+  task_orders: Array<{
+    routine_task_id: string
+    order_index: number
+  }>
+}
+
+export interface CopyDayOrdersRequest {
+  member_id: string
+  from_day: string
+  to_day: string
+}
+
 /** Types mirrored from backend responses */
 export type OnboardingStatus =
   | { has_family: false; in_progress: null; current_family: null }
@@ -841,7 +879,49 @@ export async function getRoutineFullData(routineId: string) {
       is_active: boolean;
       created_at: string;
     }>;
+    day_orders: DaySpecificOrder[];
   }>(`/routines/${routineId}/full-data`, {
     method: "GET",
+  });
+}
+
+// Day-specific order management functions
+export async function getRoutineDayOrders(routineId: string): Promise<DaySpecificOrder[]> {
+  return apiService.makeRequest<DaySpecificOrder[]>(`/routines/${routineId}/day-orders`, {
+    method: "GET",
+  });
+}
+
+export async function createDaySpecificOrder(routineId: string, order: DaySpecificOrderCreate): Promise<DaySpecificOrder> {
+  return apiService.makeRequest<DaySpecificOrder>(`/routines/${routineId}/day-orders`, {
+    method: "POST",
+    body: JSON.stringify(order),
+  });
+}
+
+export async function updateDaySpecificOrder(routineId: string, orderId: string, orderIndex: number): Promise<DaySpecificOrder> {
+  return apiService.makeRequest<DaySpecificOrder>(`/routines/${routineId}/day-orders/${orderId}`, {
+    method: "PUT",
+    body: JSON.stringify({ order_index: orderIndex }),
+  });
+}
+
+export async function deleteDaySpecificOrder(routineId: string, orderId: string): Promise<void> {
+  return apiService.makeRequest<void>(`/routines/${routineId}/day-orders/${orderId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function bulkUpdateDayOrders(routineId: string, update: BulkDayOrderUpdate): Promise<DaySpecificOrder[]> {
+  return apiService.makeRequest<DaySpecificOrder[]>(`/routines/${routineId}/day-orders/bulk`, {
+    method: "POST",
+    body: JSON.stringify(update),
+  });
+}
+
+export async function copyDayOrders(routineId: string, request: CopyDayOrdersRequest): Promise<DaySpecificOrder[]> {
+  return apiService.makeRequest<DaySpecificOrder[]>(`/routines/${routineId}/day-orders/copy`, {
+    method: "POST",
+    body: JSON.stringify(request),
   });
 }

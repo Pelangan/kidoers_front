@@ -24,8 +24,9 @@ This folder contains comprehensive documentation for the Kidoers family task man
 - TypeScript 5
 - Tailwind CSS 3.4.17
 - Radix UI + shadcn/ui
-- localStorage (Prototype)
 - Supabase Authentication (JWT + Google OAuth)
+- FastAPI Backend (Python)
+- Supabase Database (PostgreSQL)
 
 ### 🔧 Key Implementation Details
 
@@ -97,9 +98,9 @@ kidoers_front/
 
 ### 📝 Development Guidelines
 
-- **All data uses localStorage** (prototype mode)
-- **Mock authentication** system (no real backend)
-
+- **Backend API Integration** - All business logic goes through FastAPI backend
+- **Supabase Authentication** - Real authentication with JWT tokens
+- **Hybrid Storage** - Backend database + localStorage caching
 - **TypeScript** for type safety
 - **Next.js App Router** for routing
 - **Tailwind CSS** for styling

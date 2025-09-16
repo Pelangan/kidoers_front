@@ -12,9 +12,10 @@
 - **Styling**: Tailwind CSS 3.4.17
 - **UI Components**: Radix UI + shadcn/ui
 - **Package Manager**: pnpm
-- **Data Storage**: Browser localStorage (Prototype)
 - **Authentication**: Supabase Authentication (JWT + Google OAuth)
-- **Database**: Supabase (configured and actively used)
+- **Backend API**: FastAPI (Python)
+- **Database**: Supabase (PostgreSQL)
+- **Data Storage**: Backend API + localStorage (hybrid approach)
 
 ### Project Structure
 ```
@@ -182,7 +183,9 @@ For family member personalization, use these soft colors:
 interface Family {
   id: string
   name: string
-  createdAt: string
+  created_by?: string
+  created_at?: string
+  onboarding_status?: 'not_started' | 'in_progress' | 'completed'
 }
 ```
 
@@ -193,22 +196,29 @@ interface FamilyMember {
   name: string
   role: "parent" | "child"
   color: string
-  age?: number
+  age?: number | null
+  avatar_url?: string
+  calmMode: boolean
+  textToSpeech: boolean
   avatarStyle?: string
   avatarOptions?: Record<string, string>
   avatarUrl?: string
-  calmMode: boolean
-  textToSpeech: boolean
 }
 ```
 
 ### Implemented Functions
 
 #### Family Operations
-- **`storage.getFamily()`**: Retrieves family data from localStorage
-- **`storage.setFamily(family)`**: Stores family data in localStorage
-- **`storage.getMembers()`**: Retrieves family members list
-- **`storage.setMembers(members)`**: Stores family members data
+- **`apiService.getFamilies()`**: Retrieves all families for user
+- **`apiService.createFamily(family)`**: Creates new family
+- **`apiService.createFamilyWithMembers(family, members)`**: Creates family with members
+- **`apiService.getFamily(familyId)`**: Retrieves specific family
+- **`apiService.updateFamily(familyId, family)`**: Updates family data
+- **`apiService.deleteFamily(familyId)`**: Deletes family
+- **`apiService.getFamilyMembers(familyId)`**: Retrieves family members
+- **`apiService.addFamilyMember(familyId, member)`**: Adds new family member
+- **`apiService.updateFamilyMember(familyId, memberId, member)`**: Updates family member
+- **`apiService.deleteFamilyMember(familyId, memberId)`**: Deletes family member
 
 ### User Interface
 - **Onboarding Wizard**: Step-by-step family setup process
@@ -348,6 +358,14 @@ When assigning chores to multiple family members:
   - Sample data generation for testing
   - Empty state with navigation to Settings
 
+- **Dashboard Integration**: Main dashboard with sidebar navigation
+  - **Chores View**: Primary task management interface with routine builder integration
+  - **Calendar View**: Monthly calendar for activity scheduling
+  - **Family Members View**: Member management and avatar customization
+  - **Rewards View**: Placeholder for future rewards system
+  - **Settings View**: Account and preference management
+  - **Routine Builder**: Integrated routine creation and editing
+
 ### Edit Mode & Security
 - **iPhone-Style Edit Mode**: Toggle edit mode to select and delete multiple chores
 - **Passcode Protection**: 4-digit PIN required to enter edit mode (only parents know the code)
@@ -365,9 +383,17 @@ When assigning chores to multiple family members:
 interface Activity {
   id: string
   title: string
-  description?: string
-  scheduled_date: string
-  depends_on_chores: boolean
+  description: string
+  location?: string
+  time?: string
+  duration?: number
+  frequency?: 'daily' | 'weekly' | 'monthly'
+  daysOfWeek?: string[]
+  icon?: string
+  assignedTo?: string
+  completed: boolean
+  scheduled_date?: string
+  depends_on_chores?: boolean
 }
 ```
 
@@ -397,7 +423,11 @@ interface Reward {
   id: string
   title: string
   description: string
-  threshold: number
+  type: 'complete_tasks' | 'complete_categories' | 'complete_time_slots' | 'specific_tasks' | 'streak' | 'mixed'
+  conditions: any
+  icon: string
+  availableTo: string
+  threshold?: number
 }
 ```
 
@@ -412,12 +442,13 @@ interface Reward {
 - **Reward Unlocking**: Automatically unlock rewards when thresholds are met
 
 ### User Interface
-- **Rewards View**: Rewards management interface
+- **Rewards View**: Rewards management interface (Currently shows "Coming soon!" placeholder)
   - Display all available rewards
   - Show progress towards each reward
   - Add new rewards
   - Visual progress indicators
   - Reward status (locked/unlocked)
+  - **Note**: RewardsView component exists but is not fully implemented yet
 
 
 
@@ -512,6 +543,21 @@ interface Reward {
 - **`POST /families/{family_id}/generate-instances/{date}`**: Generate task instances for a specific date
 - **`POST /families/{family_id}/reconcile-instances/{date}`**: Reconcile instances for a date
 
+### Day-Specific Order Management API Endpoints
+- **`GET /routines/{routine_id}/day-orders`**: Get day-specific task orders
+- **`POST /routines/{routine_id}/day-orders`**: Create day-specific order
+- **`PUT /routines/{routine_id}/day-orders/{order_id}`**: Update day-specific order
+- **`DELETE /routines/{routine_id}/day-orders/{order_id}`**: Delete day-specific order
+- **`POST /routines/{routine_id}/day-orders/bulk`**: Bulk update day orders
+- **`POST /routines/{routine_id}/day-orders/copy`**: Copy day orders between days
+
+### Group Assignment API Endpoints
+- **`POST /routines/{routine_id}/groups/{group_template_id}/assign`**: Assign group template to members
+- **`POST /routines/{routine_id}/groups/{group_id}/assign`**: Assign existing group to members
+
+### Full Routine Data API Endpoints
+- **`GET /routines/{routine_id}/full-data`**: Get complete routine data with groups, tasks, assignments, and schedules
+
 ### Dashboard & Summary API Endpoints
 - **`GET /families/{family_id}/dashboard`**: Get family dashboard data (pending tasks, completed today, etc.)
 - **`GET /families/{family_id}/members/{member_id}/progress`**: Get member's task progress
@@ -528,20 +574,38 @@ interface Reward {
 
 ## 💾 Data Storage System
 
-### localStorage Implementation
+### Hybrid Storage Implementation
 
-#### Storage Keys
+The application uses a hybrid approach combining backend API calls with localStorage for optimal performance and offline capability.
+
+#### Backend API Storage (Primary)
+- **Family Management**: All family and member data stored in Supabase database
+- **Routine Management**: Complete routine system with groups, tasks, and assignments
+- **Task Instances**: Real-time task tracking and completion status
+- **User Profiles**: User data and preferences stored in backend
+
+#### localStorage Storage (Secondary)
 ```javascript
-"kidoers_user"           // Current user data
-"kidoers_family"         // Family information
-"kidoers_members"        // Family members list
-"kidoers_chores"         // Chores/tasks
-"kidoers_activities"     // Calendar activities
-"kidoers_rewards"        // Family rewards
+"kidoers_user"           // Current user session data
+"kidoers_family"         // Cached family information
+"kidoers_members"        // Cached family members list
+"kidoers_chores"         // Cached chores/tasks
+"kidoers_activities"     // Cached calendar activities
+"kidoers_rewards"        // Cached family rewards
+"kidoers_routines"       // Cached routine data
+"kidoers_routine_task_groups" // Cached routine groups
+"kidoers_routine_tasks"  // Cached routine tasks
 "kidoers_welcome_dismissed" // Welcome message state
 ```
 
-#### Storage Functions
-- **`storage.getUser()`**: Retrieve user data
-- **`storage.setUser(user)`**: Store user data
-- **`
+#### Storage Functions (17 total)
+- **User**: `getUser()`, `setUser()`, `removeUser()`
+- **Family**: `getFamily()`, `setFamily()`
+- **Members**: `getMembers()`, `setMembers()`
+- **Chores**: `getChores()`, `setChores()`
+- **Activities**: `getActivities()`, `setActivities()`
+- **Rewards**: `getRewards()`, `setRewards()`
+- **Routines**: `getRoutines()`, `setRoutines()`
+- **Routine Task Groups**: `getRoutineTaskGroups()`, `setRoutineTaskGroups()`
+- **Routine Tasks**: `getRoutineTasks()`, `setRoutineTasks()`
+- **Utility**: `clearAll()`, `checkOnboardingStatus()`
