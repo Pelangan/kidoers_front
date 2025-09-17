@@ -498,6 +498,8 @@ interface Reward {
 - **Smart Publishing**: Routine is published to active status when user completes onboarding
 - **Onboarding Routine Loading**: Properly loads draft routines with `is_onboarding_routine = true` when navigating back to the screen
 - **Dual Routine Loading**: First attempts to load onboarding routine, then falls back to active routine if not found
+- **Task Order Persistence**: Saves task order within columns using `routine_task_day_orders` table and bulk update API
+- **Drag & Drop Reordering**: Real-time task reordering with visual feedback and automatic order tracking
 - **Visual Design**: Matches wireframe exactly with proper colors and layout
 
 ## 🔌 API Integration
@@ -571,10 +573,12 @@ interface Reward {
 3. **Library Loading**: Dynamically loads task groups and tasks from backend
 4. **Onboarding Routine Loading**: First attempts to load existing onboarding routine (draft status with `is_onboarding_routine = true`)
 5. **Fallback Loading**: If no onboarding routine found, loads active routine for edit mode
-6. **Manual Progress Saving**: Users explicitly save progress with dedicated button
-7. **Publishing**: Routine status changes from draft to active when onboarding is completed
-8. **Task Instance Generation**: Automatically generates task instances based on routine schedules and task assignments
-9. **Task Execution**: Family members complete tasks, parents verify completion, points are awarded
+6. **Task Reordering**: Drag and drop updates local state and tracks day-specific order changes
+7. **Manual Progress Saving**: Users explicitly save progress with dedicated button
+8. **Day Order Persistence**: Saves task order within columns using bulk update API to `routine_task_day_orders` table
+9. **Publishing**: Routine status changes from draft to active when onboarding is completed
+10. **Task Instance Generation**: Automatically generates task instances based on routine schedules and task assignments
+11. **Task Execution**: Family members complete tasks, parents verify completion, points are awarded
 
 ## 💾 Data Storage System
 
