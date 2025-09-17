@@ -103,7 +103,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string|null>(null)
   const [isLoadingData, setIsLoadingData] = useState(false)
-  const [isSavingProgress, setIsSavingProgress] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [showRoutineDetails, setShowRoutineDetails] = useState(false)
   const [routineScheduleData, setRoutineScheduleData] = useState<RoutineScheduleData | null>(null)
@@ -711,8 +710,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     updateDayOrdersForTaskMove(task, sourceDay, sourceMemberId, targetDay, targetMemberId, currentDragOverPosition)
   }
 
-  // Update day orders when tasks are moved
-  const updateDayOrdersForTaskMove = (task: Task, sourceDay: string, sourceMemberId: string, targetDay: string, targetMemberId: string, currentDragOverPosition: any) => {
+  // Update day orders when tasks are moved and save immediately to backend
+  const updateDayOrdersForTaskMove = async (task: Task, sourceDay: string, sourceMemberId: string, targetDay: string, targetMemberId: string, currentDragOverPosition: any) => {
     console.log('[DRAG-ORDER] 🔄 Updating day orders for task move:', {
       task: task.name,
       sourceDay,
@@ -721,55 +720,77 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       targetMemberId
     })
 
-    // Mark as having unsaved changes immediately
-    console.log('[DRAG-ORDER] 🔄 Setting hasUnsavedChanges to true due to task reorder');
-    setHasUnsavedChanges(true)
-
     // Use a timeout to ensure the calendarTasks state has been updated
-    setTimeout(() => {
-      setDayOrders(prev => {
-        const newDayOrders = [...prev]
-        
-        // Remove existing order entries for this task
-        const filteredOrders = newDayOrders.filter(order => 
-          !(order.routine_task_id === task.id && order.member_id === sourceMemberId && order.day_of_week === sourceDay)
-        )
-        
+    setTimeout(async () => {
+      try {
+        // Ensure routine exists
+        const routineData = await ensureRoutineExists();
+        if (!routineData) {
+          console.error('[DRAG-ORDER] ❌ No routine found for saving day orders');
+          return;
+        }
+
         // Get the current task order for the target day from the current state
         const targetDayTasks = calendarTasks[targetDay]?.individualTasks || []
         const targetTaskIndex = targetDayTasks.findIndex((t: Task) => t.id === task.id)
         
-        if (targetTaskIndex !== -1) {
-          // Add new order entry for the target position
-          const newOrder: DaySpecificOrder = {
-            id: `temp-${Date.now()}-${Math.random()}`, // Temporary ID for local state
-            routine_id: currentRoutineId || '',
-            member_id: targetMemberId,
-            day_of_week: targetDay,
-            routine_task_id: task.id, // Use real task ID
-            order_index: targetTaskIndex,
-            created_at: new Date().toISOString()
-          }
-          
-          filteredOrders.push(newOrder)
-          console.log('[DRAG-ORDER] ✅ Added new day order entry:', newOrder)
+        if (targetTaskIndex === -1) {
+          console.log('[DRAG-ORDER] ⚠️ Task not found in target day, skipping order update');
+          return;
         }
-        
-        // Recalculate order indices for all tasks in the target day
-        const targetDayOrders = filteredOrders.filter(order => 
-          order.member_id === targetMemberId && order.day_of_week === targetDay
-        )
-        
-        // Sort by current order and reassign indices
-        targetDayOrders.sort((a, b) => a.order_index - b.order_index)
-        targetDayOrders.forEach((order, index) => {
-          order.order_index = index
-        })
-        
-        console.log('[DRAG-ORDER] 📊 Updated day orders for', targetDay, ':', targetDayOrders.map(o => ({ taskId: o.routine_task_id, order: o.order_index })))
-        
-        return filteredOrders
-      })
+
+        // Get all tasks for the target day and member to calculate correct order
+        const allTargetDayTasks = targetDayTasks.filter((t: Task) => {
+          const taskMemberId = t.memberId || extractMemberIdFromId(t.id);
+          return taskMemberId === targetMemberId;
+        });
+
+        // Create day order entries for all tasks in the target day
+        const dayOrdersToSave: DaySpecificOrder[] = allTargetDayTasks.map((t: Task, index: number) => ({
+          id: `temp-${Date.now()}-${Math.random()}`,
+          routine_id: routineData.id,
+          member_id: targetMemberId,
+          day_of_week: targetDay,
+          routine_task_id: t.id,
+          order_index: index,
+          created_at: new Date().toISOString()
+        }));
+
+        // Group by member and day for bulk update
+        const bulkUpdate: BulkDayOrderUpdate = {
+          member_id: targetMemberId,
+          day_of_week: targetDay,
+          task_orders: dayOrdersToSave.map(order => ({
+            routine_task_id: order.routine_task_id,
+            order_index: order.order_index
+          }))
+        };
+
+        console.log('[DRAG-ORDER] 📤 Saving day orders immediately:', bulkUpdate);
+        await bulkUpdateDayOrders(routineData.id, bulkUpdate);
+        console.log('[DRAG-ORDER] ✅ Day orders saved successfully');
+
+        // Update local state to reflect the saved orders
+        setDayOrders(prev => {
+          const newDayOrders = [...prev]
+          
+          // Remove existing order entries for this member/day combination
+          const filteredOrders = newDayOrders.filter(order => 
+            !(order.member_id === targetMemberId && order.day_of_week === targetDay)
+          )
+          
+          // Add the new orders
+          filteredOrders.push(...dayOrdersToSave);
+          
+          console.log('[DRAG-ORDER] 📊 Updated local day orders for', targetDay, ':', dayOrdersToSave.map(o => ({ taskId: o.routine_task_id, order: o.order_index })))
+          
+          return filteredOrders
+        });
+
+      } catch (error) {
+        console.error('[DRAG-ORDER] ❌ Error saving day orders:', error);
+        // Don't show error to user for drag operations, just log it
+      }
     }, 0)
   }
 
@@ -867,8 +888,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       }
     }))
     
-    // Mark as having unsaved changes
-    setHasUnsavedChanges(true);
+    // Day orders are now saved immediately when dragging, no need to track unsaved changes
   }
 
   const addGroupToCalendar = async (memberId: string, group: TaskGroup, applyTo: string, day: string, routineData?: any) => {
@@ -895,8 +915,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       }
     }))
     
-    // Mark as having unsaved changes
-    setHasUnsavedChanges(true);
+    // Day orders are now saved immediately when dragging, no need to track unsaved changes
   }
 
   // UI-only function for adding tasks to calendar (no backend calls)
@@ -929,8 +948,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       return newState
     })
     
-    // Mark as having unsaved changes
-    setHasUnsavedChanges(true);
+    // Day orders are now saved immediately when dragging, no need to track unsaved changes
     console.log('[KIDOERS-ROUTINE] Task added to calendar successfully')
   }
 
@@ -999,8 +1017,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         }
       }))
       
-      // Mark as having unsaved changes (for day orders)
-      setHasUnsavedChanges(true);
+      // Day orders are now saved immediately when dragging, no need to track unsaved changes
       console.log('[TASK-DEBUG] ✅ Task added successfully');
     } catch (e: any) {
       console.error('[TASK-DEBUG] ❌ Error:', e?.message);
@@ -1058,17 +1075,22 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     console.log('[KIDOERS-ROUTINE] ManualRoutineBuilder: handleSaveRoutine called, isEditMode:', isEditMode, 'onComplete:', !!onComplete);
     setBusy(true)
     try {
-      // First save any unsaved progress
-      if (hasUnsavedChanges) {
-        await saveProgress();
-      }
-      
       // Ensure routine exists (create if needed)
       const routineData = await ensureRoutineExists();
       if (!routineData) {
         setError('Failed to create routine. Please try again.');
         return;
       }
+      
+      // Update routine name if changed
+      if (routineData.name !== routineName.trim()) {
+        console.log('[KIDOERS-ROUTINE] 📝 Updating routine name:', routineName.trim());
+        await patchRoutine(routineData.id, { name: routineName.trim() });
+        console.log('[KIDOERS-ROUTINE] ✅ Routine name updated');
+      }
+      
+      // Day orders are now saved immediately when dragging, so no need to save them here
+      console.log('[KIDOERS-ROUTINE] ✅ Routine name updated, proceeding to finalize routine');
       
       // Publish the routine
       await patchRoutine(routineData.id, { status: "active" })
@@ -1534,233 +1556,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     }
   };
 
-  // Save progress function - handles day orders and routine name changes
-  const saveProgress = async () => {
-    if (!routineName.trim()) return;
-    
-    console.log('[KIDOERS-ROUTINE] 💾 Save Progress clicked - hasUnsavedChanges:', hasUnsavedChanges, 'dayOrders.length:', dayOrders.length);
-    
-    setIsSavingProgress(true);
-    try {
-      // Ensure routine exists (should already exist since tasks are saved immediately)
-      const routineData = await ensureRoutineExists();
-      if (!routineData) {
-        setError('Failed to create routine. Please try again.');
-        return;
-      }
-      
-      // Update routine name if changed
-      if (routineData.name !== routineName.trim()) {
-        console.log('[KIDOERS-ROUTINE] 📝 Updating routine name:', routineName.trim());
-        await patchRoutine(routineData.id, { name: routineName.trim() });
-        console.log('[KIDOERS-ROUTINE] ✅ Routine name updated');
-      }
-      
-      // Note: Tasks and groups are saved immediately when added to calendar
-      // Save Progress now only handles day orders and routine-level changes
-      
-      // Collect all unique unsaved tasks and groups from calendar
-      const allGroups = new Map<string, { group: TaskGroup, memberIds: string[], days: string[] }>();
-      const allTasks = new Map<string, { task: Task, memberIds: string[], days: string[] }>();
-      
-      for (const [day, dayTasks] of Object.entries(calendarTasks)) {
-        // Collect unsaved groups for this day
-        for (const group of dayTasks.groups) {
-          if (!group.is_saved) {
-            if (!allGroups.has(group.template_id || group.id)) {
-              allGroups.set(group.template_id || group.id, { 
-                group, 
-                memberIds: [selectedMemberId!], 
-                days: [day] 
-              });
-            } else {
-              const existing = allGroups.get(group.template_id || group.id)!;
-              if (!existing.memberIds.includes(selectedMemberId!)) {
-                existing.memberIds.push(selectedMemberId!);
-              }
-              if (!existing.days.includes(day)) {
-                existing.days.push(day);
-              }
-            }
-          }
-        }
-        
-        // Collect unsaved individual tasks for this day
-        for (const task of dayTasks.individualTasks) {
-          if (!task.is_saved) {
-            if (!allTasks.has(task.template_id || task.id)) {
-              allTasks.set(task.template_id || task.id, { 
-                task, 
-                memberIds: [selectedMemberId!], 
-                days: [day] 
-              });
-            } else {
-              const existing = allTasks.get(task.template_id || task.id)!;
-              if (!existing.memberIds.includes(selectedMemberId!)) {
-                existing.memberIds.push(selectedMemberId!);
-              }
-              if (!existing.days.includes(day)) {
-                existing.days.push(day);
-              }
-            }
-          }
-        }
-      }
-      
-      // Save groups using the new group assignment endpoint
-      for (const [templateId, { group, memberIds, days }] of allGroups) {
-        try {
-          console.log('[KIDOERS-ROUTINE] ',`Saving group ${group.name} for members: ${memberIds.join(', ')} on days: ${days.join(', ')}`);
-          
-          if (group.template_id) {
-            // This is a group from a template - use the new group assignment endpoint
-            const selectedTaskIds = group.tasks.map(task => task.template_id || task.id);
-            
-            await assignGroupTemplateToMembers(routineData.id, group.template_id, {
-              member_ids: memberIds,
-              days_of_week: days,
-              selected_task_ids: selectedTaskIds,
-              time_of_day: group.time_of_day
-            });
-            
-            console.log('[KIDOERS-ROUTINE] ',`Successfully assigned group template ${group.template_id} to members`);
-          } else {
-            // This is a custom group - create it first, then assign
-          const savedGroup = await addRoutineGroup(routineData.id, {
-            name: group.name,
-            time_of_day: group.time_of_day,
-            order_index: 0 // Groups will be ordered by creation order for now
-          });
-            
-            // For custom groups, we need to create individual tasks
-            for (let taskIndex = 0; taskIndex < group.tasks.length; taskIndex++) {
-              const task = group.tasks[taskIndex];
-              const savedTask = await addRoutineTask(routineData.id, {
-                group_id: savedGroup.id,
-                name: task.name,
-                description: task.description,
-                points: task.points,
-                duration_mins: task.estimatedMinutes,
-                time_of_day: task.time_of_day,
-                days_of_week: days,
-                order_index: taskIndex // Preserve order within the group
-              });
-              
-              // Create assignments for each member
-              console.log('[KIDOERS-ROUTINE] 🎯 Creating group task assignments:')
-              console.log('[KIDOERS-ROUTINE] - Group Task ID:', savedTask.id)
-              console.log('[KIDOERS-ROUTINE] - Member IDs:', memberIds)
-              console.log('[KIDOERS-ROUTINE] - Days:', days.join(', '))
-              
-              for (let memberIndex = 0; memberIndex < memberIds.length; memberIndex++) {
-                const memberId = memberIds[memberIndex];
-                console.log('[KIDOERS-ROUTINE] ',`Creating group assignment for member ${memberId}...`)
-                await createTaskAssignment(routineData.id, savedTask.id, memberId, memberIndex);
-                console.log('[KIDOERS-ROUTINE] ',`✅ Assigned group task ${savedTask.id} to member ${memberId} for days: ${days.join(', ')}`);
-              }
-            }
-          }
-          
-          // Mark group as saved in the UI state
-          setCalendarTasks(prev => {
-            const newCalendarTasks = { ...prev };
-            for (const day of days) {
-              newCalendarTasks[day] = {
-                ...newCalendarTasks[day],
-                groups: newCalendarTasks[day].groups.map((g: TaskGroup) => 
-                  (g.template_id || g.id) === templateId ? { ...g, is_saved: true } : g
-                )
-              };
-            }
-            return newCalendarTasks;
-          });
-          
-        } catch (e: any) {
-          console.error('[KIDOERS-ROUTINE] ','Error saving group:', e);
-        }
-      }
-      
-      // Individual tasks are already saved when added to calendar
-      console.log('[KIDOERS-ROUTINE] ✅ Individual tasks already saved when added to calendar');
-      
-      // Save day orders if there are any changes
-      console.log('[KIDOERS-ROUTINE] 🔍 Current dayOrders state:', dayOrders);
-      console.log('[KIDOERS-ROUTINE] 🔍 DayOrders details:', dayOrders.map(order => ({
-        routine_task_id: order.routine_task_id,
-        member_id: order.member_id,
-        day_of_week: order.day_of_week,
-        order_index: order.order_index
-      })));
-      if (dayOrders.length > 0) {
-        console.log('[KIDOERS-ROUTINE] 📋 Saving day orders:', dayOrders.length, 'orders');
-        
-        // All day orders should have valid UUIDs since tasks are saved immediately
-        const validDayOrders = dayOrders;
-        
-        if (validDayOrders.length === 0) {
-          console.log('[KIDOERS-ROUTINE] ⚠️ No valid day orders to save (all tasks are unsaved)');
-        } else {
-          console.log('[KIDOERS-ROUTINE] 📋 Saving', validDayOrders.length, 'valid day orders');
-          
-          // Group day orders by member and day for bulk updates
-          const ordersByMemberAndDay = new Map<string, BulkDayOrderUpdate>();
-          
-          for (const order of validDayOrders) {
-            const key = `${order.member_id}-${order.day_of_week}`;
-            if (!ordersByMemberAndDay.has(key)) {
-              ordersByMemberAndDay.set(key, {
-                member_id: order.member_id,
-                day_of_week: order.day_of_week,
-                task_orders: []
-              });
-            }
-            
-            const bulkUpdate = ordersByMemberAndDay.get(key)!;
-            bulkUpdate.task_orders.push({
-              routine_task_id: order.routine_task_id,
-              order_index: order.order_index
-            });
-          }
-          
-          // Send bulk updates for each member/day combination
-          for (const [key, bulkUpdate] of ordersByMemberAndDay) {
-            try {
-              console.log('[KIDOERS-ROUTINE] 📤 Sending bulk day order update for', key, ':', bulkUpdate);
-              console.log('[KIDOERS-ROUTINE] 📤 Full payload:', {
-                routineId: routineData.id,
-                bulkUpdate: bulkUpdate
-              });
-              await bulkUpdateDayOrders(routineData.id, bulkUpdate);
-              console.log('[KIDOERS-ROUTINE] ✅ Day orders saved successfully for', key);
-            } catch (e: any) {
-              console.error('[KIDOERS-ROUTINE] ❌ Error saving day orders for', key, ':', e);
-              console.error('[KIDOERS-ROUTINE] ❌ Error details:', {
-                message: e?.message,
-                response: e?.response?.data,
-                status: e?.response?.status
-              });
-            }
-          }
-        }
-      }
-      
-      console.log('[KIDOERS-ROUTINE] Save progress completed successfully');
-      
-      // Reload routine data to show saved tasks in UI
-      if (routineData) {
-        console.log('[KIDOERS-ROUTINE] 🔄 Reloading routine data to show saved tasks...');
-        await loadExistingRoutineData(routineData.id, enhancedFamilyMembers);
-      }
-      
-      setHasUnsavedChanges(false);
-      setError(null);
-    } catch (e: any) {
-      console.error('[KIDOERS-ROUTINE] ','Error saving progress:', e);
-      setError(e?.message || 'Failed to save progress. Please try again.');
-    } finally {
-      setIsSavingProgress(false);
-    }
-  };
 
   // Filter tasks and groups based on show options
   const filteredGroups = showOnlyTasks ? [] : libraryGroups
@@ -1869,26 +1664,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                       </div>
                     </div>
                     
-                    {(hasUnsavedChanges || routine) && routineName.trim() && (
-                      <div className="flex-shrink-0">
-                        <Button
-                          onClick={saveProgress}
-                          disabled={isSavingProgress}
-                          size="sm"
-                          variant="outline"
-                          className="text-blue-600 border-blue-600 hover:bg-blue-50"
-                        >
-                          {isSavingProgress ? (
-                            <>
-                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-2"></div>
-                              Saving...
-                            </>
-                          ) : (
-                            'Save Progress'
-                          )}
-                        </Button>
-                      </div>
-                    )}
                   </div>
 
                   {!selectedMemberId && (
