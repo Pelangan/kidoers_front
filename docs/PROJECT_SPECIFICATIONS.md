@@ -496,6 +496,8 @@ interface Reward {
 - **Optimized API Calls**: Single useEffect with concurrent data loading to minimize API requests
 - **No Auto-Save**: Removed automatic backend calls during name editing to prevent errors
 - **Smart Publishing**: Routine is published to active status when user completes onboarding
+- **Onboarding Routine Loading**: Properly loads draft routines with `is_onboarding_routine = true` when navigating back to the screen
+- **Dual Routine Loading**: First attempts to load onboarding routine, then falls back to active routine if not found
 - **Visual Design**: Matches wireframe exactly with proper colors and layout
 
 ## 🔌 API Integration
@@ -567,10 +569,12 @@ interface Reward {
 1. **Lazy Routine Creation**: Creates draft routine only when user starts building (types name or adds tasks)
 2. **Family Loading**: Fetches family members with their selected colors
 3. **Library Loading**: Dynamically loads task groups and tasks from backend
-4. **Manual Progress Saving**: Users explicitly save progress with dedicated button
-5. **Publishing**: Routine status changes from draft to active when onboarding is completed
-6. **Task Instance Generation**: Automatically generates task instances based on routine schedules and task assignments
-7. **Task Execution**: Family members complete tasks, parents verify completion, points are awarded
+4. **Onboarding Routine Loading**: First attempts to load existing onboarding routine (draft status with `is_onboarding_routine = true`)
+5. **Fallback Loading**: If no onboarding routine found, loads active routine for edit mode
+6. **Manual Progress Saving**: Users explicitly save progress with dedicated button
+7. **Publishing**: Routine status changes from draft to active when onboarding is completed
+8. **Task Instance Generation**: Automatically generates task instances based on routine schedules and task assignments
+9. **Task Execution**: Family members complete tasks, parents verify completion, points are awarded
 
 ## 💾 Data Storage System
 

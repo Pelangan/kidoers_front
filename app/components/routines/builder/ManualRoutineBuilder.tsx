@@ -247,19 +247,36 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           tasksCount: tasksData?.length || 0 
         });
         
-        // Try to load existing active routine
+        // Try to load existing routine (onboarding routine first, then active routine)
         let existingRoutine = null;
         try {
-          console.log('[KIDOERS-ROUTINE] 📋 ManualRoutineBuilder: Loading existing routines for family...');
-          console.log('[KIDOERS-ROUTINE] 📞 ManualRoutineBuilder: Calling /routines?family_id=' + familyId);
-          const routines = await apiService.makeRequest<any[]>(`/routines?family_id=${familyId}`);
-          console.log('[KIDOERS-ROUTINE] ✅ ManualRoutineBuilder: Routines found:', routines?.length || 0, 'routines');
+          // First, try to load the onboarding routine (draft status with is_onboarding_routine = true)
+          if (!isEditMode) {
+            console.log('[KIDOERS-ROUTINE] 📋 ManualRoutineBuilder: Loading onboarding routine for family...');
+            try {
+              const onboardingRoutine = await getOnboardingRoutine(familyId);
+              if (onboardingRoutine) {
+                console.log('[KIDOERS-ROUTINE] ✅ ManualRoutineBuilder: Onboarding routine found:', onboardingRoutine);
+                existingRoutine = onboardingRoutine;
+              }
+            } catch (e: any) {
+              console.log('[KIDOERS-ROUTINE] No onboarding routine found (expected for new users):', e.message);
+            }
+          }
           
-          // Find the active routine
-          existingRoutine = routines.find(r => r.status === 'active');
+          // If no onboarding routine found, try to load active routine
+          if (!existingRoutine) {
+            console.log('[KIDOERS-ROUTINE] 📋 ManualRoutineBuilder: Loading existing routines for family...');
+            console.log('[KIDOERS-ROUTINE] 📞 ManualRoutineBuilder: Calling /routines?family_id=' + familyId);
+            const routines = await apiService.makeRequest<any[]>(`/routines?family_id=${familyId}`);
+            console.log('[KIDOERS-ROUTINE] ✅ ManualRoutineBuilder: Routines found:', routines?.length || 0, 'routines');
+            
+            // Find the active routine
+            existingRoutine = routines.find(r => r.status === 'active');
+          }
           
           if (existingRoutine) {
-            console.log('[KIDOERS-ROUTINE] Active routine found:', existingRoutine);
+            console.log('[KIDOERS-ROUTINE] Routine found:', existingRoutine);
             setRoutine({
               id: existingRoutine.id,
               family_id: existingRoutine.family_id,
@@ -271,7 +288,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
             // Mark as having no unsaved changes since we just loaded the routine
             setHasUnsavedChanges(false);
           } else {
-            console.log('[KIDOERS-ROUTINE] No active routine found, will create new one when needed');
+            console.log('[KIDOERS-ROUTINE] No existing routine found, will create new one when needed');
           }
         } catch (e: any) {
           console.warn('[KIDOERS-ROUTINE] ','Error loading routines:', e);
