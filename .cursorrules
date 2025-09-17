@@ -1,4 +1,4 @@
-# Kidoers - Family Task Management Application
+# Kidoers Frontend - Family Task Management Application
 
 ## Important: Always Read Project Documentation
 
@@ -9,22 +9,161 @@
 3. **Keep documentation updated**: When making changes, update the relevant documentation files
 
 ## Quick Context
-This is a Next.js-based family task management application using localStorage for data persistence (prototype mode). All data is client-side with mock authentication.
+This is a Next.js-based family task management application with a hybrid data storage approach. The application uses both backend API calls and localStorage for optimal performance and offline capability.
 
 ## Key Architecture
 - **Framework**: Next.js 15.2.4 (App Router)
 - **Language**: TypeScript 5
 - **Styling**: Tailwind CSS + shadcn/ui
-- **Data Storage**: Browser localStorage (no backend)
-- **Authentication**: Mock system (accepts any email/password)
+- **Data Storage**: Hybrid approach (Backend API + localStorage)
+- **Authentication**: Supabase Authentication (JWT + Google OAuth)
+- **Backend API**: FastAPI (Python) - separate repository
+- **Database**: Supabase (PostgreSQL)
 
 ## Documentation Structure
 - `docs/README.md` - Documentation index and quick reference
 - `docs/PROJECT_SPECIFICATIONS.md` - Complete project specifications and implemented functions
+
+## CRITICAL: Documentation Maintenance Rules
+
+### Cross-Project Dependencies
+- **Backend API Changes**: API modifications may require updates to the "API Integration" section
+- **Data Model Changes**: Backend schema changes may require frontend TypeScript interface updates
+- **Authentication Changes**: Backend auth changes may affect frontend auth components and flows
+- **Backend Documentation**: Reference `../kidoers_backend/docs/api-spec.md` for API details
+
+### When to Update PROJECT_SPECIFICATIONS.md
+
+**ALWAYS update `docs/PROJECT_SPECIFICATIONS.md` when you:**
+
+1. **Add new components** - Document the component purpose, props, and usage
+2. **Modify existing components** - Update descriptions, props, or functionality
+3. **Add new API integrations** - Document new endpoints and data flow
+4. **Change data models** - Update TypeScript interfaces and data structures
+5. **Add new features** - Document the feature in the appropriate section
+6. **Modify authentication** - Update auth-related documentation
+7. **Change UI/UX patterns** - Update design system and component documentation
+8. **Add new pages/routes** - Document new pages and their functionality
+9. **Modify storage functions** - Update localStorage functions and data flow
+10. **Change onboarding flow** - Update step-by-step process documentation
+
+### Specific Update Requirements
+
+#### For New Components:
+- Add to the appropriate section (e.g., "User Interface" under relevant feature)
+- Include component purpose and key props
+- Document any special functionality or behavior
+- Add to the component architecture section if significant
+
+#### For API Changes:
+- Update the "API Integration" section
+- Add new endpoints to the appropriate category
+- Update data flow descriptions
+- Document any new data models or interfaces
+
+#### For Data Model Changes:
+- Update TypeScript interfaces in the relevant sections
+- Update localStorage keys if changed
+- Document any new storage functions
+- Update data flow descriptions
+
+#### For UI/UX Changes:
+- Update the "Design System & Color Palette" section if colors change
+- Update component descriptions if behavior changes
+- Document new UI patterns or interactions
+- Update responsive design notes if layout changes
+
+### Documentation Update Process
+
+1. **Before making changes:**
+   - Read the current PROJECT_SPECIFICATIONS.md to understand the structure
+   - Identify which sections will be affected by your changes
+
+2. **After making changes:**
+   - Update the relevant sections in PROJECT_SPECIFICATIONS.md
+   - Ensure all new functionality is documented
+   - Verify that examples and descriptions are accurate
+   - Check that data models match the actual code
+
+3. **Before committing:**
+   - Ensure PROJECT_SPECIFICATIONS.md is updated and consistent
+   - Verify that all new features are properly documented
+   - Check that TypeScript interfaces match the documentation
+
+### Quality Standards
+
+**When updating documentation:**
+- Use clear, descriptive language
+- Include code examples where helpful
+- Maintain consistent formatting and structure
+- Keep the table of contents updated
+- Ensure all links and references are valid
+- Use proper markdown formatting
+
+### Common Update Patterns
+
+#### New Component Added:
+```typescript
+// New component: components/NewFeature.tsx
+export function NewFeature({ prop1, prop2 }: Props) {
+  // implementation
+}
+```
+
+**Required Updates:**
+- Add component description to appropriate section
+- Document props interface
+- Add to component architecture if significant
+- Update any related API integration docs
+
+#### API Integration Added:
+```typescript
+// New API call
+const response = await apiService.newEndpoint(data);
+```
+
+**Required Updates:**
+- Add endpoint to "API Integration" section
+- Document request/response data models
+- Update data flow descriptions
+- Add to storage functions if cached
+
+#### Data Model Modified:
+```typescript
+interface UpdatedModel {
+  newField: string;
+  // existing fields...
+}
+```
+
+**Required Updates:**
+- Update interface definition in relevant section
+- Update any related API documentation
+- Update localStorage functions if affected
+- Update component props that use this model
+
+### Validation Checklist
+
+Before considering any frontend work complete:
+- [ ] PROJECT_SPECIFICATIONS.md updated with new functionality
+- [ ] TypeScript interfaces match the documentation
+- [ ] API integration documented if applicable
+- [ ] Component descriptions are accurate
+- [ ] Data flow descriptions are current
+- [ ] All examples work with current code
+- [ ] Design system changes documented if applicable
+- [ ] **Cross-project**: Check if backend API changes affect frontend integration
+- [ ] **Cross-project**: Verify TypeScript interfaces match backend data models
+
+### Remember
+
+**The PROJECT_SPECIFICATIONS.md file is the single source of truth for the frontend application.** It should always reflect the current state of the codebase and be comprehensive enough for new developers to understand the entire system.
+
+**Always ask yourself:** "If another developer (or future me) looks at this change, will they understand what the component/feature does and how to use it?"
 
 ## When Helping
 - **ALWAYS read the documentation first** before providing assistance
 - **Reference specific sections** of the documentation in your responses
 - **Update documentation** when making architectural or functional changes
 - **Maintain consistency** with the established patterns and data models
-- **Consider the prototype nature** of the application 
+- **Consider the hybrid storage approach** (API + localStorage) 

@@ -6,7 +6,9 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start",
+    "docs:check": "./scripts/check-docs.sh",
+    "docs:verify": "echo '📚 Checking documentation status...' && ./scripts/check-docs.sh"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
