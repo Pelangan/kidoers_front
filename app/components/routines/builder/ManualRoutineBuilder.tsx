@@ -1948,11 +1948,11 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
               <Card className="bg-white border border-gray-200">
                 <CardContent className="p-0">
                   <div className="grid grid-cols-7 gap-0 min-h-[900px]">
-                    {['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].map((day) => {
+                    {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => {
                       const dayTasks = calendarTasks[day]
                       const totalDayTasks = getTotalTasksForDay(day)
-                      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-                      const dayIndex = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].indexOf(day)
+                      const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+                      const dayIndex = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].indexOf(day)
                       
                       
                       return (
