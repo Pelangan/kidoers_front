@@ -95,7 +95,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   const [routine, setRoutine] = useState<{ id: string; family_id: string; name: string; status: "draft"|"active"|"archived" }|null>(null)
   const [routineName, setRoutineName] = useState('My Routine')
   const [draggedItem, setDraggedItem] = useState<{ type: 'task' | 'group', item: Task | TaskGroup, fromGroup?: TaskGroup } | null>(null)
-  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false)
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState(true)
   const [pendingDrop, setPendingDrop] = useState<PendingDrop | null>(null)
   const [showApplyToPopup, setShowApplyToPopup] = useState(false)
   const [showOnlyTasks, setShowOnlyTasks] = useState(false)
@@ -1865,6 +1865,33 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                         })}
                       </div>
                     </div>
+
+                    {/* View Mode Toggle */}
+                    {selectedMemberId && (
+                      <div className="flex-1 max-w-md">
+                        <Label className="text-sm font-medium text-gray-700">View Mode</Label>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <Button
+                            variant={viewMode === 'calendar' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setViewMode('calendar')}
+                            className="flex items-center space-x-2"
+                          >
+                            <Settings className="w-4 h-4" />
+                            <span>Calendar View</span>
+                          </Button>
+                          <Button
+                            variant={viewMode === 'group' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setViewMode('group')}
+                            className="flex items-center space-x-2"
+                          >
+                            <Folder className="w-4 h-4" />
+                            <span>Group View</span>
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                     
                   </div>
 
@@ -1877,59 +1904,36 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
               </CardContent>
             </Card>
 
-            {/* View Mode Toggle */}
-            {selectedMemberId && (
+            {/* Task Group Selector for Group View */}
+            {selectedMemberId && viewMode === 'group' && (
               <Card className="bg-white border border-gray-200 mb-4">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
                       <div className="flex items-center space-x-2">
-                        <Button
-                          variant={viewMode === 'calendar' ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => setViewMode('calendar')}
-                          className="flex items-center space-x-2"
+                        <Label className="text-sm font-medium text-gray-700">Select task group:</Label>
+                        <Select
+                          value={selectedTaskGroup?.id || ''}
+                          onValueChange={(value) => {
+                            const group = getAssignedTaskGroups().find(g => g.id === value)
+                            setSelectedTaskGroup(group || null)
+                          }}
                         >
-                          <Settings className="w-4 h-4" />
-                          <span>Calendar View</span>
-                        </Button>
-                        <Button
-                          variant={viewMode === 'group' ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => setViewMode('group')}
-                          className="flex items-center space-x-2"
-                        >
-                          <Folder className="w-4 h-4" />
-                          <span>Group View</span>
-                        </Button>
+                          <SelectTrigger className="w-48">
+                            <SelectValue placeholder="Choose a task group" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {getAssignedTaskGroups().map((group) => (
+                              <SelectItem key={group.id} value={group.id}>
+                                {group.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                      
-                      {viewMode === 'group' && (
-                        <div className="flex items-center space-x-2">
-                          <Label className="text-sm font-medium text-gray-700">Select task group:</Label>
-                          <Select
-                            value={selectedTaskGroup?.id || ''}
-                            onValueChange={(value) => {
-                              const group = getAssignedTaskGroups().find(g => g.id === value)
-                              setSelectedTaskGroup(group || null)
-                            }}
-                          >
-                            <SelectTrigger className="w-48">
-                              <SelectValue placeholder="Choose a task group" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {getAssignedTaskGroups().map((group) => (
-                                <SelectItem key={group.id} value={group.id}>
-                                  {group.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
                     </div>
                     
-                    {viewMode === 'group' && selectedTaskGroup && (
+                    {selectedTaskGroup && (
                       <div className="text-sm text-gray-600">
                         {getTasksForGroup(selectedTaskGroup).length} tasks assigned
                       </div>
@@ -1943,7 +1947,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
             {selectedMemberId && viewMode === 'calendar' && (
               <Card className="bg-white border border-gray-200">
                 <CardContent className="p-0">
-                  <div className="grid grid-cols-7 gap-0 min-h-96">
+                  <div className="grid grid-cols-7 gap-0 min-h-[900px]">
                     {['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].map((day) => {
                       const dayTasks = calendarTasks[day]
                       const totalDayTasks = getTotalTasksForDay(day)
@@ -1954,26 +1958,22 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                       return (
                         <div
                           key={day}
-                          className={`border-r border-gray-200 last:border-r-0 p-3 min-h-96 ${
-                            totalDayTasks === 0 ? 'bg-gray-50' : 'bg-white'
-                          }`}
+                          className="border-r border-gray-200 last:border-r-0 min-h-[900px] flex flex-col"
                           onDragOver={handleDragOver}
                           onDrop={(e) => handleDropOnDay(e, day)}
                         >
                           {/* Day Header */}
-                          <div className="text-center mb-3">
+                          <div className="text-center p-3 bg-gray-50">
                             <div className="text-sm font-semibold text-gray-700">{dayNames[dayIndex]}</div>
                             <div className="text-xs text-gray-500 capitalize">{day}</div>
                           </div>
 
+                          {/* Separator Line */}
+                          <div className="border-b border-gray-200"></div>
+
                           {/* Tasks Area */}
-                          <div className="space-y-2">
-                            {totalDayTasks === 0 ? (
-                              <div className="text-center py-8 text-gray-400 border-2 border-dashed border-gray-300 rounded-lg">
-                                <User className="w-6 h-6 mx-auto mb-2 opacity-50" />
-                                <p className="text-xs">Drop tasks here</p>
-                              </div>
-                            ) : (
+                          <div className="flex-1 p-3 bg-white space-y-2">
+                            {totalDayTasks > 0 && (
                               <>
                                 {/* Groups - Filtered by Selected Member */}
                                 {dayTasks.groups
