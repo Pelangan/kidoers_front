@@ -1896,9 +1896,9 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                       </div>
                       
                       {/* Family Member Selector */}
-                      <div className="flex-1 max-w-md">
-                        <Label className="text-sm font-medium text-gray-700">Select Family Member</Label>
-                        <div className="flex gap-4 mt-1">
+                      <div className="flex-1 min-w-fit">
+                        <Label className="text-sm font-medium text-gray-700 mb-4">Select Family Member</Label>
+                        <div className="flex items-center justify-center gap-8 p-10 bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 rounded-3xl shadow-sm border border-white/50 min-w-fit">
                           {enhancedFamilyMembers.length === 0 && (
                             <div className="text-sm text-gray-500">Loading family members...</div>
                           )}
@@ -1910,44 +1910,110 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                               member.avatar_options || {}
                             )
                             
+                            const memberColor = (member.color as string) || 'blue'
+                            const colorClasses = {
+                              blue: {
+                                ring: 'ring-blue-500',
+                                bg: 'bg-blue-500',
+                                shadow: 'shadow-blue-200',
+                                hover: 'hover:ring-blue-300',
+                              },
+                              green: {
+                                ring: 'ring-green-500',
+                                bg: 'bg-green-500',
+                                shadow: 'shadow-green-200',
+                                hover: 'hover:ring-green-300',
+                              },
+                              yellow: {
+                                ring: 'ring-yellow-500',
+                                bg: 'bg-yellow-500',
+                                shadow: 'shadow-yellow-200',
+                                hover: 'hover:ring-yellow-300',
+                              },
+                              orange: {
+                                ring: 'ring-orange-500',
+                                bg: 'bg-orange-500',
+                                shadow: 'shadow-orange-200',
+                                hover: 'hover:ring-orange-300',
+                              },
+                              purple: {
+                                ring: 'ring-purple-500',
+                                bg: 'bg-purple-500',
+                                shadow: 'shadow-purple-200',
+                                hover: 'hover:ring-purple-300',
+                              },
+                              pink: {
+                                ring: 'ring-pink-500',
+                                bg: 'bg-pink-500',
+                                shadow: 'shadow-pink-200',
+                                hover: 'hover:ring-pink-300',
+                              },
+                              teal: {
+                                ring: 'ring-teal-500',
+                                bg: 'bg-teal-500',
+                                shadow: 'shadow-teal-200',
+                                hover: 'hover:ring-teal-300',
+                              },
+                              indigo: {
+                                ring: 'ring-indigo-500',
+                                bg: 'bg-indigo-500',
+                                shadow: 'shadow-indigo-200',
+                                hover: 'hover:ring-indigo-300',
+                              },
+                            }[memberColor] || {
+                              ring: 'ring-blue-500',
+                              bg: 'bg-blue-500',
+                              shadow: 'shadow-blue-200',
+                              hover: 'hover:ring-blue-300',
+                            }
                             
                             return (
-                              <label
+                              <div
                                 key={member.id}
-                                className={`flex items-center space-x-2 p-2 cursor-pointer transition-all duration-200 ${
-                                  selectedMemberId === member.id
-                                    ? 'ring-2 ring-blue-500 bg-blue-50 rounded-lg'
-                                    : 'hover:bg-gray-50 rounded-lg'
-                                }`}
+                                className="flex flex-col items-center gap-3 cursor-pointer group transition-all duration-300"
+                                onClick={() => setSelectedMemberId(member.id)}
                               >
-                                <input
-                                  type="radio"
-                                  name="selectedMember"
-                                  value={member.id}
-                                  checked={selectedMemberId === member.id}
-                                  onChange={(e) => {
-                                    console.log('[KIDOERS-ROUTINE] Family member selection changed:', e.target.value)
-                                    setSelectedMemberId(e.target.value)
-                                  }}
-                                  className="sr-only"
-                                />
-                                <img
-                                  src={avatarUrl}
-                                  alt={`${member.name}'s avatar`}
-                                  className={`w-10 h-10 rounded-full border-2 transition-all duration-200 ${
-                                    selectedMemberId === member.id 
-                                      ? 'border-blue-500 shadow-lg' 
-                                      : 'border-gray-300'
-                                  }`}
-                                />
-                                <span className={`text-sm font-medium transition-colors duration-200 ${
-                                  selectedMemberId === member.id 
-                                    ? 'text-gray-900' 
-                                    : 'text-gray-700'
-                                }`}>
-                                  {member.name}
-                                </span>
-                              </label>
+                                <div className="relative">
+                                  <div
+                                    className={`h-20 w-20 rounded-full overflow-hidden border-4 border-white shadow-lg transition-all duration-300 group-hover:scale-105 ${
+                                      selectedMemberId === member.id
+                                        ? `ring-4 ${colorClasses.ring} ${colorClasses.shadow} scale-110`
+                                        : `group-hover:ring-2 ${colorClasses.hover} group-hover:shadow-md`
+                                    }`}
+                                  >
+                                    <img
+                                      src={avatarUrl || "/placeholder.svg"}
+                                      alt={`${member.name}'s avatar`}
+                                      className="h-full w-full object-cover"
+                                    />
+                                  </div>
+
+                                  {selectedMemberId === member.id && (
+                                    <div className="absolute -top-2 -right-2 bg-white rounded-full p-1.5 shadow-lg ring-2 ring-white">
+                                      <div className={`${colorClasses.bg} rounded-full p-1.5`}>
+                                        <Check className="h-4 w-4 text-white stroke-[3]" />
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="text-center">
+                                  <p
+                                    className={`text-sm font-semibold transition-all duration-300 ${
+                                      selectedMemberId === member.id
+                                        ? "text-gray-900 scale-105"
+                                        : "text-gray-600 group-hover:text-gray-800"
+                                    }`}
+                                  >
+                                    {member.name}
+                                  </p>
+                                  {selectedMemberId === member.id && (
+                                    <div
+                                      className={`h-1 w-10 ${colorClasses.bg} rounded-full mx-auto mt-2 shadow-sm`}
+                                    />
+                                  )}
+                                </div>
+                              </div>
                             )
                           })}
                         </div>
