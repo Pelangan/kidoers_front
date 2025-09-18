@@ -1975,7 +1975,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                               >
                                 <div className="relative">
                                   <div
-                                    className={`h-20 w-20 rounded-full overflow-hidden border-4 border-white shadow-lg transition-all duration-300 group-hover:scale-105 ${
+                                    className={`h-16 w-16 rounded-full overflow-hidden border-4 border-white shadow-lg transition-all duration-300 group-hover:scale-105 ${
                                       selectedMemberId === member.id
                                         ? `ring-4 ${colorClasses.ring} ${colorClasses.shadow} scale-110`
                                         : `group-hover:ring-2 ${colorClasses.hover} group-hover:shadow-md`
