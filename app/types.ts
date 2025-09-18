@@ -5,11 +5,14 @@ export interface FamilyMember {
   color: string
   age?: number | null
   avatar_url?: string
+  avatar_style?: string
+  avatar_seed?: string
+  avatar_options?: Record<string, any>
   calmMode: boolean
   textToSpeech: boolean
-  avatarStyle?: string
-  avatarOptions?: Record<string, string>
-  avatarUrl?: string
+  avatarStyle?: string  // Keep for backward compatibility
+  avatarOptions?: Record<string, string>  // Keep for backward compatibility
+  avatarUrl?: string  // Keep for backward compatibility
 }
 
 export interface Chore {

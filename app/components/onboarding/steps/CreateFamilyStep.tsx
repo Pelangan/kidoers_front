@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Users, Plus, X, ChevronDown, Loader2, AlertTriangle } from "lucide-react"
+import { Users, Plus, X, ChevronDown, Loader2, AlertTriangle, Edit3 } from "lucide-react"
 import type { FamilyMember } from "../../../types"
-import ColorPicker, { softColors } from "../../ui/ColorPicker"
+import AvatarSelector, { generateAvatarUrl } from "../../ui/AvatarSelector"
 import { getFamily, listMembers, patchFamilyName, createMember, deleteMember, apiService } from "../../../lib/api"
 import {
   Dialog,
@@ -31,6 +31,12 @@ export default function CreateFamilyStep({ familyId, onComplete }: CreateFamilyS
   const [newMemberColor, setNewMemberColor] = useState("blue")
   const [showRoleDropdown, setShowRoleDropdown] = useState(false)
   const [showUnsavedMemberWarning, setShowUnsavedMemberWarning] = useState(false)
+  
+  // Avatar-related state
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false)
+  const [avatarStyle, setAvatarStyle] = useState('adventurer')
+  const [avatarSeed, setAvatarSeed] = useState('')
+  const [avatarOptions, setAvatarOptions] = useState<Record<string, any>>({})
 
   // Load existing family data when familyId is provided (edit mode)
   useEffect(() => {
@@ -135,12 +141,19 @@ export default function CreateFamilyStep({ familyId, onComplete }: CreateFamilyS
     // Set age to null for parents, or use selected age for children
     const memberAge = newMemberRole === "parent" ? null : parseInt(newMemberAge)
     
+    // Generate avatar seed from name if not set
+    const finalAvatarSeed = avatarSeed || newMemberName.toLowerCase().replace(/\s+/g, '-')
+    
     const local = {
       id: Date.now().toString(),
       name: newMemberName.trim(),
       role: newMemberRole,
       color: newMemberColor,
       age: memberAge,
+      avatar_style: avatarStyle,
+      avatar_seed: finalAvatarSeed,
+      avatar_options: avatarOptions,
+      avatar_url: generateAvatarUrl(finalAvatarSeed, avatarStyle, avatarOptions),
       calmMode: false,
       textToSpeech: false,
     } as FamilyMember;
@@ -153,6 +166,10 @@ export default function CreateFamilyStep({ familyId, onComplete }: CreateFamilyS
           role: local.role,
           age: local.role === "child" ? (local.age ?? 5) : null,
           color: local.color as any,
+          avatar_style: local.avatar_style,
+          avatar_seed: local.avatar_seed,
+          avatar_options: local.avatar_options,
+          avatar_url: local.avatar_url,
         }) as { id: string };
         // `created` returns the full row including `id`
         setMembers(prev => [...prev, { ...local, id: created.id }]);
@@ -167,6 +184,10 @@ export default function CreateFamilyStep({ familyId, onComplete }: CreateFamilyS
       setNewMemberAge("5");
       setNewMemberRole("child");
       setNewMemberColor("blue");
+      // Reset avatar state
+      setAvatarStyle('adventurer');
+      setAvatarSeed('');
+      setAvatarOptions({});
     }
   }
 
@@ -293,13 +314,28 @@ export default function CreateFamilyStep({ familyId, onComplete }: CreateFamilyS
                 )}
               </div>
 
-              {/* Color Picker */}
+              {/* Avatar Selector */}
               <div className="relative">
-                <ColorPicker
-                  selectedColor={newMemberColor}
-                  onColorChange={setNewMemberColor}
-                  className="w-32"
-                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAvatarSeed(newMemberName.toLowerCase().replace(/\s+/g, '-'))
+                    setIsAvatarModalOpen(true)
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-colors hover:bg-gray-50"
+                >
+                  <img
+                    src={generateAvatarUrl(
+                      avatarSeed || newMemberName.toLowerCase().replace(/\s+/g, '-'),
+                      avatarStyle,
+                      avatarOptions
+                    )}
+                    alt="Avatar preview"
+                    className="w-6 h-6 rounded-full border border-gray-300"
+                  />
+                  <span className="text-sm">Avatar</span>
+                  <Edit3 className="h-4 w-4 text-gray-400" />
+                </button>
               </div>
             </div>
 
@@ -323,13 +359,31 @@ export default function CreateFamilyStep({ familyId, onComplete }: CreateFamilyS
               
               <div className="space-y-3">
                 {members.map((member) => {
-                  const colorData = softColors.find(c => c.value === member.color) || softColors[0]
+                  const avatarUrl = member.avatar_url || generateAvatarUrl(
+                    member.avatar_seed || member.name.toLowerCase().replace(/\s+/g, '-'),
+                    member.avatar_style || 'adventurer',
+                    member.avatar_options || {}
+                  )
                   return (
                     <div key={member.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                      <div className={`w-10 h-10 ${colorData.bg} rounded-full flex items-center justify-center`}>
-                        <span className={`text-sm font-bold ${colorData.text}`}>
-                          {member.name.charAt(0).toUpperCase()}
-                        </span>
+                      <div className="relative">
+                        <img
+                          src={avatarUrl}
+                          alt={`${member.name}'s avatar`}
+                          className="w-10 h-10 rounded-full border-2 border-gray-300"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAvatarStyle(member.avatar_style || 'adventurer')
+                            setAvatarSeed(member.avatar_seed || member.name.toLowerCase().replace(/\s+/g, '-'))
+                            setAvatarOptions(member.avatar_options || {})
+                            setIsAvatarModalOpen(true)
+                          }}
+                          className="absolute -bottom-1 -right-1 h-5 w-5 bg-white border border-gray-300 rounded-full flex items-center justify-center hover:bg-gray-50"
+                        >
+                          <Edit3 className="h-3 w-3 text-gray-600" />
+                        </button>
                       </div>
                       <div className="flex-1">
                         <div className="font-medium">{member.name}</div>
@@ -432,11 +486,15 @@ export default function CreateFamilyStep({ familyId, onComplete }: CreateFamilyS
           
           <div className="bg-gray-50 rounded-lg p-3 mb-4">
             <div className="flex items-center gap-3">
-              <div className={`w-8 h-8 ${softColors.find(c => c.value === newMemberColor)?.bg || 'bg-blue-100'} rounded-full flex items-center justify-center`}>
-                <span className={`text-sm font-bold ${softColors.find(c => c.value === newMemberColor)?.text || 'text-blue-700'}`}>
-                  {newMemberName.charAt(0).toUpperCase()}
-                </span>
-              </div>
+              <img
+                src={generateAvatarUrl(
+                  avatarSeed || newMemberName.toLowerCase().replace(/\s+/g, '-'),
+                  avatarStyle,
+                  avatarOptions
+                )}
+                alt={`${newMemberName}'s avatar`}
+                className="w-8 h-8 rounded-full border border-gray-300"
+              />
               <div>
                 <div className="font-medium text-gray-800">{newMemberName}</div>
                 <div className="text-sm text-gray-500 capitalize">
@@ -456,6 +514,10 @@ export default function CreateFamilyStep({ familyId, onComplete }: CreateFamilyS
                 setNewMemberAge("5");
                 setNewMemberRole("child");
                 setNewMemberColor("blue");
+                // Reset avatar state
+                setAvatarStyle('adventurer');
+                setAvatarSeed('');
+                setAvatarOptions({});
               }}
               className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
             >
@@ -475,6 +537,22 @@ export default function CreateFamilyStep({ familyId, onComplete }: CreateFamilyS
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Avatar Selector Modal */}
+      <AvatarSelector
+        selectedStyle={avatarStyle}
+        selectedSeed={avatarSeed}
+        selectedOptions={avatarOptions}
+        onStyleChange={setAvatarStyle}
+        onSeedChange={setAvatarSeed}
+        onOptionsChange={setAvatarOptions}
+        onSave={() => {
+          setIsAvatarModalOpen(false)
+        }}
+        isOpen={isAvatarModalOpen}
+        onClose={() => setIsAvatarModalOpen(false)}
+        memberName={newMemberName || "New Member"}
+      />
     </div>
   )
 }

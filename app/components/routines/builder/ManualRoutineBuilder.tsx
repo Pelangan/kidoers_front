@@ -10,9 +10,10 @@ import { Badge } from "../../../../components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../../components/ui/dialog"
 import { ArrowLeft, Plus, Trash2, Save, GripVertical, User, Folder, Users, Baby, UserCheck, Check, ChevronLeft, ChevronRight, ListTodo, Settings, Move } from 'lucide-react'
-import type { FamilyMember } from '../../../lib/api'
+import type { FamilyMember } from '../../../types'
 
 import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, patchRoutineTask, updateOnboardingStep, listLibraryGroups, listLibraryTasks, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules, assignGroupTemplateToMembers, assignExistingGroupToMembers, getRoutineFullData, bulkUpdateDayOrders, type DaySpecificOrder, type BulkDayOrderUpdate } from '../../../lib/api'
+import { generateAvatarUrl } from '../../ui/AvatarSelector'
 import RoutineDetailsModal, { type RoutineScheduleData } from './RoutineDetailsModal'
 
 interface ManualRoutineBuilderProps {
@@ -98,6 +99,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(true)
   const [pendingDrop, setPendingDrop] = useState<PendingDrop | null>(null)
   const [showApplyToPopup, setShowApplyToPopup] = useState(false)
+  const [editableTaskName, setEditableTaskName] = useState('')
   const [showOnlyTasks, setShowOnlyTasks] = useState(false)
   const [showOnlyGroups, setShowOnlyGroups] = useState(false)
   const [showTaskMiniPopup, setShowTaskMiniPopup] = useState(false)
@@ -163,17 +165,17 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
   // Color mapping function for family members
   const getMemberColors = (color: string) => {
-    const colorMap: Record<string, { border: string; bg: string }> = {
-      blue: { border: 'border-blue-300', bg: 'bg-blue-50' },
-      green: { border: 'border-green-300', bg: 'bg-green-50' },
-      yellow: { border: 'border-yellow-300', bg: 'bg-yellow-50' },
-      orange: { border: 'border-orange-300', bg: 'bg-orange-50' },
-      purple: { border: 'border-purple-300', bg: 'bg-purple-50' },
-      pink: { border: 'border-pink-300', bg: 'bg-pink-50' },
-      teal: { border: 'border-teal-300', bg: 'bg-teal-50' },
-      indigo: { border: 'border-indigo-300', bg: 'bg-indigo-50' }
+    const colorMap: Record<string, { border: string; bg: string; bgColor: string; borderColor: string }> = {
+      blue: { border: 'border-blue-300', bg: 'bg-blue-50', bgColor: '#dbeafe', borderColor: '#93c5fd' },
+      green: { border: 'border-green-300', bg: 'bg-green-50', bgColor: '#dcfce7', borderColor: '#86efac' },
+      yellow: { border: 'border-yellow-300', bg: 'bg-yellow-50', bgColor: '#fef3c7', borderColor: '#fde047' },
+      orange: { border: 'border-orange-300', bg: 'bg-orange-50', bgColor: '#fed7aa', borderColor: '#fdba74' },
+      purple: { border: 'border-purple-300', bg: 'bg-purple-50', bgColor: '#e9d5ff', borderColor: '#c4b5fd' },
+      pink: { border: 'border-pink-300', bg: 'bg-pink-50', bgColor: '#fce7f3', borderColor: '#f9a8d4' },
+      teal: { border: 'border-teal-300', bg: 'bg-teal-50', bgColor: '#ccfbf1', borderColor: '#5eead4' },
+      indigo: { border: 'border-indigo-300', bg: 'bg-indigo-50', bgColor: '#e0e7ff', borderColor: '#a5b4fc' }
     }
-    return colorMap[color] || { border: 'border-gray-300', bg: 'bg-gray-50' }
+    return colorMap[color] || { border: 'border-gray-300', bg: 'bg-gray-50', bgColor: '#f9fafb', borderColor: '#d1d5db' }
   }
 
   // Load all initial data (family members, existing routine, and library data)
@@ -298,17 +300,44 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           console.warn('[KIDOERS-ROUTINE] ','Error loading routines:', e);
         }
         
-        // Set family members
-        setFamilyMembers(members);
+        // Convert API response to FamilyMember type and set family members
+        const convertedMembers: FamilyMember[] = members.map((member: any) => ({
+          id: member.id,
+          name: member.name,
+          role: member.role,
+          color: member.color,
+          age: member.age,
+          avatar_url: member.avatar_url,
+          avatar_style: member.avatar_style,
+          avatar_seed: member.avatar_seed,
+          avatar_options: typeof member.avatar_options === 'string' 
+            ? JSON.parse(member.avatar_options || '{}') 
+            : member.avatar_options || {},
+          calmMode: false, // Default value
+          textToSpeech: false, // Default value
+          // Backward compatibility fields
+          avatarStyle: member.avatar_style,
+          avatarOptions: typeof member.avatar_options === 'string' 
+            ? JSON.parse(member.avatar_options || '{}') 
+            : member.avatar_options || {},
+          avatarUrl: member.avatar_url
+        }))
+        
+        setFamilyMembers(convertedMembers);
         
         // Enhance family members with the structure needed for the routine builder
-        const enhanced = members.map((member: any) => {
+        const enhanced = convertedMembers.map((member) => {
           const colors = getMemberColors(member.color)
+          
           return {
             id: member.id,
             name: member.name,
             type: member.role,
-            color: 'bg-white',
+            color: member.color, // Keep original color for avatar generation
+            avatar_url: member.avatar_url,
+            avatar_style: member.avatar_style,
+            avatar_seed: member.avatar_seed,
+            avatar_options: member.avatar_options,
             borderColor: colors.border,
             taskBgColor: colors.bg,
             groups: [],
@@ -573,6 +602,41 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     }, 50)
   }
 
+  // Handle column click to create new task
+  const handleColumnClick = async (day: string) => {
+    if (!selectedMemberId) return
+    
+    console.log('[KIDOERS-ROUTINE] Column clicked for day:', day)
+    
+    try {
+      // Create a new task with no title placeholder
+      const newTask: Task = {
+        id: `temp-${Date.now()}`,
+        name: '(No title)',
+        description: '',
+        points: 5, // Default points
+        estimatedMinutes: 30, // Default duration
+        time_of_day: 'morning', // Default time
+        is_saved: false
+      }
+      
+      // Add to calendar immediately
+      const updatedCalendarTasks = { ...calendarTasks }
+      if (!updatedCalendarTasks[day]) {
+        updatedCalendarTasks[day] = { groups: [], individualTasks: [] }
+      }
+      updatedCalendarTasks[day].individualTasks.push(newTask)
+      setCalendarTasks(updatedCalendarTasks)
+      
+      // Save to backend
+      await addTaskToCalendar(selectedMemberId, newTask, 'none', day)
+      
+      console.log('[KIDOERS-ROUTINE] New task created for day:', day)
+    } catch (error) {
+      console.error('[KIDOERS-ROUTINE] Error creating new task:', error)
+    }
+  }
+
   // Handle edit task - opens the Apply Tasks To modal
   const handleEditTask = () => {
     if (!selectedTaskForEdit) return
@@ -595,6 +659,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     // Close mini popup and open main modal
     setShowTaskMiniPopup(false)
     setSelectedWhoOption('none') // Reset to default selection
+    setEditableTaskName(selectedTaskForEdit.task.name)
     setShowApplyToPopup(true)
   }
 
@@ -733,7 +798,9 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       for (const memberId of targetMemberIds) {
         if (pendingDrop.type === 'task') {
           console.log('[KIDOERS-ROUTINE] ',`Adding task to ${day} for member ${memberId}`)
-          addTaskToCalendar(memberId, pendingDrop.item as Task, selectedApplyToId, day, pendingDrop.fromGroup)
+          // Update task name with editable name
+          const updatedTask = { ...pendingDrop.item as Task, name: editableTaskName }
+          addTaskToCalendar(memberId, updatedTask, selectedApplyToId, day, pendingDrop.fromGroup)
         } else if (pendingDrop.type === 'group') {
           console.log('[KIDOERS-ROUTINE] ',`Adding group to ${day} for member ${memberId}`)
           addGroupToCalendar(memberId, pendingDrop.item as TaskGroup, selectedApplyToId, day, pendingDrop.selectedTasks)
@@ -746,6 +813,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     setPendingDrop(null)
     setDaySelection({ mode: 'single', selectedDays: [] })
     setSelectedWhoOption('none')
+    setEditableTaskName('')
   }
 
   const handleTaskSelection = (task: Task, isSelected: boolean) => {
@@ -787,6 +855,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     
     setShowTaskSelection(false)
     setSelectedWhoOption('none') // Reset to default selection
+    setEditableTaskName(pendingDrop?.item.name || '')
     setShowApplyToPopup(true)
   }
 
@@ -1795,80 +1864,99 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
             <Card className="bg-white border border-gray-200">
               <CardContent className="pt-4">
                 <div className="space-y-4">
-                  <div className="flex items-end gap-4">
-                    <div className="flex-1 max-w-md">
-                      <Label htmlFor="routineName">Routine Name</Label>
-                      <div className="relative">
-                        <Input
-                          id="routineName"
-                          placeholder="My Family Routine"
-                          value={routineName}
-                          onChange={(e) => {
-                            const newName = e.target.value;
-                            setRoutineName(newName);
-                            
-                            // Mark as having unsaved changes if name is different from current routine
-                            if (routine && routine.name !== newName.trim()) {
-                              setHasUnsavedChanges(true);
-                            } else if (routine && routine.name === newName.trim()) {
-                              setHasUnsavedChanges(false);
-                            }
-                          }}
-                          className="bg-white"
-                          disabled={busy}
-                        />
-                      </div>
-                      {!routineName.trim() && (
-                        <p className="text-sm text-amber-600 mt-1">
-                          Routine name is required to save your routine
-                        </p>
-                      )}
-                    </div>
-                    
-                    {/* Family Member Selector */}
-                    <div className="flex-1 max-w-md">
-                      <Label className="text-sm font-medium text-gray-700">Select Family Member</Label>
-                      <div className="flex flex-wrap gap-2 mt-1">
-                        {enhancedFamilyMembers.length === 0 && (
-                          <div className="text-sm text-gray-500">Loading family members...</div>
+                  <div className="flex items-end justify-between gap-4">
+                    <div className="flex items-end gap-4">
+                      <div className="flex-1 max-w-md">
+                        <Label htmlFor="routineName">Routine Name</Label>
+                        <div className="relative">
+                          <Input
+                            id="routineName"
+                            placeholder="My Family Routine"
+                            value={routineName}
+                            onChange={(e) => {
+                              const newName = e.target.value;
+                              setRoutineName(newName);
+                              
+                              // Mark as having unsaved changes if name is different from current routine
+                              if (routine && routine.name !== newName.trim()) {
+                                setHasUnsavedChanges(true);
+                              } else if (routine && routine.name === newName.trim()) {
+                                setHasUnsavedChanges(false);
+                              }
+                            }}
+                            className="bg-white"
+                            disabled={busy}
+                          />
+                        </div>
+                        {!routineName.trim() && (
+                          <p className="text-sm text-amber-600 mt-1">
+                            Routine name is required to save your routine
+                          </p>
                         )}
-                        {enhancedFamilyMembers.map((member) => {
-                          const colors = getMemberColors(member.color)
-                          return (
-                            <label
-                              key={member.id}
-                              className={`flex items-center space-x-2 p-2 rounded-lg border-2 cursor-pointer transition-all ${
-                                selectedMemberId === member.id
-                                  ? `${colors.border} ${colors.bg} border-opacity-100`
-                                  : 'border-gray-200 hover:border-gray-300'
-                              }`}
-                            >
-                              <input
-                                type="radio"
-                                name="selectedMember"
-                                value={member.id}
-                                checked={selectedMemberId === member.id}
-                                onChange={(e) => {
-                                  console.log('[KIDOERS-ROUTINE] Family member selection changed:', e.target.value)
-                                  setSelectedMemberId(e.target.value)
-                                }}
-                                className="sr-only"
-                              />
-                              <div className={`w-3 h-3 rounded-full border-2 ${
-                                selectedMemberId === member.id 
-                                  ? `${colors.border} ${colors.border.replace('border-', 'bg-')}` 
-                                  : 'border-gray-300 bg-gray-300'
-                              }`}></div>
-                              <span className="text-sm font-medium text-gray-900">{member.name}</span>
-                            </label>
-                          )
-                        })}
+                      </div>
+                      
+                      {/* Family Member Selector */}
+                      <div className="flex-1 max-w-md">
+                        <Label className="text-sm font-medium text-gray-700">Select Family Member</Label>
+                        <div className="flex gap-4 mt-1">
+                          {enhancedFamilyMembers.length === 0 && (
+                            <div className="text-sm text-gray-500">Loading family members...</div>
+                          )}
+                          {enhancedFamilyMembers.map((member) => {
+                            const colors = getMemberColors(member.color)
+                            const avatarUrl = member.avatar_url || generateAvatarUrl(
+                              member.avatar_seed || member.name.toLowerCase().replace(/\s+/g, '-'),
+                              member.avatar_style || 'adventurer',
+                              member.avatar_options || {}
+                            )
+                            
+                            
+                            return (
+                              <label
+                                key={member.id}
+                                className={`flex items-center space-x-2 p-2 cursor-pointer transition-all duration-200 ${
+                                  selectedMemberId === member.id
+                                    ? 'ring-2 ring-blue-500 bg-blue-50 rounded-lg'
+                                    : 'hover:bg-gray-50 rounded-lg'
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="selectedMember"
+                                  value={member.id}
+                                  checked={selectedMemberId === member.id}
+                                  onChange={(e) => {
+                                    console.log('[KIDOERS-ROUTINE] Family member selection changed:', e.target.value)
+                                    setSelectedMemberId(e.target.value)
+                                  }}
+                                  className="sr-only"
+                                />
+                                <img
+                                  src={avatarUrl}
+                                  alt={`${member.name}'s avatar`}
+                                  className={`w-10 h-10 rounded-full border-2 transition-all duration-200 ${
+                                    selectedMemberId === member.id 
+                                      ? 'border-blue-500 shadow-lg' 
+                                      : 'border-gray-300'
+                                  }`}
+                                />
+                                <span className={`text-sm font-medium transition-colors duration-200 ${
+                                  selectedMemberId === member.id 
+                                    ? 'text-gray-900' 
+                                    : 'text-gray-700'
+                                }`}>
+                                  {member.name}
+                                </span>
+                              </label>
+                            )
+                          })}
+                        </div>
                       </div>
                     </div>
 
-                    {/* View Mode Toggle */}
+                    {/* View Mode Toggle - Moved to the right */}
                     {selectedMemberId && (
-                      <div className="flex-1 max-w-md">
+                      <div className="flex-shrink-0">
                         <Label className="text-sm font-medium text-gray-700">View Mode</Label>
                         <div className="flex items-center space-x-2 mt-1">
                           <Button
@@ -1877,7 +1965,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                             onClick={() => setViewMode('calendar')}
                             className="flex items-center space-x-2"
                           >
-                            <Settings className="w-4 h-4" />
                             <span>Calendar View</span>
                           </Button>
                           <Button
@@ -1886,7 +1973,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                             onClick={() => setViewMode('group')}
                             className="flex items-center space-x-2"
                           >
-                            <Folder className="w-4 h-4" />
                             <span>Group View</span>
                           </Button>
                         </div>
@@ -1958,9 +2044,10 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                       return (
                         <div
                           key={day}
-                          className="border-r border-gray-200 last:border-r-0 min-h-[900px] flex flex-col"
+                          className="border-r border-gray-200 last:border-r-0 min-h-[900px] flex flex-col cursor-pointer hover:bg-gray-50 transition-colors"
                           onDragOver={handleDragOver}
                           onDrop={(e) => handleDropOnDay(e, day)}
+                          onClick={() => handleColumnClick(day)}
                         >
                           {/* Day Header */}
                           <div className="text-center p-3 bg-gray-50">
@@ -1983,7 +2070,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                                     return groupMemberId === selectedMemberId
                                   })
                                   .map((group: TaskGroup) => (
-                                  <div key={group.id} className="space-y-1">
+                                  <div key={group.id} className="space-y-1" onClick={(e) => e.stopPropagation()}>
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center space-x-1">
                                         <Folder className="w-3 h-3 text-purple-600" />
@@ -2082,7 +2169,10 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                                         setDragOverPosition(null)
                                         setIsDragging(false)
                                       }}
-                                      onClick={(e) => handleTaskClick(e, task, day, selectedMemberId)}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleTaskClick(e, task, day, selectedMemberId)
+                                      }}
                                     >
                                     {/* Always show drag handle in routine builder */}
                                     <div className="w-3 h-3 flex items-center justify-center text-gray-400">
@@ -2601,10 +2691,16 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
               <DialogTitle>Apply Tasks To</DialogTitle>
             </DialogHeader>
             <div className="space-y-6">
-              <p className="text-sm text-gray-600">
-                You dropped {pendingDrop?.type === 'group' ? 'a group' : 'a task'} on <span className="font-medium capitalize">{pendingDrop?.targetDay}</span> for <span className="font-medium">{pendingDrop?.targetMemberName}</span>. 
-                Who should receive {pendingDrop?.type === 'group' ? 'these tasks' : 'this task'}?
-              </p>
+              {/* Task Name Input */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Task Name</Label>
+                <Input
+                  value={editableTaskName}
+                  onChange={(e) => setEditableTaskName(e.target.value)}
+                  placeholder="Enter task name..."
+                  className="w-full"
+                />
+              </div>
               
               {/* Day Selection */}
               <div className="space-y-3">

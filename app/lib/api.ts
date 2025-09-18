@@ -20,6 +20,9 @@ export interface FamilyMember {
   age?: number | null
   color: string
   avatar_url?: string
+  avatar_style?: string
+  avatar_seed?: string
+  avatar_options?: Record<string, any>
 }
 
 export interface Family {
@@ -228,8 +231,18 @@ class ApiService {
   }
 
   // Family member endpoints
-  async getFamilyMembers(familyId: string): Promise<FamilyMember[]> {
-    return this.makeRequest<FamilyMember[]>(`/family-members?family_id=${familyId}`)
+  async getFamilyMembers(familyId: string): Promise<Array<{
+    id: string; family_id: string; name: string; role: "parent" | "child";
+    age: number | null; color: string; avatar_url: string | null; 
+    avatar_style: string | null; avatar_seed: string | null; 
+    avatar_options: Record<string, any> | null; user_id: string | null;
+  }>> {
+    return this.makeRequest<Array<{
+      id: string; family_id: string; name: string; role: "parent" | "child";
+      age: number | null; color: string; avatar_url: string | null; 
+      avatar_style: string | null; avatar_seed: string | null; 
+      avatar_options: Record<string, any> | null; user_id: string | null;
+    }>>(`/family-members?family_id=${familyId}`)
   }
 
   async addFamilyMember(
@@ -319,6 +332,9 @@ class ApiService {
       age?: number | null;
       color?: "blue" | "green" | "yellow" | "orange" | "purple" | "pink" | "teal" | "indigo";
       avatar_url?: string | null;
+      avatar_style?: string;
+      avatar_seed?: string;
+      avatar_options?: Record<string, any>;
       user_id?: string | null;
       family_id?: string; // will be ignored by backend
     }>;
@@ -398,13 +414,20 @@ export async function patchFamilyName(familyId: string, name: string) {
 export async function listMembers(familyId: string) {
   return apiService.makeRequest<Array<{
     id: string; family_id: string; name: string; role: "parent" | "child";
-    age: number | null; color: string; avatar_url: string | null; user_id: string | null;
+    age: number | null; color: string; avatar_url: string | null; 
+    avatar_style: string | null; avatar_seed: string | null; 
+    avatar_options: Record<string, any> | null; user_id: string | null;
   }>>(`/family-members?family_id=${encodeURIComponent(familyId)}`);
 }
 
 export async function createMember(m: {
   family_id: string; name: string; role: "parent" | "child"; age?: number | null;
-  color?: "blue"|"green"|"yellow"|"orange"|"purple"|"pink"|"teal"|"indigo"; avatar_url?: string | null; user_id?: string | null;
+  color?: "blue"|"green"|"yellow"|"orange"|"purple"|"pink"|"teal"|"indigo"; 
+  avatar_url?: string | null; 
+  avatar_style?: string;
+  avatar_seed?: string;
+  avatar_options?: Record<string, any>;
+  user_id?: string | null;
 }) {
   return apiService.makeRequest(`/family-members`, { method: "POST", body: JSON.stringify(m) });
 }

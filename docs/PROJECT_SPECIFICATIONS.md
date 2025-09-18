@@ -176,6 +176,14 @@ For family member personalization, use these soft colors:
 
 ## 🏠 Family Management
 
+### Avatar System
+- **DiceBear Integration**: Uses DiceBear API for generating consistent avatars
+- **Avatar Customization**: Supports 20+ avatar styles with customizable options
+- **Pro Avatars**: Premium custom avatars (e.g., Godzilla) with PRO badges
+- **Fallback System**: Colored circles with first letter when avatars fail to load
+- **API Integration**: Backend stores avatar_style, avatar_seed, and avatar_options
+- **Real-time Preview**: Live avatar preview during customization
+
 ### Data Models
 
 #### Family
@@ -471,6 +479,11 @@ interface Reward {
 
 ### Manual Routine Builder
 - **Wireframe-Exact Implementation**: Complete recreation of the routine builder interface
+- **Family Member Selection**: Interactive family member selector with avatar display
+  - **Avatar Display**: Shows family member avatars using DiceBear API or fallback colored circles
+  - **Avatar Fallback**: Colored circles with first letter of name when avatars fail to load
+  - **Member Colors**: Each family member has a unique color scheme for visual identification
+  - **Selection State**: Visual feedback for selected family member with blue border and shadow
 - **Family Member Columns**: Individual columns for each family member with their selected colors
 - **Collapsible Right Panel**: Task library panel that can be collapsed/expanded
 - **Responsive Layout**: Main content expands to full width when right panel is collapsed
