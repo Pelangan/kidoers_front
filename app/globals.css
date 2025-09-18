@@ -17,6 +17,21 @@
     @apply bg-gradient-warm text-primary-foreground px-6 py-3 rounded-lg font-medium shadow-button hover:shadow-lg transition-all duration-300 ease-smooth hover:scale-105;
   }
 
+  .task-dragging {
+    cursor: move !important;
+  }
+
+  /* Global cursor for drag operations */
+  body.dragging,
+  body.dragging * {
+    cursor: move !important;
+  }
+  
+  /* More specific selector for drag operations */
+  html body.dragging {
+    cursor: move !important;
+  }
+
   .btn-secondary {
     @apply bg-secondary text-secondary-foreground px-6 py-3 rounded-lg font-medium shadow-card hover:shadow-soft transition-all duration-300 ease-smooth;
   }

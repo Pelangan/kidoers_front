@@ -684,6 +684,20 @@ export async function deleteRoutineTask(routineId: string, taskId: string) {
   return apiService.makeRequest(`/routines/${routineId}/tasks/${taskId}`, { method: "DELETE" });
 }
 
+export async function patchRoutineTask(routineId: string, taskId: string, payload: {
+  name?: string;
+  description?: string;
+  points?: number;
+  duration_mins?: number;
+  time_of_day?: string;
+  days_of_week?: string[];
+}) {
+  return apiService.makeRequest(`/routines/${routineId}/tasks/${taskId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 // Onboarding step tracking (already exists; keep signature)
 export async function updateOnboardingStep(familyId: string, step: string) {
   return apiService.makeRequest<{

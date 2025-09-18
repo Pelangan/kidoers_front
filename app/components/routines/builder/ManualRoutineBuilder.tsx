@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../../co
 import { ArrowLeft, Plus, Trash2, Save, GripVertical, User, Folder, Users, Baby, UserCheck, Check, ChevronLeft, ChevronRight, ListTodo, Settings, Move } from 'lucide-react'
 import type { FamilyMember } from '../../../lib/api'
 
-import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, updateOnboardingStep, listLibraryGroups, listLibraryTasks, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules, assignGroupTemplateToMembers, assignExistingGroupToMembers, getRoutineFullData, bulkUpdateDayOrders, type DaySpecificOrder, type BulkDayOrderUpdate } from '../../../lib/api'
+import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, patchRoutineTask, updateOnboardingStep, listLibraryGroups, listLibraryTasks, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules, assignGroupTemplateToMembers, assignExistingGroupToMembers, getRoutineFullData, bulkUpdateDayOrders, type DaySpecificOrder, type BulkDayOrderUpdate } from '../../../lib/api'
 import RoutineDetailsModal, { type RoutineScheduleData } from './RoutineDetailsModal'
 
 interface ManualRoutineBuilderProps {
@@ -100,6 +100,10 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   const [showApplyToPopup, setShowApplyToPopup] = useState(false)
   const [showOnlyTasks, setShowOnlyTasks] = useState(false)
   const [showOnlyGroups, setShowOnlyGroups] = useState(false)
+  const [showTaskMiniPopup, setShowTaskMiniPopup] = useState(false)
+  const [selectedTaskForEdit, setSelectedTaskForEdit] = useState<{ task: Task, day: string, memberId: string } | null>(null)
+  const [miniPopupPosition, setMiniPopupPosition] = useState<{ x: number, y: number } | null>(null)
+  const [isDeletingTask, setIsDeletingTask] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string|null>(null)
   const [isLoadingData, setIsLoadingData] = useState(false)
@@ -107,6 +111,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   const [showRoutineDetails, setShowRoutineDetails] = useState(false)
   const [routineScheduleData, setRoutineScheduleData] = useState<RoutineScheduleData | null>(null)
   const [daySelection, setDaySelection] = useState<DaySelection>({ mode: 'single', selectedDays: [] })
+  const [selectedWhoOption, setSelectedWhoOption] = useState<string>('none')
   const [viewMode, setViewMode] = useState<'calendar' | 'group'>('calendar')
   const [selectedTaskGroup, setSelectedTaskGroup] = useState<TaskGroup | null>(null)
   const [showTaskSelection, setShowTaskSelection] = useState(false)
@@ -384,7 +389,28 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   const [draggedTask, setDraggedTask] = useState<{task: Task, day: string, memberId: string} | null>(null)
   const [dragOverPosition, setDragOverPosition] = useState<{day: string, memberId: string, position: 'before' | 'after', targetTaskId?: string} | null>(null)
   const [dayOrders, setDayOrders] = useState<DaySpecificOrder[]>([])
+  const [isDragging, setIsDragging] = useState(false)
   const [currentRoutineId, setCurrentRoutineId] = useState<string | null>(null)
+
+  // Update body class when dragging
+  useEffect(() => {
+    console.log('[CURSOR-DEBUG] isDragging changed to:', isDragging)
+    if (isDragging) {
+      document.body.classList.add('dragging')
+      document.body.style.cursor = 'move'
+      console.log('[CURSOR-DEBUG] Added dragging class to body and set cursor to move')
+    } else {
+      document.body.classList.remove('dragging')
+      document.body.style.cursor = ''
+      console.log('[CURSOR-DEBUG] Removed dragging class from body and reset cursor')
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      document.body.classList.remove('dragging')
+      document.body.style.cursor = ''
+    }
+  }, [isDragging])
 
   // Pre-defined task groups (now using API data)
   const [predefinedGroups] = useState<TaskGroup[]>([])
@@ -406,10 +432,36 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     e.dataTransfer.dropEffect = 'move'
   }
 
-  const handleDropOnDay = (e: React.DragEvent, day: string) => {
+  const handleDropOnDay = async (e: React.DragEvent, day: string) => {
     e.preventDefault()
-    console.log('[DRAG-ORDER] Drop on day:', { day, draggedItem, selectedMemberId })
+    console.log('[DRAG-ORDER] Drop on day:', { day, draggedItem, draggedTask, selectedMemberId })
     
+    // Handle existing task being moved between columns
+    if (draggedTask) {
+      console.log('[DRAG-ORDER] Moving existing task between columns:', draggedTask.task.name, 'from', draggedTask.day, 'to', day)
+      
+      if (draggedTask.day === day) {
+        console.log('[DRAG-ORDER] Task dropped on same day, no action needed')
+        setDraggedTask(null)
+        setIsDragging(false)
+        return
+      }
+
+      try {
+        // Move task to new day
+        await moveTaskToNewDay(draggedTask.task, draggedTask.day, day, draggedTask.memberId)
+        console.log('[DRAG-ORDER] ✅ Task moved between columns successfully')
+      } catch (error) {
+        console.error('[DRAG-ORDER] ❌ Error moving task between columns:', error)
+        setError('Failed to move task. Please try again.')
+      }
+      
+      setDraggedTask(null)
+      setIsDragging(false)
+      return
+    }
+    
+    // Handle new task from library
     if (!draggedItem || !selectedMemberId) {
       console.log('[DRAG-ORDER] No dragged item or selected member:', { draggedItem, selectedMemberId })
       return
@@ -432,26 +484,177 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       return
     }
 
-    // Set up pending drop and show popup
-    console.log('[DRAG-ORDER] Setting up pending drop for task:', draggedItem.item)
-    setPendingDrop({
-      type: draggedItem.type,
-      item: draggedItem.item,
-      targetMemberId: selectedMemberId,
-      targetMemberName: member.name,
-      targetDay: day,
-      fromGroup: draggedItem.fromGroup
-    })
+    // Gmail-style: Create task immediately with default settings
+    console.log('[DRAG-ORDER] Creating task immediately:', draggedItem.item)
+    try {
+      const task = draggedItem.item as Task
+      
+      // Create task with default "this member only" and "just this day" settings
+      await addTaskToCalendar(selectedMemberId, task, 'none', day)
+      
+      console.log('[DRAG-ORDER] ✅ Task created successfully')
+    } catch (error) {
+      console.error('[DRAG-ORDER] ❌ Error creating task:', error)
+      setError('Failed to create task. Please try again.')
+    }
     
-    // Initialize day selection with the dropped day
-    setDaySelection({ mode: 'single', selectedDays: [day] })
-    
-    setShowApplyToPopup(true)
     setDraggedItem(null)
   }
 
-  const handleApplyToSelection = async (applyToId: string) => {
-    console.log('[KIDOERS-ROUTINE] 🚀 handleApplyToSelection called with applyToId:', applyToId)
+  // Move task to a new day (cross-column dragging)
+  const moveTaskToNewDay = async (task: Task, fromDay: string, toDay: string, memberId: string) => {
+    console.log('[MOVE-TASK] Moving task:', task.name, 'from', fromDay, 'to', toDay)
+    
+    try {
+      // Get routine ID
+      const routineData = await ensureRoutineExists()
+      if (!routineData) {
+        setError('Failed to get routine information. Please try again.')
+        return
+      }
+
+      // Update task in backend to new day
+      console.log('[MOVE-TASK] 🗑️ Updating task in backend to new day:', toDay)
+      await patchRoutineTask(routineData.id, task.id, { days_of_week: [toDay] })
+      console.log('[MOVE-TASK] ✅ Task updated in backend successfully')
+
+      // Update UI state
+      setCalendarTasks(prev => {
+        const newCalendarTasks = { ...prev }
+        
+        // Remove from source day
+        newCalendarTasks[fromDay] = {
+          ...newCalendarTasks[fromDay],
+          individualTasks: newCalendarTasks[fromDay].individualTasks.filter(t => t.id !== task.id)
+        }
+        
+        // Add to target day
+        newCalendarTasks[toDay] = {
+          ...newCalendarTasks[toDay],
+          individualTasks: [...newCalendarTasks[toDay].individualTasks, {
+            ...task,
+            days_of_week: [toDay] // Update the task's days
+          }]
+        }
+        
+        // Update day orders for the move with the new task order
+        const finalTaskOrder = newCalendarTasks[toDay].individualTasks.filter(t => t.memberId === memberId)
+        updateDayOrdersForTaskMove(task, fromDay, memberId, toDay, memberId, finalTaskOrder)
+        
+        return newCalendarTasks
+      })
+      
+      console.log('[MOVE-TASK] ✅ Task moved successfully')
+    } catch (error) {
+      console.error('[MOVE-TASK] ❌ Error moving task:', error)
+      throw error
+    }
+  }
+
+  // Handle task click for mini popup
+  const handleTaskClick = (e: React.MouseEvent, task: Task, day: string, memberId: string) => {
+    e.stopPropagation()
+    console.log('[TASK-CLICK] Task clicked:', task.name, 'showTaskMiniPopup:', showTaskMiniPopup, 'isDeletingTask:', isDeletingTask)
+    
+    // Prevent opening popup if it's already open or if we're deleting
+    if (showTaskMiniPopup || isDeletingTask) {
+      console.log('[TASK-CLICK] Popup already open or deleting, ignoring click')
+      return
+    }
+    
+    // Add a small delay to prevent rapid clicks
+    setTimeout(() => {
+      if (!showTaskMiniPopup && !isDeletingTask) {
+        console.log('[TASK-CLICK] Opening popup after delay')
+        setSelectedTaskForEdit({ task, day, memberId })
+        setMiniPopupPosition({ x: e.clientX, y: e.clientY })
+        setShowTaskMiniPopup(true)
+      }
+    }, 50)
+  }
+
+  // Handle edit task - opens the Apply Tasks To modal
+  const handleEditTask = () => {
+    if (!selectedTaskForEdit) return
+    
+    console.log('[TASK-EDIT] Opening edit modal for task:', selectedTaskForEdit.task.name)
+    
+    // Set up the task for editing
+    setPendingDrop({
+      type: 'task',
+      item: selectedTaskForEdit.task,
+      targetMemberId: selectedTaskForEdit.memberId,
+      targetMemberName: enhancedFamilyMembers.find(m => m.id === selectedTaskForEdit.memberId)?.name || '',
+      targetDay: selectedTaskForEdit.day,
+      fromGroup: undefined
+    })
+    
+    // Initialize day selection with the task's current day
+    setDaySelection({ mode: 'single', selectedDays: [selectedTaskForEdit.day] })
+    
+    // Close mini popup and open main modal
+    setShowTaskMiniPopup(false)
+    setSelectedWhoOption('none') // Reset to default selection
+    setShowApplyToPopup(true)
+  }
+
+  // Handle delete task
+  const handleDeleteTask = async () => {
+    if (!selectedTaskForEdit) return
+    
+    console.log('[TASK-DELETE] Deleting task:', selectedTaskForEdit.task.name)
+    
+    // Set deleting flag to prevent any popup from opening
+    setIsDeletingTask(true)
+    
+    // Store task info before clearing state
+    const taskToDelete = selectedTaskForEdit
+    
+    // Close mini popup first to prevent any race conditions
+    setShowTaskMiniPopup(false)
+    setSelectedTaskForEdit(null)
+    setMiniPopupPosition(null)
+    
+    // Small delay to ensure popup is closed before removing task
+    setTimeout(async () => {
+      try {
+        // Get routine ID for backend deletion
+        const routineData = await ensureRoutineExists()
+        if (!routineData) {
+          setError('Failed to get routine information. Please try again.')
+          return
+        }
+
+        // Delete task from backend
+        console.log('[TASK-DELETE] 🗑️ Deleting task from backend:', taskToDelete.task.id)
+        await deleteRoutineTask(routineData.id, taskToDelete.task.id)
+        console.log('[TASK-DELETE] ✅ Task deleted from backend successfully')
+
+        // Remove from calendar state
+        setCalendarTasks(prev => ({
+          ...prev,
+          [taskToDelete.day]: {
+            ...prev[taskToDelete.day],
+            individualTasks: prev[taskToDelete.day].individualTasks.filter(t => t.id !== taskToDelete.task.id)
+          }
+        }))
+        
+        console.log('[TASK-DELETE] ✅ Task deleted from UI successfully')
+      } catch (error) {
+        console.error('[TASK-DELETE] ❌ Error deleting task:', error)
+        setError('Failed to delete task. Please try again.')
+      } finally {
+        // Reset deleting flag after a longer delay
+        setTimeout(() => {
+          setIsDeletingTask(false)
+        }, 500)
+      }
+    }, 100) // Small delay to ensure popup is closed
+  }
+
+  const handleApplyToSelection = async (applyToId?: string) => {
+    const selectedApplyToId = applyToId || selectedWhoOption
+    console.log('[KIDOERS-ROUTINE] 🚀 handleApplyToSelection called with applyToId:', selectedApplyToId)
     
     if (!pendingDrop) {
       console.log('[DRAG-ORDER] ❌ No pending drop found')
@@ -462,7 +665,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       type: pendingDrop.type,
       item: pendingDrop.item,
       targetMemberId: pendingDrop.targetMemberId,
-      applyToId,
+      applyToId: selectedApplyToId,
       daySelection
     })
 
@@ -483,7 +686,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     let targetMemberIds: string[] = []
     
     console.log('[KIDOERS-ROUTINE] 🔍 Assignment Debug Info:')
-    console.log('[KIDOERS-ROUTINE] - applyToId:', applyToId)
+    console.log('[KIDOERS-ROUTINE] - applyToId:', selectedApplyToId)
     console.log('[KIDOERS-ROUTINE] - enhancedFamilyMembers:', enhancedFamilyMembers)
     console.log('[KIDOERS-ROUTINE] - Member roles:', enhancedFamilyMembers.map(m => ({ id: m.id, name: m.name, role: m.role })))
     console.log('[KIDOERS-ROUTINE] - Full member details:', enhancedFamilyMembers.map(m => ({ 
@@ -495,25 +698,25 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       memberObject: m
     })))
     
-    if (applyToId === 'none') {
+    if (selectedApplyToId === 'none') {
       // Only the member the task was dropped on
       targetMemberIds = [pendingDrop.targetMemberId]
       console.log('[KIDOERS-ROUTINE] - Selected: This member only, targetMemberIds:', targetMemberIds)
-    } else if (applyToId === 'all-kids') {
+    } else if (selectedApplyToId === 'all-kids') {
       // All children in the family
       const kids = enhancedFamilyMembers.filter(member => member.type === 'child')
       targetMemberIds = kids.map(member => member.id)
       console.log('[KIDOERS-ROUTINE] - Selected: All kids')
       console.log('[KIDOERS-ROUTINE] - Kids found:', kids)
       console.log('[KIDOERS-ROUTINE] - Kids IDs:', targetMemberIds)
-    } else if (applyToId === 'all-parents') {
+    } else if (selectedApplyToId === 'all-parents') {
       // All parents in the family
       const parents = enhancedFamilyMembers.filter(member => member.type === 'parent')
       targetMemberIds = parents.map(member => member.id)
       console.log('[KIDOERS-ROUTINE] - Selected: All parents')
       console.log('[KIDOERS-ROUTINE] - Parents found:', parents)
       console.log('[KIDOERS-ROUTINE] - Parents IDs:', targetMemberIds)
-    } else if (applyToId === 'all-family') {
+    } else if (selectedApplyToId === 'all-family') {
       // All family members
       targetMemberIds = enhancedFamilyMembers.map(member => member.id)
       console.log('[KIDOERS-ROUTINE] - Selected: All family, targetMemberIds:', targetMemberIds)
@@ -523,17 +726,17 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       console.log('[KIDOERS-ROUTINE] - Fallback: Single member, targetMemberIds:', targetMemberIds)
     }
     
-    console.log('[KIDOERS-ROUTINE] Target members for applyToId:', applyToId, targetMemberIds)
+    console.log('[KIDOERS-ROUTINE] Target members for applyToId:', selectedApplyToId, targetMemberIds)
 
     // Add task/group to all selected days for all target members (only UI updates, no backend calls)
     for (const day of targetDays) {
       for (const memberId of targetMemberIds) {
         if (pendingDrop.type === 'task') {
           console.log('[KIDOERS-ROUTINE] ',`Adding task to ${day} for member ${memberId}`)
-          addTaskToCalendar(memberId, pendingDrop.item as Task, applyToId, day, pendingDrop.fromGroup)
+          addTaskToCalendar(memberId, pendingDrop.item as Task, selectedApplyToId, day, pendingDrop.fromGroup)
         } else if (pendingDrop.type === 'group') {
           console.log('[KIDOERS-ROUTINE] ',`Adding group to ${day} for member ${memberId}`)
-          addGroupToCalendar(memberId, pendingDrop.item as TaskGroup, applyToId, day, pendingDrop.selectedTasks)
+          addGroupToCalendar(memberId, pendingDrop.item as TaskGroup, selectedApplyToId, day, pendingDrop.selectedTasks)
         }
       }
     }
@@ -542,6 +745,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     setShowApplyToPopup(false)
     setPendingDrop(null)
     setDaySelection({ mode: 'single', selectedDays: [] })
+    setSelectedWhoOption('none')
   }
 
   const handleTaskSelection = (task: Task, isSelected: boolean) => {
@@ -582,6 +786,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     setDaySelection({ mode: 'single', selectedDays: [] })
     
     setShowTaskSelection(false)
+    setSelectedWhoOption('none') // Reset to default selection
     setShowApplyToPopup(true)
   }
 
@@ -592,8 +797,15 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', '')
     
+    // Set cursor directly on the event
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.cursor = 'move'
+    }
+    
     setDraggedTask({ task, day, memberId })
+    setIsDragging(true)
     console.log('[DRAG-ORDER] ✅ Started dragging task:', task.name, 'from day:', day, 'member:', memberId)
+    console.log('[CURSOR-DEBUG] Set isDragging to true')
   }
 
   const handleTaskDragOver = (e: React.DragEvent, day: string, memberId: string, position: 'before' | 'after', targetTaskId?: string) => {
@@ -665,6 +877,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       currentDragOverPosition
     })
 
+    let finalTaskOrder: Task[] = []
+
     setCalendarTasks(prev => {
       const newCalendarTasks = { ...prev }
       
@@ -701,97 +915,94 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         console.log('[KIDOERS-ROUTINE] ✅ Added task to end (no specific position)')
       }
       
-      console.log('[DRAG-ORDER] 📊 Final task order for', targetDay, ':', targetDayTasks.individualTasks.map(t => t.name))
+      // Store the final task order for the target day and member
+      finalTaskOrder = targetDayTasks.individualTasks.filter((t: Task) => {
+        const taskMemberId = t.memberId || extractMemberIdFromId(t.id);
+        return taskMemberId === targetMemberId;
+      });
+      
+      console.log('[DRAG-ORDER] 📊 Final task order for', targetDay, ':', finalTaskOrder.map(t => t.name))
       
       return newCalendarTasks
     })
 
-    // Update day orders to reflect the new task order
-    updateDayOrdersForTaskMove(task, sourceDay, sourceMemberId, targetDay, targetMemberId, currentDragOverPosition)
+    // Update day orders with the calculated final order
+    updateDayOrdersForTaskMove(task, sourceDay, sourceMemberId, targetDay, targetMemberId, finalTaskOrder)
   }
 
   // Update day orders when tasks are moved and save immediately to backend
-  const updateDayOrdersForTaskMove = async (task: Task, sourceDay: string, sourceMemberId: string, targetDay: string, targetMemberId: string, currentDragOverPosition: any) => {
+  const updateDayOrdersForTaskMove = async (task: Task, sourceDay: string, sourceMemberId: string, targetDay: string, targetMemberId: string, finalTaskOrder: Task[]) => {
     console.log('[DRAG-ORDER] 🔄 Updating day orders for task move:', {
       task: task.name,
       sourceDay,
       sourceMemberId,
       targetDay,
-      targetMemberId
+      targetMemberId,
+      finalTaskOrder: finalTaskOrder.map(t => t.name)
     })
 
-    // Use a timeout to ensure the calendarTasks state has been updated
-    setTimeout(async () => {
-      try {
-        // Ensure routine exists
-        const routineData = await ensureRoutineExists();
-        if (!routineData) {
-          console.error('[DRAG-ORDER] ❌ No routine found for saving day orders');
-          return;
-        }
-
-        // Get the current task order for the target day from the current state
-        const targetDayTasks = calendarTasks[targetDay]?.individualTasks || []
-        const targetTaskIndex = targetDayTasks.findIndex((t: Task) => t.id === task.id)
-        
-        if (targetTaskIndex === -1) {
-          console.log('[DRAG-ORDER] ⚠️ Task not found in target day, skipping order update');
-          return;
-        }
-
-        // Get all tasks for the target day and member to calculate correct order
-        const allTargetDayTasks = targetDayTasks.filter((t: Task) => {
-          const taskMemberId = t.memberId || extractMemberIdFromId(t.id);
-          return taskMemberId === targetMemberId;
-        });
-
-        // Create day order entries for all tasks in the target day
-        const dayOrdersToSave: DaySpecificOrder[] = allTargetDayTasks.map((t: Task, index: number) => ({
-          id: `temp-${Date.now()}-${Math.random()}`,
-          routine_id: routineData.id,
-          member_id: targetMemberId,
-          day_of_week: targetDay,
-          routine_task_id: t.id,
-          order_index: index,
-          created_at: new Date().toISOString()
-        }));
-
-        // Group by member and day for bulk update
-        const bulkUpdate: BulkDayOrderUpdate = {
-          member_id: targetMemberId,
-          day_of_week: targetDay,
-          task_orders: dayOrdersToSave.map(order => ({
-            routine_task_id: order.routine_task_id,
-            order_index: order.order_index
-          }))
-        };
-
-        console.log('[DRAG-ORDER] 📤 Saving day orders immediately:', bulkUpdate);
-        await bulkUpdateDayOrders(routineData.id, bulkUpdate);
-        console.log('[DRAG-ORDER] ✅ Day orders saved successfully');
-
-        // Update local state to reflect the saved orders
-        setDayOrders(prev => {
-          const newDayOrders = [...prev]
-          
-          // Remove existing order entries for this member/day combination
-          const filteredOrders = newDayOrders.filter(order => 
-            !(order.member_id === targetMemberId && order.day_of_week === targetDay)
-          )
-          
-          // Add the new orders
-          filteredOrders.push(...dayOrdersToSave);
-          
-          console.log('[DRAG-ORDER] 📊 Updated local day orders for', targetDay, ':', dayOrdersToSave.map(o => ({ taskId: o.routine_task_id, order: o.order_index })))
-          
-          return filteredOrders
-        });
-
-      } catch (error) {
-        console.error('[DRAG-ORDER] ❌ Error saving day orders:', error);
-        // Don't show error to user for drag operations, just log it
+    try {
+      // Ensure routine exists
+      const routineData = await ensureRoutineExists();
+      if (!routineData) {
+        console.error('[DRAG-ORDER] ❌ No routine found for saving day orders');
+        return;
       }
-    }, 0)
+
+      // Check if the moved task is in the final order
+      const targetTaskIndex = finalTaskOrder.findIndex((t: Task) => t.id === task.id)
+      
+      if (targetTaskIndex === -1) {
+        console.log('[DRAG-ORDER] ⚠️ Task not found in final order, skipping order update');
+        return;
+      }
+
+      // Create day order entries for all tasks in the target day
+      const dayOrdersToSave: DaySpecificOrder[] = finalTaskOrder.map((t: Task, index: number) => ({
+        id: `temp-${Date.now()}-${Math.random()}`,
+        routine_id: routineData.id,
+        member_id: targetMemberId,
+        day_of_week: targetDay,
+        routine_task_id: t.id,
+        order_index: index,
+        created_at: new Date().toISOString()
+      }));
+
+      // Group by member and day for bulk update
+      const bulkUpdate: BulkDayOrderUpdate = {
+        member_id: targetMemberId,
+        day_of_week: targetDay,
+        task_orders: dayOrdersToSave.map(order => ({
+          routine_task_id: order.routine_task_id,
+          order_index: order.order_index
+        }))
+      };
+
+      console.log('[DRAG-ORDER] 📤 Saving day orders immediately:', bulkUpdate);
+      await bulkUpdateDayOrders(routineData.id, bulkUpdate);
+      console.log('[DRAG-ORDER] ✅ Day orders saved successfully');
+
+      // Update local state to reflect the saved orders
+      setDayOrders(prev => {
+        const newDayOrders = [...prev]
+        
+        // Remove existing order entries for this member/day combination
+        const filteredOrders = newDayOrders.filter(order => 
+          !(order.member_id === targetMemberId && order.day_of_week === targetDay)
+        )
+        
+        // Add the new orders
+        filteredOrders.push(...dayOrdersToSave);
+        
+        console.log('[DRAG-ORDER] 📊 Updated local day orders for', targetDay, ':', dayOrdersToSave.map(o => ({ taskId: o.routine_task_id, order: o.order_index })))
+        
+        return filteredOrders
+      });
+
+    } catch (error) {
+      console.error('[DRAG-ORDER] ❌ Error saving day orders:', error);
+      // Don't show error to user for drag operations, just log it
+    }
   }
 
   // Get day-specific order for tasks
@@ -1037,15 +1248,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     }))
   }
 
-  const removeTaskFromCalendar = (day: string, taskId: string) => {
-    setCalendarTasks(prev => ({
-      ...prev,
-      [day]: {
-        ...prev[day],
-        individualTasks: prev[day].individualTasks.filter((task: Task) => task.id !== taskId)
-      }
-    }))
-  }
 
 
 
@@ -1803,14 +2005,15 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                                     {group.tasks.map((task: Task) => (
                                       <div 
                                         key={task.id} 
-                                        className={`ml-3 flex items-center space-x-1 p-1 bg-purple-50 rounded border-l-4 border-purple-500 border border-gray-200 cursor-move ${
-                                          draggedTask?.task.id === task.id ? 'opacity-50' : ''
+                                        className={`ml-3 flex items-center space-x-1 p-1 bg-purple-50 rounded border-l-4 border-purple-500 border border-gray-200 cursor-pointer ${
+                                          draggedTask?.task.id === task.id ? 'opacity-50 task-dragging' : ''
                                         }`}
                                         draggable={true}
                                         onDragStart={(e) => handleTaskDragStart(e, task, day, selectedMemberId)}
                                         onDragEnd={() => {
                                           setDraggedTask(null)
                                           setDragOverPosition(null)
+                                          setIsDragging(false)
                                         }}
                                       >
                                         {/* Always show drag handle in routine builder */}
@@ -1869,15 +2072,17 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                                         task.from_group 
                                           ? 'bg-purple-50 border-l-4 border-purple-500' 
                                           : 'bg-green-50 border-l-4 border-green-500'
-                                      } cursor-move ${
-                                        draggedTask?.task.id === task.id ? 'opacity-50' : ''
+                                      } cursor-pointer hover:shadow-sm transition-shadow ${
+                                        draggedTask?.task.id === task.id ? 'opacity-50 task-dragging' : ''
                                       }`}
                                       draggable={true}
                                       onDragStart={(e) => handleTaskDragStart(e, task, day, selectedMemberId)}
                                       onDragEnd={() => {
                                         setDraggedTask(null)
                                         setDragOverPosition(null)
+                                        setIsDragging(false)
                                       }}
+                                      onClick={(e) => handleTaskClick(e, task, day, selectedMemberId)}
                                     >
                                     {/* Always show drag handle in routine builder */}
                                     <div className="w-3 h-3 flex items-center justify-center text-gray-400">
@@ -1900,15 +2105,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                                         )}
                                     </div>
                                     </div>
-                                    <div className="text-xs text-gray-500 mr-2">{task.points}pts</div>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => removeTaskFromCalendar(day, task.id)}
-                                      className="text-red-500 hover:text-red-700 h-4 w-4 p-0"
-                                    >
-                                      <Trash2 className="w-2 h-2" />
-                                    </Button>
+                                    <div className="text-xs text-gray-500">{task.points}pts</div>
                                   </div>
                                   
                                   {/* Drop zone after this task */}
@@ -2510,14 +2707,18 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
               {/* Family Member Selection */}
               <div className="space-y-3">
                 <Label className="text-sm font-medium text-gray-700">Who should do this task?</Label>
-                <div className="grid gap-3">
+                <div className="space-y-2">
                   {applyToOptions.map((option) => (
-                    <Button
-                      key={option.id}
-                      variant="outline"
-                      className="justify-start h-auto p-4 bg-white"
-                      onClick={() => handleApplyToSelection(option.id)}
-                    >
+                    <label key={option.id} className="flex items-center space-x-2 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-gray-50">
+                      <input
+                        type="radio"
+                        name="whoOption"
+                        value={option.id}
+                        checked={selectedWhoOption === option.id}
+                        onChange={() => setSelectedWhoOption(option.id)}
+                        className="sr-only"
+                      />
+                      <div className={`w-4 h-4 rounded-full border-2 ${selectedWhoOption === option.id ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`}></div>
                       <div className="flex items-center space-x-3">
                         {option.icon}
                         <div className="text-left">
@@ -2536,13 +2737,122 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                           )}
                         </div>
                       </div>
-                    </Button>
+                    </label>
                   ))}
                 </div>
+              </div>
+              
+              {/* Save Button */}
+              <div className="flex justify-end pt-4 border-t border-gray-200">
+                <Button
+                  onClick={() => handleApplyToSelection(selectedWhoOption)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Save
+                </Button>
               </div>
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Task Mini Popup */}
+        {showTaskMiniPopup && selectedTaskForEdit && miniPopupPosition && (
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setShowTaskMiniPopup(false)}
+          >
+            <div
+              className="fixed z-50 bg-white rounded-xl shadow-2xl border border-gray-200 min-w-[320px] max-w-[400px]"
+              style={{
+                left: `${miniPopupPosition.x}px`,
+                top: `${miniPopupPosition.y}px`,
+                transform: 'translate(-50%, -100%)'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header with actions */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                  <h3 className="text-lg font-semibold text-gray-900">{selectedTaskForEdit.task.name}</h3>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleEditTask()
+                    }}
+                    className="p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                    title="Edit task"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDeleteTask()
+                    }}
+                    className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                    title="Delete task"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowTaskMiniPopup(false)
+                    }}
+                    className="p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                    title="Close"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-4 space-y-3">
+                {/* Date and Time */}
+                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span className="capitalize">{selectedTaskForEdit.day} • {new Date().toLocaleDateString()}</span>
+                </div>
+
+                {/* Points */}
+                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                  </svg>
+                  <span>{selectedTaskForEdit.task.points} points</span>
+                </div>
+
+                {/* Assigned to */}
+                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  <span>Assigned to {enhancedFamilyMembers.find(m => m.id === selectedTaskForEdit.memberId)?.name || 'Unknown'}</span>
+                </div>
+
+                {/* Task Type */}
+                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  <span className="capitalize">{selectedTaskForEdit.task.from_group ? 'Group task' : 'Individual task'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Routine Details Modal */}
         <RoutineDetailsModal
