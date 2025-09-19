@@ -2055,7 +2055,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                     {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => {
                       const dayTasks = calendarTasks[day]
                       const totalDayTasks = getTotalTasksForDay(day)
-                      const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+                      const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
                       const dayIndex = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].indexOf(day)
                       
                       
@@ -2070,7 +2070,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                           {/* Day Header */}
                           <div className="text-center p-3 bg-gray-50">
                             <div className="text-sm font-semibold text-gray-700">{dayNames[dayIndex]}</div>
-                            <div className="text-xs text-gray-500 capitalize">{day}</div>
                           </div>
 
                           {/* Separator Line */}
@@ -2270,7 +2269,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                         <h3 className="text-lg font-semibold text-gray-900">Group by Day</h3>
                         <div className="grid grid-cols-7 gap-4">
                           {['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].map((day) => {
-                            const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+                            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
                             const dayIndex = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].indexOf(day)
                             const dayTasks = getTasksForGroup(selectedTaskGroup).filter(t => t.day === day)
                             
@@ -2278,7 +2277,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                               <div key={day} className="space-y-2">
                                 <div className="text-center">
                                   <div className="text-sm font-semibold text-gray-700">{dayNames[dayIndex]}</div>
-                                  <div className="text-xs text-gray-500 capitalize">{day}</div>
                                 </div>
                                 
                                 <div className="space-y-2 min-h-32">
@@ -2562,7 +2560,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                     <div className="text-xs text-gray-600 mb-2">Select days:</div>
                     <div className="grid grid-cols-7 gap-2">
                       {['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].map((day) => {
-                        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+                        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
                         const dayIndex = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].indexOf(day)
                         const isSelected = daySelection.selectedDays.includes(day)
                         

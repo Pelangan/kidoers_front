@@ -90,14 +90,14 @@ export type OnboardingStatus =
       id: string;
       name: string;
       setup_state: "not_started" | "in_progress" | "complete";
-      setup_step: "create_family" | "choose_flow" | "create_routine" | null;
+      setup_step: "create_family" | "create_routine" | null;
       subscription_plan?: "free" | "premium";
       trial_start?: string; trial_end?: string;
     }; current_family: {
       id: string;
       name: string;
       setup_state: "not_started" | "in_progress" | "complete";
-      setup_step: "create_family" | "choose_flow" | "create_routine" | null;
+      setup_step: "create_family" | "create_routine" | null;
       subscription_plan?: "free" | "premium";
       trial_start?: string; trial_end?: string;
     } | null };
@@ -383,7 +383,7 @@ class ApiService {
     return this.makeRequest<any[]>('/onboarding/steps/progress')
   }
 
-  async updateOnboardingStep(familyId: string, step: 'choose_flow' | 'create_routine'): Promise<any> {
+  async updateOnboardingStep(familyId: string, step: 'create_routine'): Promise<any> {
     return this.makeRequest<any>('/onboarding/step', {
       method: 'POST',
       body: JSON.stringify({

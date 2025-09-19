@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import CreateFamilyStep from "./steps/CreateFamilyStep";
 import CreateRoutineStep from "./steps/CreateRoutineStep";
-import ChooseRoutineMethodStep from "./steps/ChooseRoutineMethodStep";
 import { useRouter } from "next/navigation";
 import { apiService } from "../../lib/api";
 import { Button } from "../../../components/ui/button";
@@ -14,13 +13,13 @@ interface OnboardingWizardProps {
 }
 
 export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  const [currentStep, setCurrentStep] = useState<1 | 2>(1);
   const [familyId, setFamilyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  const totalSteps: 3 = 3;
+  const totalSteps: 2 = 2;
 
   useEffect(() => {
     (async () => {
@@ -37,7 +36,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
         const fam = status.in_progress;
         if (fam && fam.setup_state !== "complete") {
           setFamilyId(fam.id);
-          // If backend says we are beyond step 1, jump to step 2
+          // If backend says we are at create_family, go to step 1, otherwise go to step 2 (create_routine)
           setCurrentStep(fam.setup_step === "create_family" ? 1 : 2);
           setLoading(false);
           return;
@@ -58,17 +57,13 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
     setCurrentStep(2);
   };
 
-  const handleRoutineMethodChosen = () => {
-    setCurrentStep(3);
-  };
-
   const handleRoutineCreated = async () => {
     onComplete();
   };
 
   const prevStep = () => {
     if (currentStep > 1) {
-      setCurrentStep((currentStep - 1) as 1 | 2 | 3);
+      setCurrentStep((currentStep - 1) as 1 | 2);
     }
   };
 
@@ -85,15 +80,15 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header - Only for Step 3 */}
-      {currentStep === 3 && (
+      {/* Header - Only for Step 2 */}
+      {currentStep === 2 && (
         <header className="bg-white border-b px-6 py-3">
           <div className="flex items-center justify-between">
             <Button 
               variant="ghost" 
               size="sm" 
               className="flex items-center gap-2"
-              onClick={() => setCurrentStep(2)}
+              onClick={() => setCurrentStep(1)}
             >
               <ChevronLeft className="h-4 w-4" />
               Back
@@ -119,8 +114,8 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
         </header>
       )}
 
-      <div className={currentStep === 3 ? "flex-1 overflow-hidden" : "container mx-auto px-4 py-8"}>
-        {currentStep !== 3 && (
+      <div className={currentStep === 2 ? "flex-1 overflow-hidden" : "container mx-auto px-4 py-8"}>
+        {currentStep !== 2 && (
           <div className="mb-0">
             {/* Progress Bar - Top Left */}
             <div className="flex items-center gap-3 mb-2 ml-6">
@@ -130,8 +125,6 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                 <div className={`w-8 h-2 rounded-full ${currentStep >= 1 ? 'bg-orange-500' : 'bg-gray-200'}`}></div>
                 {/* Step 2 */}
                 <div className={`w-8 h-2 rounded-full ${currentStep >= 2 ? 'bg-orange-500' : 'bg-gray-200'}`}></div>
-                {/* Step 3 */}
-                <div className={`w-8 h-2 rounded-full ${currentStep >= 3 ? 'bg-orange-500' : 'bg-gray-200'}`}></div>
               </div>
               <span className="text-sm font-medium text-orange-500">
                 {Math.round((currentStep / totalSteps) * 100)}%
@@ -146,28 +139,15 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                   <p className="text-base text-gray-600">Let's get your family set up in just a few steps</p>
                 </>
               )}
-              {currentStep === 2 && (
-                <>
-                  <h1 className="text-4xl font-bold text-gray-800 mb-1">Choose How to Create Your Routine</h1>
-                  <p className="text-base text-gray-600">Pick the approach that fits your style. You can always change it later.</p>
-                </>
-              )}
             </div>
           </div>
         )}
 
-        <div className={currentStep === 3 ? "w-full" : "max-w-2xl mx-auto"}>
+        <div className={currentStep === 2 ? "w-full" : "max-w-2xl mx-auto"}>
           {currentStep === 1 && (
             <CreateFamilyStep familyId={familyId ?? null} onComplete={handleFamilyCreated} />
           )}
           {currentStep === 2 && (
-            <ChooseRoutineMethodStep
-              familyId={familyId!}
-              onBack={prevStep}
-              onComplete={handleRoutineMethodChosen}
-            />
-          )}
-          {currentStep === 3 && (
             <CreateRoutineStep
               familyId={familyId!}
               onBack={prevStep}

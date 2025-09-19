@@ -94,38 +94,30 @@ For family member personalization, use these soft colors:
 
 ## 🚀 Onboarding Flow
 
-### 3-Step Onboarding Process
+### 2-Step Onboarding Process
 1. **Step 1: Welcome & Family Creation**
    - Welcome message: "Welcome to Kidoers"
    - Subtitle: "Let's get your family set up in just a few steps"
    - Create family name and add family members with colors
-   - Progress: Step 1 of 3 (33%)
+   - Progress: Step 1 of 2 (50%)
 
-2. **Step 2: Routine Method Selection**
-   - Header: "Choose How to Create Your Routine"
-   - Subtitle: "Pick the approach that fits your style. You can always change it later."
-   - Options: AI suggestions, community routines, custom building, AI chat
-   - Progress: Step 2 of 3 (67%)
-
-3. **Step 3: Routine Creation**
+2. **Step 2: Routine Creation**
    - Header: "Create Your Own Routine"
    - Subtitle: "Drag tasks from the library to build your custom routine"
    - **Full-width layout** expanding to occupy entire screen width
    - Family member columns with selected colors (responsive grid: 1-5 columns based on screen size)
-   - Task library sidebar with groups and individual tasks
    - API integration for real data loading
-   - Progress: Step 3 of 3 (100%)
+   - Progress: Step 2 of 2 (100%)
 
 ### Navigation
-- **Back buttons** on steps 2 and 3 for easy navigation
+- **Back button** on step 2 for easy navigation
 - **Progress bar** showing current step and completion percentage
 - **Automatic progression** between steps based on user actions
 
 ### Component Architecture
-- **`OnboardingWizard.tsx`**: Main orchestrator managing 3-step flow
+- **`OnboardingWizard.tsx`**: Main orchestrator managing 2-step flow
 - **`CreateFamilyStep.tsx`**: Step 1 - Family creation and member management
-- **`ChooseRoutineMethodStep.tsx`**: Step 2 - Routine creation method selection
-- **`CreateRoutineStep.tsx`**: Step 3 - Wrapper for ManualRoutineBuilder
+- **`CreateRoutineStep.tsx`**: Step 2 - Wrapper for ManualRoutineBuilder
 - **`ManualRoutineBuilder.tsx`**: Core routine builder component (used in both onboarding and standalone)
   - **Dual Mode**: Works as onboarding step or standalone page
   - **Props**: Accepts `familyId` and `onComplete` for onboarding integration
