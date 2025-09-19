@@ -9,10 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../../../components
 import { Badge } from "../../../../components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../../components/ui/dialog"
-import { ArrowLeft, Plus, Trash2, Save, GripVertical, User, Folder, Users, Baby, UserCheck, Check, ChevronLeft, ChevronRight, ListTodo, Settings, Move } from 'lucide-react'
+import { ArrowLeft, Trash2, Save, GripVertical, User, Folder, Users, Baby, UserCheck, Check, Settings, Move } from 'lucide-react'
 import type { FamilyMember } from '../../../types'
 
-import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, patchRoutineTask, updateOnboardingStep, listLibraryGroups, listLibraryTasks, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules, assignGroupTemplateToMembers, assignExistingGroupToMembers, getRoutineFullData, bulkUpdateDayOrders, type DaySpecificOrder, type BulkDayOrderUpdate } from '../../../lib/api'
+import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, patchRoutineTask, updateOnboardingStep, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules, assignGroupTemplateToMembers, assignExistingGroupToMembers, getRoutineFullData, bulkUpdateDayOrders, type DaySpecificOrder, type BulkDayOrderUpdate } from '../../../lib/api'
 import { generateAvatarUrl } from '../../ui/AvatarSelector'
 import RoutineDetailsModal, { type RoutineScheduleData } from './RoutineDetailsModal'
 
@@ -96,12 +96,9 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   const [routine, setRoutine] = useState<{ id: string; family_id: string; name: string; status: "draft"|"active"|"archived" }|null>(null)
   const [routineName, setRoutineName] = useState('My Routine')
   const [draggedItem, setDraggedItem] = useState<{ type: 'task' | 'group', item: Task | TaskGroup, fromGroup?: TaskGroup } | null>(null)
-  const [isPanelCollapsed, setIsPanelCollapsed] = useState(true)
   const [pendingDrop, setPendingDrop] = useState<PendingDrop | null>(null)
   const [showApplyToPopup, setShowApplyToPopup] = useState(false)
   const [editableTaskName, setEditableTaskName] = useState('')
-  const [showOnlyTasks, setShowOnlyTasks] = useState(false)
-  const [showOnlyGroups, setShowOnlyGroups] = useState(false)
   const [showTaskMiniPopup, setShowTaskMiniPopup] = useState(false)
   const [selectedTaskForEdit, setSelectedTaskForEdit] = useState<{ task: Task, day: string, memberId: string } | null>(null)
   const [miniPopupPosition, setMiniPopupPosition] = useState<{ x: number, y: number } | null>(null)
@@ -199,7 +196,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       setIsLoadingData(true);
       
       setBusy(true);
-      setLibraryLoading(true);
       setError(null);
       
       try {
@@ -236,21 +232,13 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         }
         
         // Load all data concurrently
-        console.log('[KIDOERS-ROUTINE] 🔄 ManualRoutineBuilder: Starting concurrent API calls...');
+        console.log('[KIDOERS-ROUTINE] 🔄 ManualRoutineBuilder: Starting API call...');
         console.log('[KIDOERS-ROUTINE] 📞 ManualRoutineBuilder: Calling getFamilyMembers()');
-        console.log('[KIDOERS-ROUTINE] 📞 ManualRoutineBuilder: Calling listLibraryGroups()');
-        console.log('[KIDOERS-ROUTINE] 📞 ManualRoutineBuilder: Calling listLibraryTasks()');
         
-        const [members, groupsData, tasksData] = await Promise.all([
-          apiService.getFamilyMembers(familyId),
-          listLibraryGroups('', true),
-          listLibraryTasks('')
-        ]);
+        const members = await apiService.getFamilyMembers(familyId);
         
-        console.log('[KIDOERS-ROUTINE] ✅ ManualRoutineBuilder: All API data loaded:', { 
-          membersCount: members?.length || 0, 
-          groupsCount: groupsData?.length || 0, 
-          tasksCount: tasksData?.length || 0 
+        console.log('[KIDOERS-ROUTINE] ✅ ManualRoutineBuilder: API data loaded:', { 
+          membersCount: members?.length || 0
         });
         
         // Try to load existing routine (onboarding routine first, then active routine)
@@ -359,32 +347,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         }
         
         // Transform and set library data
-        const transformedGroups: TaskGroup[] = groupsData.map((group: any) => ({
-          id: group.id,
-          name: group.name,
-          description: group.description || '',
-          color: 'bg-blue-100 border-blue-300',
-          is_system: group.is_system,
-          tasks: group.items?.map((item: any) => ({
-            id: item.task_id,
-            name: item.name,
-            description: '',
-            points: item.default_points,
-            estimatedMinutes: 5
-          })) || []
-        }))
-        
-        const transformedTasks: Task[] = tasksData.map((task: any) => ({
-          id: task.id,
-          name: task.name,
-          description: task.description || '',
-          points: task.default_points,
-          estimatedMinutes: 5,
-          is_system: task.is_system
-        }))
-        
-        setLibraryGroups(transformedGroups)
-        setLibraryTasks(transformedTasks)
         
         console.log('[KIDOERS-ROUTINE] All data loaded successfully');
       } catch (e: any) {
@@ -393,7 +355,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       } finally {
         if (isMounted) {
           setBusy(false);
-          setLibraryLoading(false);
           setIsLoadingData(false);
         }
       }
@@ -409,10 +370,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
 
 
-  // Library data from API
-  const [libraryGroups, setLibraryGroups] = useState<TaskGroup[]>([])
-  const [libraryTasks, setLibraryTasks] = useState<Task[]>([])
-  const [libraryLoading, setLibraryLoading] = useState(false)
 
   // Task reordering state (only in edit mode)
   const [draggedTask, setDraggedTask] = useState<{task: Task, day: string, memberId: string} | null>(null)
@@ -1589,7 +1546,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     }
   }
 
-  const panelWidth = isPanelCollapsed ? 'w-12' : 'w-80'
 
   // Lazy routine creation - only create when user actually starts building
   const ensureRoutineExists = async () => {
@@ -1828,9 +1784,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   };
 
 
-  // Filter tasks and groups based on show options
-  const filteredGroups = showOnlyTasks ? [] : libraryGroups
-  const filteredTasks = showOnlyGroups ? [] : libraryTasks
 
   return (
     <div className={`${onComplete ? 'min-h-0' : 'min-h-screen'} bg-gray-50 flex flex-col`}>
@@ -2441,223 +2394,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           </div>
         </div>
 
-        {/* Right Panel - Task Library */}
-        <div className={`${panelWidth} bg-white border-l border-gray-200 overflow-y-auto transition-all duration-300 flex flex-col`}>
-          {/* Collapse/Expand Button */}
-          <div className="p-3 border-b border-gray-200 bg-gray-50">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
-              className="w-full flex items-center justify-center"
-            >
-              {isPanelCollapsed ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-            </Button>
-          </div>
-
-          {/* Collapsed State Label */}
-          {isPanelCollapsed && (
-            <div className="flex items-center justify-center h-full">
-              <div className="transform -rotate-90 text-gray-600 font-medium text-base tracking-wide whitespace-nowrap">
-                Task Library
-              </div>
-            </div>
-          )}
-
-          {!isPanelCollapsed && (
-            <div className="p-2 space-y-3">
-              <div className="text-center">
-                <h2 className="text-lg font-bold text-gray-900">Task Library</h2>
-                <p className="text-xs text-gray-600">Drag tasks and groups to your routine</p>
-              </div>
-
-              {/* Filter Options */}
-              <div className="flex gap-1">
-                <Button
-                  variant={!showOnlyTasks && !showOnlyGroups ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => {
-                    setShowOnlyTasks(false)
-                    setShowOnlyGroups(false)
-                  }}
-                  className="flex-1 text-xs py-1"
-                >
-                  All
-                </Button>
-                <Button
-                  variant={showOnlyGroups ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => {
-                    setShowOnlyGroups(true)
-                    setShowOnlyTasks(false)
-                  }}
-                  className="flex-1 text-xs py-1"
-                >
-                  Groups Only
-                </Button>
-                <Button
-                  variant={showOnlyTasks ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => {
-                    setShowOnlyTasks(true)
-                    setShowOnlyGroups(false)
-                  }}
-                  className="flex-1 text-xs py-1"
-                >
-                  Tasks Only
-                </Button>
-              </div>
-
-              {/* Create Options */}
-              <div className="mt-3 space-y-1">
-                <button className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1">
-                  <Plus className="h-3 w-3" />
-                  Create new task
-                </button>
-                <button className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1">
-                  <Plus className="h-3 w-3" />
-                  Create new group
-                </button>
-              </div>
-
-              {/* Task Groups */}
-              {libraryLoading ? (
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-gray-900 flex items-center space-x-2">
-                    <Folder className="w-5 h-5" />
-                    <span>Task Groups</span>
-                  </h3>
-                  <div className="text-center py-4">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400 mx-auto"></div>
-                    <p className="text-sm text-gray-500 mt-2">Loading groups...</p>
-                  </div>
-                </div>
-              ) : filteredGroups.length > 0 ? (
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-gray-900 flex items-center space-x-2">
-                    <Folder className="w-5 h-5" />
-                    <span>Task Groups</span>
-                  </h3>
-                  <div className="space-y-2">
-                    {filteredGroups.map((group: TaskGroup) => (
-                      <div
-                        key={group.id}
-                        className={`p-2 rounded-lg border-2 ${group.color}`}
-                      >
-                        {/* Group Header */}
-                        <div className="flex items-start space-x-2 mb-2">
-                          <div
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, 'group', group)}
-                            className="cursor-move"
-                      >
-                          <GripVertical className="w-4 h-4 text-gray-400 mt-0.5" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2 mb-1">
-                              <h4 className="font-semibold text-sm">{group.name}</h4>
-                              <Badge variant="outline" className="text-xs">
-                                {group.tasks.length} tasks
-                              </Badge>
-                              {group.is_system && (
-                                <Badge className="text-xs bg-purple-100 text-purple-800">
-                                  system
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-xs text-gray-600">{group.description}</p>
-                          </div>
-                        </div>
-                        
-                        {/* Individual Tasks - Directly Draggable */}
-                        <div className="space-y-1 ml-6">
-                          {group.tasks.map((task: Task) => (
-                            <div 
-                              key={task.id} 
-                              className="flex items-center space-x-2 text-xs p-1 rounded hover:bg-blue-50 transition-colors cursor-move"
-                              draggable
-                              onDragStart={(e) => handleDragStart(e, 'task', task, group)}
-                            >
-                              <GripVertical className="w-3 h-3 text-gray-400" />
-                              <span className="flex-1 text-gray-700">{task.name}</span>
-                                  <Badge variant="outline" className="text-xs">
-                                    {task.points}pts
-                                  </Badge>
-                                </div>
-                              ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {/* Individual Tasks */}
-              {libraryLoading ? (
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-gray-900 flex items-center space-x-2">
-                    <ListTodo className="w-5 h-5" />
-                    <span>Individual Tasks</span>
-                  </h3>
-                  <div className="text-center py-4">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400 mx-auto"></div>
-                    <p className="text-sm text-gray-500 mt-2">Loading tasks...</p>
-                  </div>
-                </div>
-              ) : filteredTasks.length > 0 ? (
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-gray-900 flex items-center space-x-2">
-                    <ListTodo className="w-5 h-5" />
-                    <span>Individual Tasks</span>
-                  </h3>
-                  <div className="space-y-1">
-                    {filteredTasks.map((task: Task) => (
-                      <div
-                        key={task.id}
-                        className="flex items-center space-x-2 p-1.5 bg-gray-50 rounded-lg border hover:bg-gray-100 transition-colors cursor-move"
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, 'task', task)}
-                      >
-                        <GripVertical className="w-3 h-3 text-gray-400" />
-                          <div className="flex-1">
-                          <div className="flex items-center space-x-2">
-                              <h4 className="font-medium text-sm">{task.name}</h4>
-                              <Badge variant="outline" className="text-xs">
-                                {task.points}pts
-                              </Badge>
-                            </div>
-                          <p className="text-xs text-gray-600">{task.description}</p>
-                          <div className="flex items-center space-x-2 mt-1">
-                              {task.is_system && (
-                                <Badge className="text-xs bg-purple-100 text-purple-800">
-                                  system
-                                </Badge>
-                              )}
-                              <Badge variant="outline" className="text-xs">
-                                {task.estimatedMinutes}min
-                              </Badge>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {/* Instructions */}
-              <div className="bg-blue-50 p-2 rounded-lg">
-                <h4 className="font-medium text-blue-900 text-sm mb-2">How to use:</h4>
-                <ul className="text-xs text-blue-800 space-y-1">
-                  <li>• Drag entire groups to assign all tasks in the group</li>
-                  <li>• Drag individual tasks within groups</li>
-                  <li>• Drag individual tasks from the tasks section</li>
-                  <li>• Choose who gets the task after dropping</li>
-                  <li>• Remove with trash icons</li>
-                </ul>
-              </div>
-            </div>
-          )}
-        </div>
 
         {/* Task Selection Modal */}
         <Dialog open={showTaskSelection} onOpenChange={setShowTaskSelection}>

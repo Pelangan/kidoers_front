@@ -37,7 +37,7 @@ interface EnhancedFamilyMember {
   color: string
   borderColor?: string
   taskBgColor?: string
-  avatar_url?: string
+  avatar_url?: string | null
   taskInstances: TaskInstance[]
   groups: Array<{
     id: string
