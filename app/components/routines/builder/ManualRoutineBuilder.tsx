@@ -1897,8 +1897,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                       
                       {/* Family Member Selector */}
                       <div className="flex-1 min-w-fit">
-                        <Label className="text-sm font-medium text-gray-700 mb-4">Select Family Member</Label>
-                        <div className="flex items-center justify-center gap-8 p-10 bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 rounded-3xl shadow-sm border border-white/50 min-w-fit">
+                        <div className="flex items-center justify-center gap-10 py-0 px-16 bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 rounded-3xl shadow-sm border border-white/50 min-w-fit">
                           {enhancedFamilyMembers.length === 0 && (
                             <div className="text-sm text-gray-500">Loading family members...</div>
                           )}
@@ -1970,34 +1969,34 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                             return (
                               <div
                                 key={member.id}
-                                className="flex flex-col items-center gap-3 cursor-pointer group transition-all duration-300"
+                                className="flex items-center gap-3 cursor-pointer group transition-all duration-300"
                                 onClick={() => setSelectedMemberId(member.id)}
                               >
                                 <div className="relative">
                                   <div
-                                    className={`h-16 w-16 rounded-full overflow-hidden border-4 border-white shadow-lg transition-all duration-300 group-hover:scale-105 ${
+                                    className={`h-12 w-12 rounded-full overflow-hidden border-2 border-white shadow-lg transition-all duration-300 group-hover:scale-105 ${
                                       selectedMemberId === member.id
-                                        ? `ring-4 ${colorClasses.ring} ${colorClasses.shadow} scale-110`
-                                        : `group-hover:ring-2 ${colorClasses.hover} group-hover:shadow-md`
+                                        ? `ring-2 ring-offset-2 ${colorClasses.ring} ${colorClasses.shadow} scale-110`
+                                        : `group-hover:ring-1 group-hover:ring-offset-1 ${colorClasses.hover} group-hover:shadow-md`
                                     }`}
                                   >
                                     <img
                                       src={avatarUrl || "/placeholder.svg"}
                                       alt={`${member.name}'s avatar`}
-                                      className="h-full w-full object-cover"
+                                      className="h-full w-full object-cover scale-110"
                                     />
                                   </div>
 
                                   {selectedMemberId === member.id && (
-                                    <div className="absolute -top-2 -right-2 bg-white rounded-full p-1.5 shadow-lg ring-2 ring-white">
-                                      <div className={`${colorClasses.bg} rounded-full p-1.5`}>
-                                        <Check className="h-4 w-4 text-white stroke-[3]" />
+                                    <div className="absolute -top-1 -right-1 bg-white rounded-full p-1 shadow-lg ring-1 ring-white">
+                                      <div className={`${colorClasses.bg} rounded-full p-1`}>
+                                        <Check className="h-3 w-3 text-white stroke-[2]" />
                                       </div>
                                     </div>
                                   )}
                                 </div>
 
-                                <div className="text-center">
+                                <div className="flex flex-col">
                                   <p
                                     className={`text-sm font-semibold transition-all duration-300 ${
                                       selectedMemberId === member.id
@@ -2009,7 +2008,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                                   </p>
                                   {selectedMemberId === member.id && (
                                     <div
-                                      className={`h-1 w-10 ${colorClasses.bg} rounded-full mx-auto mt-2 shadow-sm`}
+                                      className={`h-1 w-10 ${colorClasses.bg} rounded-full mt-1 shadow-sm`}
                                     />
                                   )}
                                 </div>
