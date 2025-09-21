@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../../../components
 import { Badge } from "../../../../components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../../components/ui/dialog"
-import { ArrowLeft, Trash2, Save, GripVertical, User, Folder, Users, Baby, UserCheck, Check, Settings, Move, Plus } from 'lucide-react'
+import { ArrowLeft, Trash2, Save, GripVertical, User, Folder, Users, Baby, UserCheck, Check, Settings, Move, Plus, Loader2 } from 'lucide-react'
 import type { FamilyMember } from '../../../types'
 
 import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, patchRoutineTask, updateOnboardingStep, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules, assignGroupTemplateToMembers, assignExistingGroupToMembers, getRoutineFullData, bulkUpdateDayOrders, bulkCreateIndividualTasks, bulkDeleteTasks, type DaySpecificOrder, type BulkDayOrderUpdate } from '../../../lib/api'
@@ -26,13 +26,14 @@ interface ManualRoutineBuilderProps {
 interface Task {
   id: string
   name: string
-  description: string
+  description: string | null
   points: number
   estimatedMinutes: number
   completed?: boolean
   is_system?: boolean
-  time_of_day?: "morning" | "afternoon" | "evening" | "night"
+  time_of_day?: "morning" | "afternoon" | "evening" | "night" | null
   template_id?: string // Store the original template ID
+  recurring_task_id?: string // Store the recurring task ID for grouping
   is_saved?: boolean // Track if this task has been saved to backend
   memberId?: string // Store the member ID for filtering
   days_of_week?: string[] // Days when this task should appear
@@ -50,7 +51,7 @@ interface TaskGroup {
   tasks: Task[]
   color: string
   is_system?: boolean
-  time_of_day?: "morning" | "afternoon" | "evening" | "night"
+  time_of_day?: "morning" | "afternoon" | "evening" | "night" | null
   template_id?: string // Store the original template ID
   is_saved?: boolean // Track if this group has been saved to backend
 }
@@ -103,6 +104,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   const [pendingDrop, setPendingDrop] = useState<PendingDrop | null>(null)
   const [showApplyToPopup, setShowApplyToPopup] = useState(false)
   const [editableTaskName, setEditableTaskName] = useState('')
+  const [isCreatingTasks, setIsCreatingTasks] = useState(false)
   const [showTaskMiniPopup, setShowTaskMiniPopup] = useState(false)
   const [selectedTaskForEdit, setSelectedTaskForEdit] = useState<{ task: Task, day: string, memberId: string } | null>(null)
   const [miniPopupPosition, setMiniPopupPosition] = useState<{ x: number, y: number } | null>(null)
@@ -793,76 +795,78 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       return
     }
 
-    console.log('[KIDOERS-ROUTINE] 📋 Applying task/group:', {
-      type: pendingDrop.type,
-      item: pendingDrop.item,
-      targetMemberId: pendingDrop.targetMemberId,
-      applyToId: selectedApplyToId,
-      daySelection
-    })
+    setIsCreatingTasks(true)
 
-    // Determine which days to add the task to based on day selection
-    let targetDays: string[] = []
-    
-    if (daySelection.mode === 'single') {
-      targetDays = [pendingDrop.targetDay]
-    } else if (daySelection.mode === 'everyday') {
-      targetDays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-    } else if (daySelection.mode === 'custom') {
-      targetDays = daySelection.selectedDays
-    }
+    try {
+      console.log('[KIDOERS-ROUTINE] 📋 Applying task/group:', {
+        type: pendingDrop.type,
+        item: pendingDrop.item,
+        targetMemberId: pendingDrop.targetMemberId,
+        applyToId: selectedApplyToId,
+        daySelection
+      })
 
-    console.log('[KIDOERS-ROUTINE] Target days:', targetDays)
+      // Determine which days to add the task to based on day selection
+      let targetDays: string[] = []
+      
+      if (daySelection.mode === 'single') {
+        targetDays = [pendingDrop.targetDay]
+      } else if (daySelection.mode === 'everyday') {
+        targetDays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+      } else if (daySelection.mode === 'custom') {
+        targetDays = daySelection.selectedDays
+      }
 
-    // Determine which members should receive the task based on applyToId
-    let targetMemberIds: string[] = []
-    
-    console.log('[KIDOERS-ROUTINE] 🔍 Assignment Debug Info:')
-    console.log('[KIDOERS-ROUTINE] - applyToId:', selectedApplyToId)
-    console.log('[KIDOERS-ROUTINE] - enhancedFamilyMembers:', enhancedFamilyMembers)
-    console.log('[KIDOERS-ROUTINE] - Member roles:', enhancedFamilyMembers.map(m => ({ id: m.id, name: m.name, role: m.role })))
-    console.log('[KIDOERS-ROUTINE] - Full member details:', enhancedFamilyMembers.map(m => ({ 
-      id: m.id, 
-      name: m.name, 
-      role: m.role, 
-      type: m.type,
-      allFields: Object.keys(m),
-      memberObject: m
-    })))
-    
-    if (selectedApplyToId === 'none') {
-      // Only the member the task was dropped on
-      targetMemberIds = [pendingDrop.targetMemberId]
-      console.log('[KIDOERS-ROUTINE] - Selected: This member only, targetMemberIds:', targetMemberIds)
-    } else if (selectedApplyToId === 'all-kids') {
-      // All children in the family
-      const kids = enhancedFamilyMembers.filter(member => member.type === 'child')
-      targetMemberIds = kids.map(member => member.id)
-      console.log('[KIDOERS-ROUTINE] - Selected: All kids')
-      console.log('[KIDOERS-ROUTINE] - Kids found:', kids)
-      console.log('[KIDOERS-ROUTINE] - Kids IDs:', targetMemberIds)
-    } else if (selectedApplyToId === 'all-parents') {
-      // All parents in the family
-      const parents = enhancedFamilyMembers.filter(member => member.type === 'parent')
-      targetMemberIds = parents.map(member => member.id)
-      console.log('[KIDOERS-ROUTINE] - Selected: All parents')
-      console.log('[KIDOERS-ROUTINE] - Parents found:', parents)
-      console.log('[KIDOERS-ROUTINE] - Parents IDs:', targetMemberIds)
-    } else if (selectedApplyToId === 'all-family') {
-      // All family members
-      targetMemberIds = enhancedFamilyMembers.map(member => member.id)
-      console.log('[KIDOERS-ROUTINE] - Selected: All family, targetMemberIds:', targetMemberIds)
-    } else {
-      // Fallback to single member
-      targetMemberIds = [pendingDrop.targetMemberId]
-      console.log('[KIDOERS-ROUTINE] - Fallback: Single member, targetMemberIds:', targetMemberIds)
-    }
-    
-    console.log('[KIDOERS-ROUTINE] Target members for applyToId:', selectedApplyToId, targetMemberIds)
+      console.log('[KIDOERS-ROUTINE] Target days:', targetDays)
 
-    // Handle task creation with bulk API for better performance
-    if (pendingDrop.type === 'task') {
-      try {
+      // Determine which members should receive the task based on applyToId
+      let targetMemberIds: string[] = []
+      
+      console.log('[KIDOERS-ROUTINE] 🔍 Assignment Debug Info:')
+      console.log('[KIDOERS-ROUTINE] - applyToId:', selectedApplyToId)
+      console.log('[KIDOERS-ROUTINE] - enhancedFamilyMembers:', enhancedFamilyMembers)
+      console.log('[KIDOERS-ROUTINE] - Member roles:', enhancedFamilyMembers.map(m => ({ id: m.id, name: m.name, role: m.role })))
+      console.log('[KIDOERS-ROUTINE] - Full member details:', enhancedFamilyMembers.map(m => ({ 
+        id: m.id, 
+        name: m.name, 
+        role: m.role, 
+        type: m.type,
+        allFields: Object.keys(m),
+        memberObject: m
+      })))
+      
+      if (selectedApplyToId === 'none') {
+        // Only the member the task was dropped on
+        targetMemberIds = [pendingDrop.targetMemberId]
+        console.log('[KIDOERS-ROUTINE] - Selected: This member only, targetMemberIds:', targetMemberIds)
+      } else if (selectedApplyToId === 'all-kids') {
+        // All children in the family
+        const kids = enhancedFamilyMembers.filter(member => member.type === 'child')
+        targetMemberIds = kids.map(member => member.id)
+        console.log('[KIDOERS-ROUTINE] - Selected: All kids')
+        console.log('[KIDOERS-ROUTINE] - Kids found:', kids)
+        console.log('[KIDOERS-ROUTINE] - Kids IDs:', targetMemberIds)
+      } else if (selectedApplyToId === 'all-parents') {
+        // All parents in the family
+        const parents = enhancedFamilyMembers.filter(member => member.type === 'parent')
+        targetMemberIds = parents.map(member => member.id)
+        console.log('[KIDOERS-ROUTINE] - Selected: All parents')
+        console.log('[KIDOERS-ROUTINE] - Parents found:', parents)
+        console.log('[KIDOERS-ROUTINE] - Parents IDs:', targetMemberIds)
+      } else if (selectedApplyToId === 'all-family') {
+        // All family members
+        targetMemberIds = enhancedFamilyMembers.map(member => member.id)
+        console.log('[KIDOERS-ROUTINE] - Selected: All family, targetMemberIds:', targetMemberIds)
+      } else {
+        // Fallback to single member
+        targetMemberIds = [pendingDrop.targetMemberId]
+        console.log('[KIDOERS-ROUTINE] - Fallback: Single member, targetMemberIds:', targetMemberIds)
+      }
+      
+      console.log('[KIDOERS-ROUTINE] Target members for applyToId:', selectedApplyToId, targetMemberIds)
+
+      // Handle task creation with bulk API for better performance
+      if (pendingDrop.type === 'task') {
         console.log('[KIDOERS-ROUTINE] 🚀 Using bulk API for task creation');
         
         // Ensure routine exists first
@@ -877,10 +881,10 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         const bulkPayload = {
           task_template: {
             name: editableTaskName || task.name,
-            description: task.description,
+            description: task.description || undefined,
             points: task.points,
             duration_mins: task.estimatedMinutes,
-            time_of_day: task.time_of_day,
+            time_of_day: task.time_of_day || undefined,
             from_task_template_id: task.is_system ? task.id : undefined
           },
           assignments: targetMemberIds.map(memberId => ({
@@ -901,7 +905,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         for (const createdTask of result.created_tasks) {
           const day = createdTask.days_of_week[0]; // Each task is created for one day
           if (!newCalendarTasks[day]) {
-            newCalendarTasks[day] = { individualTasks: [], groupTasks: [] };
+            newCalendarTasks[day] = { individualTasks: [], groups: [] };
           }
           
           // Add task to UI for each assigned member
@@ -909,7 +913,9 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
             const taskForUI = {
               ...createdTask,
               memberId: memberId,
-              is_saved: true
+              is_saved: true,
+              estimatedMinutes: createdTask.duration_mins || 30, // Default to 30 minutes if not specified
+              time_of_day: createdTask.time_of_day as "morning" | "afternoon" | "evening" | "night" | null
             };
             newCalendarTasks[day].individualTasks.push(taskForUI);
           }
@@ -917,28 +923,28 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         
         setCalendarTasks(newCalendarTasks);
         console.log('[KIDOERS-ROUTINE] ✅ UI updated with bulk created tasks');
-
-      } catch (error: any) {
-        console.error('[KIDOERS-ROUTINE] ❌ Bulk task creation failed:', error);
-        setError(error?.message || 'Failed to create tasks. Please try again.');
-        return;
-      }
-    } else if (pendingDrop.type === 'group') {
-      // Handle group creation (keep existing logic for now)
-      for (const day of targetDays) {
-        for (const memberId of targetMemberIds) {
-          console.log('[KIDOERS-ROUTINE] ',`Adding group to ${day} for member ${memberId}`)
-          addGroupToCalendar(memberId, pendingDrop.item as TaskGroup, selectedApplyToId, day, pendingDrop.selectedTasks)
+      } else if (pendingDrop.type === 'group') {
+        // Handle group creation (keep existing logic for now)
+        for (const day of targetDays) {
+          for (const memberId of targetMemberIds) {
+            console.log('[KIDOERS-ROUTINE] ',`Adding group to ${day} for member ${memberId}`)
+            addGroupToCalendar(memberId, pendingDrop.item as TaskGroup, selectedApplyToId, day, pendingDrop.selectedTasks)
+          }
         }
       }
-    }
 
-    // Close popup and reset
-    setShowApplyToPopup(false)
-    setPendingDrop(null)
-    setDaySelection({ mode: 'single', selectedDays: [] })
-    setSelectedWhoOption('none')
-    setEditableTaskName('')
+      // Close popup and reset
+      setShowApplyToPopup(false)
+      setPendingDrop(null)
+      setDaySelection({ mode: 'single', selectedDays: [] })
+      setSelectedWhoOption('none')
+      setEditableTaskName('')
+    } catch (error) {
+      console.error('[KIDOERS-ROUTINE] ❌ Error in handleApplyToSelection:', error)
+      setError('Failed to create tasks. Please try again.')
+    } finally {
+      setIsCreatingTasks(false)
+    }
   }
 
   const handleTaskSelection = (task: Task, isSelected: boolean) => {
@@ -1390,10 +1396,10 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       console.log('[TASK-DEBUG] 💾 Saving task to backend:', task.name);
       const savedTask = await addRoutineTask(routineData.id, {
         name: task.name,
-        description: task.description,
+        description: task.description || undefined,
         points: task.points,
         duration_mins: task.estimatedMinutes,
-        time_of_day: task.time_of_day,
+        time_of_day: task.time_of_day || undefined,
         days_of_week: [day],
         from_task_template_id: task.is_system ? task.id : undefined,
         order_index: 0
@@ -2852,9 +2858,17 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
               <div className="flex justify-end pt-4 border-t border-gray-200">
                 <Button
                   onClick={() => handleApplyToSelection(selectedWhoOption)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={isCreatingTasks}
+                  className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Save
+                  {isCreatingTasks ? (
+                    <div className="flex items-center space-x-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Creating...</span>
+                    </div>
+                  ) : (
+                    'Save'
+                  )}
                 </Button>
               </div>
             </div>
