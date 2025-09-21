@@ -4,6 +4,42 @@
 
 **Kidoers** is a Next.js-based family task management application designed to help families organize chores, track activities, and manage rewards for children. The application provides a complete family management system with user authentication, task assignment, calendar integration, and reward tracking.
 
+## ⚠️ **IMPORTANT: TERMINOLOGY CLARIFICATION**
+
+**🚨 CRITICAL: User Interface vs. Data Model Terminology**
+
+To avoid confusion during development, it's essential to understand the distinction between what users see in the UI and what exists in the data model:
+
+### **User Interface (UI) Terminology:**
+- **"Planner"** = What users see and interact with in the UI
+- **"Routines"** = What users see as task groups/categories within the planner
+
+### **Data Model & Backend Terminology:**
+- **"Routines"** = The main data structure (tables, files, API endpoints)
+- **"Task Groups"** = Sub-components within routines
+
+### **Why This Matters:**
+- **Database tables** are named `routines` (not `planners`)
+- **API endpoints** use `/routines/` (not `/planners/`)
+- **File names** reference `routines` (e.g., `ManualRoutineBuilder.tsx`)
+- **User-facing text** should say "Planner" and "Routines"
+
+### **Development Guidelines:**
+- ✅ **UI Labels**: Use "Planner" and "Routines" in user-facing text
+- ✅ **Code Comments**: Use "Routines" when referring to data model
+- ✅ **API Calls**: Use existing `/routines/` endpoints
+- ✅ **File Names**: Keep existing `*routine*` naming convention
+- ❌ **Don't Change**: Database schema, API endpoints, or file names
+- ❌ **Don't Mix**: UI terminology in data model references
+
+**This distinction is crucial for maintaining consistency and avoiding confusion during development.**
+
+### **Example: Task Creation Modal**
+- **UI Label**: "Assign to routine (optional)" ✅
+- **Backend**: Uses `task_groups` table via `/routines/{id}/groups` endpoint ✅
+- **Code**: References `routineGroups` state variable ✅
+- **User Experience**: User sees "routine" but it maps to `task_groups` in the database ✅
+
 ## 🏗️ Architecture
 
 ### Technology Stack

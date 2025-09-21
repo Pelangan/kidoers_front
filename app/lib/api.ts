@@ -615,6 +615,7 @@ export async function getRoutineTasks(routineId: string) {
     time_of_day: string | null;
     frequency: string;
     days_of_week: string[];
+    recurring_task_id: string | null;
     order_index: number;
   }[]>(`/routines/${routineId}/tasks`, {
     method: "GET",
@@ -652,6 +653,66 @@ export async function getRoutineAssignments(routineId: string) {
 export async function deleteTaskAssignment(routineId: string, taskId: string, assignmentId: string) {
   return apiService.makeRequest(`/routines/${routineId}/tasks/${taskId}/assignments/${assignmentId}`, {
     method: "DELETE",
+  });
+}
+
+// Bulk task creation
+export async function bulkCreateIndividualTasks(routineId: string, payload: {
+  task_template: {
+    name: string;
+    description?: string;
+    points: number;
+    duration_mins?: number;
+    time_of_day?: "morning"|"afternoon"|"evening"|"night";
+    from_task_template_id?: string;
+  };
+  assignments: Array<{
+    member_id: string;
+    days_of_week: string[];
+    order_index?: number;
+  }>;
+}) {
+  return apiService.makeRequest<{
+    routine_id: string;
+    tasks_created: number;
+    assignments_created: number;
+    members_assigned: string[];
+    days_assigned: string[];
+    created_tasks: Array<{
+      id: string;
+      routine_id: string;
+      group_id: string | null;
+      name: string;
+      description: string | null;
+      points: number;
+      duration_mins: number | null;
+      time_of_day: string | null;
+      frequency: string;
+      days_of_week: string[];
+      order_index: number;
+    }>;
+  }>(`/routines/${routineId}/tasks/bulk-assign`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// Bulk task deletion
+export async function bulkDeleteTasks(routineId: string, payload: {
+  task_template_id: string;
+  delete_scope: "this_day" | "this_and_following" | "all_days";
+  target_day?: string;
+  member_id?: string;
+}) {
+  return apiService.makeRequest<{
+    routine_id: string;
+    tasks_deleted: number;
+    assignments_deleted: number;
+    days_affected: string[];
+    message: string;
+  }>(`/routines/${routineId}/tasks/bulk-delete`, {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 

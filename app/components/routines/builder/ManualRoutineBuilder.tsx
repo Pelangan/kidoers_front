@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from "../../../../components/ui/button"
 import { Input } from "../../../../components/ui/input"
@@ -9,10 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../../../components
 import { Badge } from "../../../../components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../../components/ui/dialog"
-import { ArrowLeft, Trash2, Save, GripVertical, User, Folder, Users, Baby, UserCheck, Check, Settings, Move } from 'lucide-react'
+import { ArrowLeft, Trash2, Save, GripVertical, User, Folder, Users, Baby, UserCheck, Check, Settings, Move, Plus } from 'lucide-react'
 import type { FamilyMember } from '../../../types'
 
-import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, patchRoutineTask, updateOnboardingStep, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules, assignGroupTemplateToMembers, assignExistingGroupToMembers, getRoutineFullData, bulkUpdateDayOrders, type DaySpecificOrder, type BulkDayOrderUpdate } from '../../../lib/api'
+import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, patchRoutineTask, updateOnboardingStep, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules, assignGroupTemplateToMembers, assignExistingGroupToMembers, getRoutineFullData, bulkUpdateDayOrders, bulkCreateIndividualTasks, bulkDeleteTasks, type DaySpecificOrder, type BulkDayOrderUpdate } from '../../../lib/api'
 import { generateAvatarUrl } from '../../ui/AvatarSelector'
 import RoutineDetailsModal, { type RoutineScheduleData } from './RoutineDetailsModal'
 
@@ -95,6 +95,10 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   
   const [routine, setRoutine] = useState<{ id: string; family_id: string; name: string; status: "draft"|"active"|"archived" }|null>(null)
   const [routineName, setRoutineName] = useState('My Routine')
+  const [isCreatingRoutine, setIsCreatingRoutine] = useState(false)
+  
+  // Promise-based routine creation to prevent race conditions
+  const routineCreationPromise = useRef<Promise<{ id: string; family_id: string; name: string; status: "draft"|"active"|"archived" } | null> | null>(null)
   const [draggedItem, setDraggedItem] = useState<{ type: 'task' | 'group', item: Task | TaskGroup, fromGroup?: TaskGroup } | null>(null)
   const [pendingDrop, setPendingDrop] = useState<PendingDrop | null>(null)
   const [showApplyToPopup, setShowApplyToPopup] = useState(false)
@@ -103,6 +107,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   const [selectedTaskForEdit, setSelectedTaskForEdit] = useState<{ task: Task, day: string, memberId: string } | null>(null)
   const [miniPopupPosition, setMiniPopupPosition] = useState<{ x: number, y: number } | null>(null)
   const [isDeletingTask, setIsDeletingTask] = useState(false)
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false)
+  const [deleteScope, setDeleteScope] = useState<'this_day' | 'this_and_following' | 'all_days'>('this_day')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string|null>(null)
   const [isLoadingData, setIsLoadingData] = useState(false)
@@ -111,6 +117,9 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   const [routineScheduleData, setRoutineScheduleData] = useState<RoutineScheduleData | null>(null)
   const [daySelection, setDaySelection] = useState<DaySelection>({ mode: 'single', selectedDays: [] })
   const [selectedWhoOption, setSelectedWhoOption] = useState<string>('none')
+  const [selectedRoutineGroup, setSelectedRoutineGroup] = useState<string>('none')
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false)
+  const [routineGroups, setRoutineGroups] = useState<TaskGroup[]>([])
   const [viewMode, setViewMode] = useState<'calendar' | 'group'>('calendar')
   const [selectedTaskGroup, setSelectedTaskGroup] = useState<TaskGroup | null>(null)
   const [showTaskSelection, setShowTaskSelection] = useState(false)
@@ -565,33 +574,39 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     
     console.log('[KIDOERS-ROUTINE] Column clicked for day:', day)
     
-    try {
-      // Create a new task with no title placeholder
-      const newTask: Task = {
-        id: `temp-${Date.now()}`,
-        name: '(No title)',
-        description: '',
-        points: 5, // Default points
-        estimatedMinutes: 30, // Default duration
-        time_of_day: 'morning', // Default time
-        is_saved: false
-      }
-      
-      // Add to calendar immediately
-      const updatedCalendarTasks = { ...calendarTasks }
-      if (!updatedCalendarTasks[day]) {
-        updatedCalendarTasks[day] = { groups: [], individualTasks: [] }
-      }
-      updatedCalendarTasks[day].individualTasks.push(newTask)
-      setCalendarTasks(updatedCalendarTasks)
-      
-      // Save to backend
-      await addTaskToCalendar(selectedMemberId, newTask, 'none', day)
-      
-      console.log('[KIDOERS-ROUTINE] New task created for day:', day)
-    } catch (error) {
-      console.error('[KIDOERS-ROUTINE] Error creating new task:', error)
+    // Get the selected member name
+    const selectedMember = enhancedFamilyMembers.find(m => m.id === selectedMemberId)
+    const memberName = selectedMember?.name || 'Unknown'
+    
+    // Create a new task with no title placeholder
+    const newTask: Task = {
+      id: `temp-${Date.now()}`,
+      name: '(No title)',
+      description: '',
+      points: 5, // Default points
+      estimatedMinutes: 30, // Default duration
+      time_of_day: 'morning', // Default time
+      is_saved: false
     }
+    
+    // Create pending drop object for the popup
+    const pendingDropData: PendingDrop = {
+      type: 'task',
+      item: newTask,
+      targetMemberId: selectedMemberId,
+      targetMemberName: memberName,
+      targetDay: day
+    }
+    
+    // Set up the popup state
+    setPendingDrop(pendingDropData)
+    setEditableTaskName('(No title)')
+    setDaySelection({ mode: 'single', selectedDays: [day] })
+    setSelectedWhoOption('none')
+    setSelectedRoutineGroup('none')
+    setShowApplyToPopup(true)
+    
+    console.log('[KIDOERS-ROUTINE] Apply To Popup opened for new task creation')
   }
 
   // Handle edit task - opens the Apply Tasks To modal
@@ -626,14 +641,68 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     
     console.log('[TASK-DELETE] Deleting task:', selectedTaskForEdit.task.name)
     
+    // Check if this recurring task exists on multiple days
+    const recurringTaskId = selectedTaskForEdit.task.recurring_task_id || selectedTaskForEdit.task.template_id || selectedTaskForEdit.task.id
+    const taskName = selectedTaskForEdit.task.name
+    
+    // Count how many days this recurring task appears on
+    let taskAppearsOnDays = 0
+    Object.keys(calendarTasks).forEach(day => {
+      const dayTasks = calendarTasks[day].individualTasks || []
+      const hasTaskOnDay = dayTasks.some(task => 
+        (task.recurring_task_id === recurringTaskId || task.template_id === recurringTaskId || task.id === recurringTaskId) && 
+        task.name === taskName
+      )
+      if (hasTaskOnDay) {
+        taskAppearsOnDays++
+      }
+    })
+    
+    console.log('[TASK-DELETE] Task appears on', taskAppearsOnDays, 'days')
+    console.log('[TASK-DELETE] Selected task:', selectedTaskForEdit.task)
+    console.log('[TASK-DELETE] Recurring task ID:', recurringTaskId)
+    console.log('[TASK-DELETE] Calendar tasks:', calendarTasks)
+    
+    // Debug: Check if tasks have recurring_task_id
+    console.log('[TASK-DELETE] Selected task has recurring_task_id:', selectedTaskForEdit.task.recurring_task_id)
+    console.log('[TASK-DELETE] Selected task has template_id:', selectedTaskForEdit.task.template_id)
+    
+    // Debug: Check each day's tasks
+    Object.keys(calendarTasks).forEach(day => {
+      const dayTasks = calendarTasks[day].individualTasks || []
+      const matchingTasks = dayTasks.filter(task => 
+        (task.recurring_task_id === recurringTaskId || task.template_id === recurringTaskId || task.id === recurringTaskId) && 
+        task.name === taskName
+      )
+      if (matchingTasks.length > 0) {
+        console.log(`[TASK-DELETE] Day ${day} has ${matchingTasks.length} matching tasks:`, matchingTasks.map(t => ({id: t.id, name: t.name, recurring_task_id: t.recurring_task_id})))
+      }
+    })
+    
+    if (taskAppearsOnDays > 1) {
+      // Show confirmation modal for multi-day tasks
+      setShowDeleteConfirmModal(true)
+      setDeleteScope('this_day') // Default to this day
+      return
+    }
+    
+    // For single-day tasks, delete immediately
+    await performTaskDeletion('this_day')
+  }
+
+  // Perform the actual task deletion
+  const performTaskDeletion = async (scope: 'this_day' | 'this_and_following' | 'all_days') => {
+    if (!selectedTaskForEdit) return
+    
     // Set deleting flag to prevent any popup from opening
     setIsDeletingTask(true)
     
     // Store task info before clearing state
     const taskToDelete = selectedTaskForEdit
     
-    // Close mini popup first to prevent any race conditions
+    // Close popups
     setShowTaskMiniPopup(false)
+    setShowDeleteConfirmModal(false)
     setSelectedTaskForEdit(null)
     setMiniPopupPosition(null)
     
@@ -647,19 +716,60 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           return
         }
 
-        // Delete task from backend
-        console.log('[TASK-DELETE] 🗑️ Deleting task from backend:', taskToDelete.task.id)
-        await deleteRoutineTask(routineData.id, taskToDelete.task.id)
-        console.log('[TASK-DELETE] ✅ Task deleted from backend successfully')
+        // Check if this is a recurring task
+        if (taskToDelete.task.recurring_task_id || taskToDelete.task.template_id || taskToDelete.task.is_system) {
+          // Use bulk delete for recurring tasks
+          console.log('[TASK-DELETE] 🗑️ Using bulk delete for recurring task:', taskToDelete.task.name)
+          const result = await bulkDeleteTasks(routineData.id, {
+            task_template_id: taskToDelete.task.recurring_task_id || taskToDelete.task.template_id || taskToDelete.task.id,
+            delete_scope: scope,
+            target_day: taskToDelete.day,
+            member_id: taskToDelete.memberId
+          })
+          console.log('[TASK-DELETE] ✅ Bulk delete result:', result)
+        } else {
+          // Use regular delete for custom tasks
+          console.log('[TASK-DELETE] 🗑️ Deleting custom task from backend:', taskToDelete.task.id)
+          await deleteRoutineTask(routineData.id, taskToDelete.task.id)
+          console.log('[TASK-DELETE] ✅ Task deleted from backend successfully')
+        }
 
-        // Remove from calendar state
-        setCalendarTasks(prev => ({
-          ...prev,
-          [taskToDelete.day]: {
-            ...prev[taskToDelete.day],
-            individualTasks: prev[taskToDelete.day].individualTasks.filter(t => t.id !== taskToDelete.task.id)
+        // Remove from calendar state based on scope
+        setCalendarTasks(prev => {
+          const newCalendarTasks = { ...prev }
+          
+          if (scope === 'this_day') {
+            // Remove only from the current day
+            newCalendarTasks[taskToDelete.day] = {
+              ...newCalendarTasks[taskToDelete.day],
+              individualTasks: newCalendarTasks[taskToDelete.day].individualTasks.filter(t => t.id !== taskToDelete.task.id)
+            }
+          } else if (scope === 'this_and_following') {
+            // Remove from current day and all following days
+            const dayOrder = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+            const currentDayIndex = dayOrder.indexOf(taskToDelete.day)
+            const followingDays = dayOrder.slice(currentDayIndex)
+            
+            followingDays.forEach(day => {
+              if (newCalendarTasks[day]) {
+                newCalendarTasks[day] = {
+                  ...newCalendarTasks[day],
+                  individualTasks: newCalendarTasks[day].individualTasks.filter(t => t.id !== taskToDelete.task.id)
+                }
+              }
+            })
+          } else if (scope === 'all_days') {
+            // Remove from all days
+            Object.keys(newCalendarTasks).forEach(day => {
+              newCalendarTasks[day] = {
+                ...newCalendarTasks[day],
+                individualTasks: newCalendarTasks[day].individualTasks.filter(t => t.id !== taskToDelete.task.id)
+              }
+            })
           }
-        }))
+          
+          return newCalendarTasks
+        })
         
         console.log('[TASK-DELETE] ✅ Task deleted from UI successfully')
       } catch (error) {
@@ -750,15 +860,73 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     
     console.log('[KIDOERS-ROUTINE] Target members for applyToId:', selectedApplyToId, targetMemberIds)
 
-    // Add task/group to all selected days for all target members (only UI updates, no backend calls)
-    for (const day of targetDays) {
-      for (const memberId of targetMemberIds) {
-        if (pendingDrop.type === 'task') {
-          console.log('[KIDOERS-ROUTINE] ',`Adding task to ${day} for member ${memberId}`)
-          // Update task name with editable name
-          const updatedTask = { ...pendingDrop.item as Task, name: editableTaskName }
-          addTaskToCalendar(memberId, updatedTask, selectedApplyToId, day, pendingDrop.fromGroup)
-        } else if (pendingDrop.type === 'group') {
+    // Handle task creation with bulk API for better performance
+    if (pendingDrop.type === 'task') {
+      try {
+        console.log('[KIDOERS-ROUTINE] 🚀 Using bulk API for task creation');
+        
+        // Ensure routine exists first
+        const routineData = await ensureRoutineExists();
+        if (!routineData) {
+          setError('Failed to create routine. Please try again.');
+          return;
+        }
+
+        // Prepare bulk task creation payload
+        const task = pendingDrop.item as Task;
+        const bulkPayload = {
+          task_template: {
+            name: editableTaskName || task.name,
+            description: task.description,
+            points: task.points,
+            duration_mins: task.estimatedMinutes,
+            time_of_day: task.time_of_day,
+            from_task_template_id: task.is_system ? task.id : undefined
+          },
+          assignments: targetMemberIds.map(memberId => ({
+            member_id: memberId,
+            days_of_week: targetDays,
+            order_index: 0
+          }))
+        };
+
+        console.log('[KIDOERS-ROUTINE] 📦 Bulk payload:', bulkPayload);
+
+        // Call bulk API
+        const result = await bulkCreateIndividualTasks(routineData.id, bulkPayload);
+        console.log('[KIDOERS-ROUTINE] ✅ Bulk task creation result:', result);
+
+        // Update UI with created tasks
+        const newCalendarTasks = { ...calendarTasks };
+        for (const createdTask of result.created_tasks) {
+          const day = createdTask.days_of_week[0]; // Each task is created for one day
+          if (!newCalendarTasks[day]) {
+            newCalendarTasks[day] = { individualTasks: [], groupTasks: [] };
+          }
+          
+          // Add task to UI for each assigned member
+          for (const memberId of targetMemberIds) {
+            const taskForUI = {
+              ...createdTask,
+              memberId: memberId,
+              is_saved: true
+            };
+            newCalendarTasks[day].individualTasks.push(taskForUI);
+          }
+        }
+        
+        setCalendarTasks(newCalendarTasks);
+        console.log('[KIDOERS-ROUTINE] ✅ UI updated with bulk created tasks');
+
+      } catch (error: any) {
+        console.error('[KIDOERS-ROUTINE] ❌ Bulk task creation failed:', error);
+        setError(error?.message || 'Failed to create tasks. Please try again.');
+        return;
+      }
+    } else if (pendingDrop.type === 'group') {
+      // Handle group creation (keep existing logic for now)
+      for (const day of targetDays) {
+        for (const memberId of targetMemberIds) {
           console.log('[KIDOERS-ROUTINE] ',`Adding group to ${day} for member ${memberId}`)
           addGroupToCalendar(memberId, pendingDrop.item as TaskGroup, selectedApplyToId, day, pendingDrop.selectedTasks)
         }
@@ -1549,29 +1717,53 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
   // Lazy routine creation - only create when user actually starts building
   const ensureRoutineExists = async () => {
-    if (routine) return routine;
+    // If routine already exists, return it immediately
+    if (routine) {
+      console.log('[KIDOERS-ROUTINE] Routine already exists, returning:', routine.id);
+      return routine;
+    }
     
-    if (!familyId) return null;
-    
-    try {
-      console.log('[KIDOERS-ROUTINE] Creating routine draft lazily...');
-      const created = await createRoutineDraft(familyId, routineName);
-      console.log('[KIDOERS-ROUTINE] Routine draft created:', created);
-      const routineData = {
-        id: created.id,
-        family_id: created.family_id,
-        name: created.name,
-        status: created.status as "draft"|"active"|"archived"
-      };
-      setRoutine(routineData);
-      setCurrentRoutineId(routineData.id);
-      console.log('[KIDOERS-ROUTINE] Set currentRoutineId to:', routineData.id);
-      return routineData;
-    } catch (e: any) {
-      console.error('[KIDOERS-ROUTINE] ','Error creating routine:', e);
-      setError(e?.message || "Failed to create routine");
+    if (!familyId) {
+      console.log('[KIDOERS-ROUTINE] No family ID, returning null');
       return null;
     }
+    
+    // If routine creation is already in progress, return the existing promise
+    if (routineCreationPromise.current) {
+      console.log('[KIDOERS-ROUTINE] Routine creation already in progress, waiting for existing promise...');
+      return routineCreationPromise.current;
+    }
+    
+    // Create new routine creation promise
+    console.log('[KIDOERS-ROUTINE] Starting routine creation...');
+    routineCreationPromise.current = (async () => {
+      try {
+        setIsCreatingRoutine(true);
+        console.log('[KIDOERS-ROUTINE] Creating routine draft lazily...');
+        const created = await createRoutineDraft(familyId, routineName);
+        console.log('[KIDOERS-ROUTINE] Routine draft created:', created);
+        const routineData = {
+          id: created.id,
+          family_id: created.family_id,
+          name: created.name,
+          status: created.status as "draft"|"active"|"archived"
+        };
+        setRoutine(routineData);
+        setCurrentRoutineId(routineData.id);
+        console.log('[KIDOERS-ROUTINE] Set currentRoutineId to:', routineData.id);
+        return routineData;
+      } catch (e: any) {
+        console.error('[KIDOERS-ROUTINE] ','Error creating routine:', e);
+        setError(e?.message || "Failed to create routine");
+        return null;
+      } finally {
+        setIsCreatingRoutine(false);
+        // Clear the promise reference so future calls can create new routines if needed
+        routineCreationPromise.current = null;
+      }
+    })();
+    
+    return routineCreationPromise.current;
   };
 
   // Load existing routine data using the new full-data endpoint
@@ -1605,6 +1797,9 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         is_saved: true,
         template_id: undefined
       }));
+      
+      // Set routine groups for the modal
+      setRoutineGroups(transformedGroups);
       
       // Transform individual tasks
       const individualTasks: Task[] = fullData.individual_tasks.map(task => ({
@@ -2483,76 +2678,64 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           </DialogContent>
         </Dialog>
 
-        {/* Apply To Popup */}
+        {/* Create New Task Modal */}
         <Dialog open={showApplyToPopup} onOpenChange={setShowApplyToPopup}>
           <DialogContent className="sm:max-w-lg bg-white">
             <DialogHeader>
-              <DialogTitle>Apply Tasks To</DialogTitle>
+              <DialogTitle className="text-lg font-semibold text-gray-800">Create New Task</DialogTitle>
             </DialogHeader>
             <div className="space-y-6">
-              {/* Task Name Input */}
+              {/* Task Title */}
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">Task Name</Label>
                 <Input
                   value={editableTaskName}
                   onChange={(e) => setEditableTaskName(e.target.value)}
-                  placeholder="Enter task name..."
-                  className="w-full"
+                  placeholder="(No title)"
+                  className="w-full border-0 border-b-2 border-gray-300 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none rounded-none bg-transparent px-0"
                 />
               </div>
               
-              {/* Day Selection */}
-              <div className="space-y-3">
-                <Label className="text-sm font-medium text-gray-700">When should this task be done?</Label>
-                <div className="space-y-2">
-                  <label className="flex items-center space-x-2 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-gray-50">
-                    <input
-                      type="radio"
-                      name="dayMode"
-                      value="single"
-                      checked={daySelection.mode === 'single'}
-                      onChange={() => setDaySelection({ mode: 'single', selectedDays: [pendingDrop?.targetDay || ''] })}
-                      className="sr-only"
-                    />
-                    <div className={`w-4 h-4 rounded-full border-2 ${daySelection.mode === 'single' ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`}></div>
-                    <div>
-                      <div className="font-medium text-sm">Just {pendingDrop?.targetDay}</div>
-                      <div className="text-xs text-gray-500">Only on the day you dropped it</div>
-                    </div>
-                  </label>
-                  
-                  <label className="flex items-center space-x-2 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-gray-50">
-                    <input
-                      type="radio"
-                      name="dayMode"
-                      value="everyday"
-                      checked={daySelection.mode === 'everyday'}
-                      onChange={() => setDaySelection({ mode: 'everyday', selectedDays: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] })}
-                      className="sr-only"
-                    />
-                    <div className={`w-4 h-4 rounded-full border-2 ${daySelection.mode === 'everyday' ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`}></div>
-                    <div>
-                      <div className="font-medium text-sm">Every day</div>
-                      <div className="text-xs text-gray-500">All 7 days of the week</div>
-                    </div>
-                  </label>
-                  
-                  <label className="flex items-center space-x-2 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-gray-50">
-                    <input
-                      type="radio"
-                      name="dayMode"
-                      value="custom"
-                      checked={daySelection.mode === 'custom'}
-                      onChange={() => setDaySelection({ mode: 'custom', selectedDays: [pendingDrop?.targetDay || ''] })}
-                      className="sr-only"
-                    />
-                    <div className={`w-4 h-4 rounded-full border-2 ${daySelection.mode === 'custom' ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`}></div>
-                    <div>
-                      <div className="font-medium text-sm">Select specific days</div>
-                      <div className="text-xs text-gray-500">Choose which days of the week</div>
-                    </div>
-                  </label>
+              {/* Date and Time */}
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-sm font-medium text-gray-700">
+                    {pendingDrop?.targetDay ? pendingDrop.targetDay.charAt(0).toUpperCase() + pendingDrop.targetDay.slice(1) : 'Select day'}
+                  </span>
                 </div>
+              </div>
+              
+              {/* Task Duration */}
+              <div className="space-y-3">
+                <div className="flex items-center space-x-3">
+                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <Label className="text-sm font-medium text-gray-700">When should this task be done?</Label>
+                </div>
+                <Select
+                  value={daySelection.mode === 'single' ? 'just-this-day' : daySelection.mode === 'everyday' ? 'every-day' : 'custom-days'}
+                  onValueChange={(value) => {
+                    if (value === 'just-this-day') {
+                      setDaySelection({ mode: 'single', selectedDays: [pendingDrop?.targetDay || ''] })
+                    } else if (value === 'every-day') {
+                      setDaySelection({ mode: 'everyday', selectedDays: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] })
+                    } else if (value === 'custom-days') {
+                      setDaySelection({ mode: 'custom', selectedDays: [pendingDrop?.targetDay || ''] })
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-full bg-white">
+                    <SelectValue placeholder="Select duration" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white">
+                    <SelectItem value="just-this-day" className="bg-white hover:bg-gray-50">Just this day</SelectItem>
+                    <SelectItem value="every-day" className="bg-white hover:bg-gray-50">Every day</SelectItem>
+                    <SelectItem value="custom-days" className="bg-white hover:bg-gray-50">Select specific days</SelectItem>
+                  </SelectContent>
+                </Select>
                 
                 {/* Custom Day Selection */}
                 {daySelection.mode === 'custom' && (
@@ -2599,41 +2782,69 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                 )}
               </div>
               
-              {/* Family Member Selection */}
+              {/* Task Assignee */}
               <div className="space-y-3">
-                <Label className="text-sm font-medium text-gray-700">Who should do this task?</Label>
+                <div className="flex items-center space-x-3">
+                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  <Label className="text-sm font-medium text-gray-700">Who should do this task?</Label>
+                </div>
+                <Select
+                  value={selectedWhoOption}
+                  onValueChange={setSelectedWhoOption}
+                >
+                  <SelectTrigger className="w-full bg-white">
+                    <SelectValue placeholder="Select assignee" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white">
+                    <SelectItem value="none">Only this member</SelectItem>
+                    <SelectItem value="all-kids">All kids</SelectItem>
+                    <SelectItem value="all-parents">All parents</SelectItem>
+                    <SelectItem value="all-family">All family</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Routine Assignment */}
+              <div className="space-y-3">
+                <div className="flex items-center space-x-3">
+                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                  <Label className="text-sm font-medium text-gray-700">Assign to routine (optional)</Label>
+                </div>
                 <div className="space-y-2">
-                  {applyToOptions.map((option) => (
-                    <label key={option.id} className="flex items-center space-x-2 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-gray-50">
-                      <input
-                        type="radio"
-                        name="whoOption"
-                        value={option.id}
-                        checked={selectedWhoOption === option.id}
-                        onChange={() => setSelectedWhoOption(option.id)}
-                        className="sr-only"
-                      />
-                      <div className={`w-4 h-4 rounded-full border-2 ${selectedWhoOption === option.id ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`}></div>
-                      <div className="flex items-center space-x-3">
-                        {option.icon}
-                        <div className="text-left">
-                          <div className="font-medium">{option.label}</div>
-                          {option.id === 'none' && (
-                            <div className="text-xs text-gray-500">Only {pendingDrop?.targetMemberName}</div>
-                          )}
-                          {option.id === 'all-kids' && (
-                            <div className="text-xs text-gray-500">All children</div>
-                          )}
-                          {option.id === 'all-parents' && (
-                            <div className="text-xs text-gray-500">All parents</div>
-                          )}
-                          {option.id === 'all-family' && (
-                            <div className="text-xs text-gray-500">Everyone in the family</div>
-                          )}
-                        </div>
-                      </div>
-                    </label>
-                  ))}
+                  <Select
+                    value={selectedRoutineGroup || 'none'}
+                    onValueChange={setSelectedRoutineGroup}
+                  >
+                    <SelectTrigger className="w-full bg-white">
+                      <SelectValue placeholder="Choose a routine or create new" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white">
+                      <SelectItem value="none">No routine assignment</SelectItem>
+                      {routineGroups.map((group) => (
+                        <SelectItem key={group.id} value={group.id}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="create-new">Create new routine</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {selectedRoutineGroup === 'create-new' && (
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowCreateGroupModal(true)}
+                        className="flex items-center space-x-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Create new routine</span>
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
               
@@ -2758,6 +2969,76 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           totalTasks={totalTasks}
           familyMembers={enhancedFamilyMembers.length}
         />
+
+        {/* Delete Confirmation Modal */}
+        <Dialog open={showDeleteConfirmModal} onOpenChange={setShowDeleteConfirmModal}>
+          <DialogContent className="sm:max-w-md bg-white">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-semibold text-gray-800">Delete recurring event</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-3">
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="radio"
+                    id="this-event"
+                    name="delete-scope"
+                    value="this_day"
+                    checked={deleteScope === 'this_day'}
+                    onChange={(e) => setDeleteScope(e.target.value as 'this_day')}
+                    className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                  <label htmlFor="this-event" className="text-sm font-medium text-gray-700 cursor-pointer">
+                    This event
+                  </label>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="radio"
+                    id="this-and-following"
+                    name="delete-scope"
+                    value="this_and_following"
+                    checked={deleteScope === 'this_and_following'}
+                    onChange={(e) => setDeleteScope(e.target.value as 'this_and_following')}
+                    className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                  <label htmlFor="this-and-following" className="text-sm font-medium text-gray-700 cursor-pointer">
+                    This and following events
+                  </label>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="radio"
+                    id="all-events"
+                    name="delete-scope"
+                    value="all_days"
+                    checked={deleteScope === 'all_days'}
+                    onChange={(e) => setDeleteScope(e.target.value as 'all_days')}
+                    className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                  <label htmlFor="all-events" className="text-sm font-medium text-gray-700 cursor-pointer">
+                    All events
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+              <Button
+                onClick={() => setShowDeleteConfirmModal(false)}
+                variant="outline"
+                className="px-4 py-2"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => performTaskDeletion(deleteScope)}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2"
+              >
+                OK
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )
