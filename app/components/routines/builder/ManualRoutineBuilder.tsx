@@ -644,17 +644,18 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     console.log('[TASK-DELETE] Deleting task:', selectedTaskForEdit.task.name)
     
     // Check if this recurring task exists on multiple days
-    const recurringTaskId = selectedTaskForEdit.task.recurring_task_id || selectedTaskForEdit.task.template_id || selectedTaskForEdit.task.id
     const taskName = selectedTaskForEdit.task.name
+    const memberId = selectedTaskForEdit.memberId
     
     // Count how many days this recurring task appears on
     let taskAppearsOnDays = 0
     Object.keys(calendarTasks).forEach(day => {
       const dayTasks = calendarTasks[day].individualTasks || []
-      const hasTaskOnDay = dayTasks.some(task => 
-        (task.recurring_task_id === recurringTaskId || task.template_id === recurringTaskId || task.id === recurringTaskId) && 
-        task.name === taskName
-      )
+      const hasTaskOnDay = dayTasks.some(task => {
+        // For recurring tasks, we match by name and member ID
+        // This works even if tasks don't have recurring_task_id (legacy tasks)
+        return task.name === taskName && task.memberId === memberId
+      })
       if (hasTaskOnDay) {
         taskAppearsOnDays++
       }
@@ -662,8 +663,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     
     console.log('[TASK-DELETE] Task appears on', taskAppearsOnDays, 'days')
     console.log('[TASK-DELETE] Selected task:', selectedTaskForEdit.task)
-    console.log('[TASK-DELETE] Recurring task ID:', recurringTaskId)
-    console.log('[TASK-DELETE] Calendar tasks:', calendarTasks)
+    console.log('[TASK-DELETE] Task name:', taskName, 'Member ID:', memberId)
+    console.log('[TASK-DELETE] Should show modal?', taskAppearsOnDays > 1)
     
     // Debug: Check if tasks have recurring_task_id
     console.log('[TASK-DELETE] Selected task has recurring_task_id:', selectedTaskForEdit.task.recurring_task_id)
@@ -673,11 +674,10 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     Object.keys(calendarTasks).forEach(day => {
       const dayTasks = calendarTasks[day].individualTasks || []
       const matchingTasks = dayTasks.filter(task => 
-        (task.recurring_task_id === recurringTaskId || task.template_id === recurringTaskId || task.id === recurringTaskId) && 
-        task.name === taskName
+        task.name === taskName && task.memberId === memberId
       )
       if (matchingTasks.length > 0) {
-        console.log(`[TASK-DELETE] Day ${day} has ${matchingTasks.length} matching tasks:`, matchingTasks.map(t => ({id: t.id, name: t.name, recurring_task_id: t.recurring_task_id})))
+        console.log(`[TASK-DELETE] Day ${day} has ${matchingTasks.length} matching tasks:`, matchingTasks.map(t => ({id: t.id, name: t.name, memberId: t.memberId})))
       }
     })
     
@@ -964,7 +964,21 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
               estimatedMinutes: createdTask.duration_mins || 30, // Default to 30 minutes if not specified
               time_of_day: createdTask.time_of_day as "morning" | "afternoon" | "evening" | "night" | null
             };
-            newCalendarTasks[day].individualTasks.push(taskForUI);
+            
+            // Check if task already exists in UI state to avoid duplicates
+            const existingTaskIndex = newCalendarTasks[day].individualTasks.findIndex(
+              existingTask => existingTask.id === taskForUI.id && existingTask.memberId === memberId
+            );
+            
+            if (existingTaskIndex >= 0) {
+              // Update existing task
+              newCalendarTasks[day].individualTasks[existingTaskIndex] = taskForUI;
+              console.log(`[KIDOERS-ROUTINE] 🔄 Updated existing task in UI: ${taskForUI.name} for ${day}`);
+            } else {
+              // Add new task
+              newCalendarTasks[day].individualTasks.push(taskForUI);
+              console.log(`[KIDOERS-ROUTINE] ➕ Added new task to UI: ${taskForUI.name} for ${day}`);
+            }
           }
         }
         
