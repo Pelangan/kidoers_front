@@ -742,30 +742,77 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           
           if (scope === 'this_day') {
             // Remove only from the current day
+            // For recurring tasks, filter by recurring_task_id; for custom tasks, filter by id
+            const recurringTaskId = taskToDelete.task.recurring_task_id || taskToDelete.task.template_id || taskToDelete.task.id
+            
             newCalendarTasks[taskToDelete.day] = {
               ...newCalendarTasks[taskToDelete.day],
-              individualTasks: newCalendarTasks[taskToDelete.day].individualTasks.filter(t => t.id !== taskToDelete.task.id)
+              individualTasks: newCalendarTasks[taskToDelete.day].individualTasks.filter(t => {
+                if (taskToDelete.task.recurring_task_id || taskToDelete.task.template_id || taskToDelete.task.is_system) {
+                  // For recurring tasks, filter by recurring_task_id
+                  return (t.recurring_task_id !== recurringTaskId && t.template_id !== recurringTaskId && t.id !== recurringTaskId)
+                } else {
+                  // For custom tasks, filter by exact id
+                  return t.id !== taskToDelete.task.id
+                }
+              })
             }
           } else if (scope === 'this_and_following') {
             // Remove from current day and all following days
-            const dayOrder = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+            const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
             const currentDayIndex = dayOrder.indexOf(taskToDelete.day)
             const followingDays = dayOrder.slice(currentDayIndex)
             
+            // For recurring tasks, filter by recurring_task_id; for custom tasks, filter by id
+            const recurringTaskId = taskToDelete.task.recurring_task_id || taskToDelete.task.template_id || taskToDelete.task.id
+            
+            console.log('[TASK-DELETE] 🎯 Frontend: Deleting from following days:', followingDays)
+            console.log('[TASK-DELETE] 🎯 Frontend: Recurring task ID:', recurringTaskId)
+            console.log('[TASK-DELETE] 🎯 Frontend: Task to delete:', taskToDelete.task)
+            
             followingDays.forEach(day => {
               if (newCalendarTasks[day]) {
+                const beforeCount = newCalendarTasks[day].individualTasks.length
+                const isRecurring = taskToDelete.task.recurring_task_id || taskToDelete.task.template_id || taskToDelete.task.is_system
+                
                 newCalendarTasks[day] = {
                   ...newCalendarTasks[day],
-                  individualTasks: newCalendarTasks[day].individualTasks.filter(t => t.id !== taskToDelete.task.id)
+                  individualTasks: newCalendarTasks[day].individualTasks.filter(t => {
+                    if (isRecurring) {
+                      // For recurring tasks, filter by recurring_task_id
+                      const shouldKeep = (t.recurring_task_id !== recurringTaskId && t.template_id !== recurringTaskId && t.id !== recurringTaskId)
+                      if (!shouldKeep) {
+                        console.log(`[TASK-DELETE] 🗑️ Frontend: Removing recurring task from ${day}:`, t.name, t.id)
+                      }
+                      return shouldKeep
+                    } else {
+                      // For custom tasks, filter by exact id
+                      return t.id !== taskToDelete.task.id
+                    }
+                  })
                 }
+                
+                const afterCount = newCalendarTasks[day].individualTasks.length
+                console.log(`[TASK-DELETE] 📊 Frontend: Day ${day}: ${beforeCount} → ${afterCount} tasks`)
               }
             })
           } else if (scope === 'all_days') {
             // Remove from all days
+            // For recurring tasks, filter by recurring_task_id; for custom tasks, filter by id
+            const recurringTaskId = taskToDelete.task.recurring_task_id || taskToDelete.task.template_id || taskToDelete.task.id
+            
             Object.keys(newCalendarTasks).forEach(day => {
               newCalendarTasks[day] = {
                 ...newCalendarTasks[day],
-                individualTasks: newCalendarTasks[day].individualTasks.filter(t => t.id !== taskToDelete.task.id)
+                individualTasks: newCalendarTasks[day].individualTasks.filter(t => {
+                  if (taskToDelete.task.recurring_task_id || taskToDelete.task.template_id || taskToDelete.task.is_system) {
+                    // For recurring tasks, filter by recurring_task_id
+                    return (t.recurring_task_id !== recurringTaskId && t.template_id !== recurringTaskId && t.id !== recurringTaskId)
+                  } else {
+                    // For custom tasks, filter by exact id
+                    return t.id !== taskToDelete.task.id
+                  }
+                })
               }
             })
           }
