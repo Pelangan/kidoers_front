@@ -33,7 +33,7 @@ interface Task {
   is_system?: boolean
   time_of_day?: "morning" | "afternoon" | "evening" | "night" | null
   template_id?: string // Store the original template ID
-  recurring_task_id?: string // Store the recurring task ID for grouping
+  recurring_template_id?: string // Store the recurring template ID for grouping
   is_saved?: boolean // Track if this task has been saved to backend
   memberId?: string // Store the member ID for filtering
   days_of_week?: string[] // Days when this task should appear
@@ -525,7 +525,35 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   const handleEditTask = () => {
     if (!selectedTaskForEdit) return
     
+    console.log('[TASK-EDIT] ===== EDIT TASK DEBUG START =====')
     console.log('[TASK-EDIT] Opening edit modal for task:', selectedTaskForEdit.task.name)
+    console.log('[TASK-EDIT] Full task object:', selectedTaskForEdit.task)
+    console.log('[TASK-EDIT] Task details:', {
+      name: selectedTaskForEdit.task.name,
+      days_of_week: selectedTaskForEdit.task.days_of_week,
+      recurring_template_id: selectedTaskForEdit.task.recurring_template_id,
+      template_id: selectedTaskForEdit.task.template_id,
+      is_system: selectedTaskForEdit.task.is_system,
+      memberId: selectedTaskForEdit.task.memberId,
+      id: selectedTaskForEdit.task.id
+    })
+    
+    // Check if this task appears on multiple days in the calendar
+    const taskAppearsOnDays: string[] = []
+    Object.keys(calendarTasks).forEach(day => {
+      const dayTasks = calendarTasks[day].individualTasks || []
+      const hasTaskOnDay = dayTasks.some(task => {
+        // Check by name and member ID for recurring tasks
+        return task.name === selectedTaskForEdit.task.name && 
+               (task.memberId === selectedTaskForEdit.memberId || task.memberId === selectedTaskForEdit.task.memberId)
+      })
+      if (hasTaskOnDay) {
+        taskAppearsOnDays.push(day)
+      }
+    })
+    
+    console.log('[TASK-EDIT] Task appears on days (from calendar):', taskAppearsOnDays)
+    console.log('[TASK-EDIT] Task appears on', taskAppearsOnDays.length, 'days')
     
     // Set up the task for editing
     setPendingDrop({
@@ -537,8 +565,88 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       fromGroup: undefined
     })
     
-    // Initialize day selection with the task's current day
-    setDaySelection({ mode: 'single', selectedDays: [selectedTaskForEdit.day] })
+    // Determine the correct day selection mode based on task type and days_of_week
+    let daySelectionMode: 'single' | 'everyday' | 'custom' = 'single'
+    let selectedDays: string[] = [selectedTaskForEdit.day]
+    
+    console.log('[TASK-EDIT] Initial day selection:', { mode: daySelectionMode, selectedDays })
+    
+    // Check if this is a recurring task
+    const isRecurringTask = selectedTaskForEdit.task.recurring_template_id || 
+                           selectedTaskForEdit.task.template_id || 
+                           selectedTaskForEdit.task.is_system
+    
+    console.log('[TASK-EDIT] Is recurring task?', {
+      isRecurringTask,
+      hasRecurringTemplateId: !!selectedTaskForEdit.task.recurring_template_id,
+      hasTemplateId: !!selectedTaskForEdit.task.template_id,
+      isSystem: !!selectedTaskForEdit.task.is_system,
+      daysOfWeek: selectedTaskForEdit.task.days_of_week
+    })
+    
+    // For recurring tasks, use calendar detection instead of task.days_of_week
+    // because each task instance only knows about its own day
+    const effectiveDays = isRecurringTask ? taskAppearsOnDays : (selectedTaskForEdit.task.days_of_week || [])
+    
+    console.log('[TASK-EDIT] Effective days for detection:', {
+      fromTaskDaysOfWeek: selectedTaskForEdit.task.days_of_week,
+      fromCalendar: taskAppearsOnDays,
+      effectiveDays,
+      isRecurringTask
+    })
+    
+    // FALLBACK: If we can't detect recurring from template_id, use calendar data
+    // This handles cases where the task data isn't fully loaded
+    const isRecurringByCalendar = taskAppearsOnDays.length > 1
+    const finalIsRecurring = isRecurringTask || isRecurringByCalendar
+    
+    console.log('[TASK-EDIT] Recurring detection fallback:', {
+      isRecurringTask,
+      isRecurringByCalendar,
+      finalIsRecurring,
+      calendarDays: taskAppearsOnDays.length
+    })
+    
+    if (finalIsRecurring && effectiveDays.length > 0) {
+      const taskDays = effectiveDays
+      
+      console.log('[TASK-EDIT] Processing recurring task with days:', taskDays)
+      
+      if (taskDays.length === 7) {
+        // Task appears every day
+        daySelectionMode = 'everyday'
+        selectedDays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+        console.log('[TASK-EDIT] ✅ Set to EVERYDAY mode')
+      } else if (taskDays.length > 1) {
+        // Task appears on multiple specific days
+        daySelectionMode = 'custom'
+        selectedDays = taskDays
+        console.log('[TASK-EDIT] ✅ Set to CUSTOM mode with days:', taskDays)
+      } else {
+        // Task appears on single day (but is recurring)
+        daySelectionMode = 'single'
+        selectedDays = taskDays
+        console.log('[TASK-EDIT] ✅ Set to SINGLE mode (recurring but single day)')
+      }
+    } else if (finalIsRecurring) {
+      console.log('[TASK-EDIT] ⚠️ Recurring task but no days found in calendar, using single mode')
+    } else {
+      console.log('[TASK-EDIT] ⚠️ Not a recurring task, using single mode')
+    }
+    
+    console.log('[TASK-EDIT] ===== FINAL DAY SELECTION =====')
+    console.log('[TASK-EDIT] Setting day selection:', {
+      mode: daySelectionMode,
+      selectedDays: selectedDays,
+      isRecurringTask: isRecurringTask,
+      originalTaskDays: selectedTaskForEdit.task.days_of_week,
+      calendarDays: taskAppearsOnDays
+    })
+    
+    // Initialize day selection with the correct mode
+    setDaySelection({ mode: daySelectionMode, selectedDays: selectedDays })
+    
+    console.log('[TASK-EDIT] ===== EDIT TASK DEBUG END =====')
     
     // Close mini popup and open main modal
     setShowTaskMiniPopup(false)
@@ -563,7 +671,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       const dayTasks = calendarTasks[day].individualTasks || []
       const hasTaskOnDay = dayTasks.some(task => {
         // For recurring tasks, we match by name and member ID
-        // This works even if tasks don't have recurring_task_id (legacy tasks)
+        // This works even if tasks don't have recurring_template_id (legacy tasks)
         return task.name === taskName && task.memberId === memberId
       })
       if (hasTaskOnDay) {
@@ -576,8 +684,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     console.log('[TASK-DELETE] Task name:', taskName, 'Member ID:', memberId)
     console.log('[TASK-DELETE] Should show modal?', taskAppearsOnDays > 1)
     
-    // Debug: Check if tasks have recurring_task_id
-    console.log('[TASK-DELETE] Selected task has recurring_task_id:', selectedTaskForEdit.task.recurring_task_id)
+    // Debug: Check if tasks have recurring_template_id
+    console.log('[TASK-DELETE] Selected task has recurring_template_id:', selectedTaskForEdit.task.recurring_template_id)
     console.log('[TASK-DELETE] Selected task has template_id:', selectedTaskForEdit.task.template_id)
     
     // Debug: Check each day's tasks
@@ -629,11 +737,11 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         }
 
         // Check if this is a recurring task
-        if (taskToDelete.task.recurring_task_id || taskToDelete.task.template_id || taskToDelete.task.is_system) {
+        if (taskToDelete.task.recurring_template_id || taskToDelete.task.template_id || taskToDelete.task.is_system) {
           // Use bulk delete for recurring tasks
           console.log('[TASK-DELETE] 🗑️ Using bulk delete for recurring task:', taskToDelete.task.name)
           const result = await bulkDeleteTasks(routineData.id, {
-            task_template_id: taskToDelete.task.recurring_task_id || taskToDelete.task.template_id || taskToDelete.task.id,
+            task_template_id: taskToDelete.task.recurring_template_id || taskToDelete.task.template_id || taskToDelete.task.id,
             delete_scope: scope,
             target_day: taskToDelete.day,
             member_id: taskToDelete.memberId
@@ -652,15 +760,15 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           
           if (scope === 'this_day') {
             // Remove only from the current day
-            // For recurring tasks, filter by recurring_task_id; for custom tasks, filter by id
-            const recurringTaskId = taskToDelete.task.recurring_task_id || taskToDelete.task.template_id || taskToDelete.task.id
+            // For recurring tasks, filter by recurring_template_id; for custom tasks, filter by id
+            const recurringTaskId = taskToDelete.task.recurring_template_id || taskToDelete.task.template_id || taskToDelete.task.id
             
             newCalendarTasks[taskToDelete.day] = {
               ...newCalendarTasks[taskToDelete.day],
               individualTasks: newCalendarTasks[taskToDelete.day].individualTasks.filter(t => {
-                if (taskToDelete.task.recurring_task_id || taskToDelete.task.template_id || taskToDelete.task.is_system) {
-                  // For recurring tasks, filter by recurring_task_id
-                  return (t.recurring_task_id !== recurringTaskId && t.template_id !== recurringTaskId && t.id !== recurringTaskId)
+                if (taskToDelete.task.recurring_template_id || taskToDelete.task.template_id || taskToDelete.task.is_system) {
+                  // For recurring tasks, filter by recurring_template_id
+                  return (t.recurring_template_id !== recurringTaskId && t.template_id !== recurringTaskId && t.id !== recurringTaskId)
                 } else {
                   // For custom tasks, filter by exact id
                   return t.id !== taskToDelete.task.id
@@ -673,8 +781,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
             const currentDayIndex = dayOrder.indexOf(taskToDelete.day)
             const followingDays = dayOrder.slice(currentDayIndex)
             
-            // For recurring tasks, filter by recurring_task_id; for custom tasks, filter by id
-            const recurringTaskId = taskToDelete.task.recurring_task_id || taskToDelete.task.template_id || taskToDelete.task.id
+            // For recurring tasks, filter by recurring_template_id; for custom tasks, filter by id
+            const recurringTaskId = taskToDelete.task.recurring_template_id || taskToDelete.task.template_id || taskToDelete.task.id
             
             console.log('[TASK-DELETE] 🎯 Frontend: Deleting from following days:', followingDays)
             console.log('[TASK-DELETE] 🎯 Frontend: Recurring task ID:', recurringTaskId)
@@ -683,14 +791,14 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
             followingDays.forEach(day => {
               if (newCalendarTasks[day]) {
                 const beforeCount = newCalendarTasks[day].individualTasks.length
-                const isRecurring = taskToDelete.task.recurring_task_id || taskToDelete.task.template_id || taskToDelete.task.is_system
+                const isRecurring = taskToDelete.task.recurring_template_id || taskToDelete.task.template_id || taskToDelete.task.is_system
                 
                 newCalendarTasks[day] = {
                   ...newCalendarTasks[day],
                   individualTasks: newCalendarTasks[day].individualTasks.filter(t => {
                     if (isRecurring) {
-                      // For recurring tasks, filter by recurring_task_id
-                      const shouldKeep = (t.recurring_task_id !== recurringTaskId && t.template_id !== recurringTaskId && t.id !== recurringTaskId)
+                      // For recurring tasks, filter by recurring_template_id
+                      const shouldKeep = (t.recurring_template_id !== recurringTaskId && t.template_id !== recurringTaskId && t.id !== recurringTaskId)
                       if (!shouldKeep) {
                         console.log(`[TASK-DELETE] 🗑️ Frontend: Removing recurring task from ${day}:`, t.name, t.id)
                       }
@@ -708,16 +816,16 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
             })
           } else if (scope === 'all_days') {
             // Remove from all days
-            // For recurring tasks, filter by recurring_task_id; for custom tasks, filter by id
-            const recurringTaskId = taskToDelete.task.recurring_task_id || taskToDelete.task.template_id || taskToDelete.task.id
+            // For recurring tasks, filter by recurring_template_id; for custom tasks, filter by id
+            const recurringTaskId = taskToDelete.task.recurring_template_id || taskToDelete.task.template_id || taskToDelete.task.id
             
             Object.keys(newCalendarTasks).forEach(day => {
               newCalendarTasks[day] = {
                 ...newCalendarTasks[day],
                 individualTasks: newCalendarTasks[day].individualTasks.filter(t => {
-                  if (taskToDelete.task.recurring_task_id || taskToDelete.task.template_id || taskToDelete.task.is_system) {
-                    // For recurring tasks, filter by recurring_task_id
-                    return (t.recurring_task_id !== recurringTaskId && t.template_id !== recurringTaskId && t.id !== recurringTaskId)
+                  if (taskToDelete.task.recurring_template_id || taskToDelete.task.template_id || taskToDelete.task.is_system) {
+                    // For recurring tasks, filter by recurring_template_id
+                    return (t.recurring_template_id !== recurringTaskId && t.template_id !== recurringTaskId && t.id !== recurringTaskId)
                   } else {
                     // For custom tasks, filter by exact id
                     return t.id !== taskToDelete.task.id
@@ -848,7 +956,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
             member_id: memberId,
             days_of_week: targetDays,
             order_index: 0
-          }))
+          })),
+          create_recurring_template: targetDays.length > 1 // Create recurring template for multi-day tasks
         };
 
         console.log('[KIDOERS-ROUTINE] 📦 Bulk payload:', bulkPayload);
@@ -1666,6 +1775,25 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       const fullData = await getRoutineFullData(routineId);
       console.log('[KIDOERS-ROUTINE] ✅ ManualRoutineBuilder: Full routine data loaded:', fullData);
       
+      // Debug: Log individual tasks data
+      console.log('[KIDOERS-ROUTINE] 🔍 Individual tasks from backend:', fullData.individual_tasks.map(task => ({
+        id: task.id,
+        name: task.name,
+        days_of_week: task.days_of_week,
+        recurring_template_id: task.recurring_template_id
+      })));
+      
+      // Debug: Log the specific task we're looking for
+      const targetTask = fullData.individual_tasks.find(task => task.name === 'recurrent');
+      if (targetTask) {
+        console.log('[KIDOERS-ROUTINE] 🎯 Target task from backend:', {
+          id: targetTask.id,
+          name: targetTask.name,
+          recurring_template_id: targetTask.recurring_template_id,
+          days_of_week: targetTask.days_of_week
+        });
+      }
+      
       // Transform backend data to frontend format
       const transformedGroups: TaskGroup[] = fullData.groups.map(group => ({
         id: group.id,
@@ -1680,6 +1808,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           time_of_day: task.time_of_day as "morning" | "afternoon" | "evening" | "night" | undefined,
           is_saved: true,
           template_id: undefined,
+          recurring_template_id: task.recurring_template_id || undefined,
           days_of_week: task.days_of_week
         })),
         color: 'bg-blue-100 border-blue-300',
@@ -1701,11 +1830,23 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         time_of_day: task.time_of_day as "morning" | "afternoon" | "evening" | "night" | undefined,
         is_saved: true,
         template_id: undefined,
+        recurring_template_id: task.recurring_template_id || undefined,
         days_of_week: task.days_of_week
       }));
       
       console.log('[KIDOERS-ROUTINE] Transformed groups:', transformedGroups);
       console.log('[KIDOERS-ROUTINE] Transformed individual tasks:', individualTasks);
+      
+      // Debug: Check if the target task has recurring_template_id after transformation
+      const transformedTargetTask = individualTasks.find(task => task.name === 'recurrent');
+      if (transformedTargetTask) {
+        console.log('[KIDOERS-ROUTINE] 🎯 Target task after transformation:', {
+          id: transformedTargetTask.id,
+          name: transformedTargetTask.name,
+          recurring_template_id: transformedTargetTask.recurring_template_id,
+          days_of_week: transformedTargetTask.days_of_week
+        });
+      }
       
       // Load day-specific orders
       console.log('[DRAG-ORDER] 📋 ManualRoutineBuilder: Loading day-specific orders');

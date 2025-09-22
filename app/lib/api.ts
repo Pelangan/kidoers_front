@@ -615,7 +615,6 @@ export async function getRoutineTasks(routineId: string) {
     time_of_day: string | null;
     frequency: string;
     days_of_week: string[];
-    recurring_task_id: string | null;
     order_index: number;
   }[]>(`/routines/${routineId}/tasks`, {
     method: "GET",
@@ -671,6 +670,7 @@ export async function bulkCreateIndividualTasks(routineId: string, payload: {
     days_of_week: string[];
     order_index?: number;
   }>;
+  create_recurring_template?: boolean;
 }) {
   return apiService.makeRequest<{
     routine_id: string;
@@ -939,6 +939,7 @@ export async function getRoutineFullData(routineId: string) {
         frequency: string;
         days_of_week: string[];
         order_index: number;
+        recurring_template_id: string | null;
         assignments: Array<{
           id: string;
           routine_task_id: string;
@@ -959,6 +960,7 @@ export async function getRoutineFullData(routineId: string) {
       frequency: string;
       days_of_week: string[];
       order_index: number;
+      recurring_template_id: string | null;
       assignments: Array<{
         id: string;
         routine_task_id: string;
