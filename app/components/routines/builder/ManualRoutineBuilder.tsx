@@ -100,7 +100,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   
   // Promise-based routine creation to prevent race conditions
   const routineCreationPromise = useRef<Promise<{ id: string; family_id: string; name: string; status: "draft"|"active"|"archived" } | null> | null>(null)
-  const [draggedItem, setDraggedItem] = useState<{ type: 'task' | 'group', item: Task | TaskGroup, fromGroup?: TaskGroup } | null>(null)
   const [pendingDrop, setPendingDrop] = useState<PendingDrop | null>(null)
   const [showApplyToPopup, setShowApplyToPopup] = useState(false)
   const [editableTaskName, setEditableTaskName] = useState('')
@@ -123,9 +122,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false)
   const [routineGroups, setRoutineGroups] = useState<TaskGroup[]>([])
   const [viewMode, setViewMode] = useState<'calendar' | 'group'>('calendar')
-  const [selectedTaskGroup, setSelectedTaskGroup] = useState<TaskGroup | null>(null)
-  const [showTaskSelection, setShowTaskSelection] = useState(false)
-  const [selectedTasksInGroup, setSelectedTasksInGroup] = useState<Task[]>([])
 
   // Apply to options
   const applyToOptions: ApplyToOption[] = [
@@ -186,7 +182,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     return colorMap[color] || { border: 'border-gray-300', bg: 'bg-gray-50', bgColor: '#f9fafb', borderColor: '#d1d5db' }
   }
 
-  // Load all initial data (family members, existing routine, and library data)
+  // Load all initial data (family members and existing routine)
   useEffect(() => {
     let isMounted = true;
     
@@ -357,7 +353,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           await loadExistingRoutineData(existingRoutine.id, enhanced);
         }
         
-        // Transform and set library data
         
         console.log('[KIDOERS-ROUTINE] All data loaded successfully');
       } catch (e: any) {
@@ -409,94 +404,9 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     }
   }, [isDragging])
 
-  // Pre-defined task groups (now using API data)
-  const [predefinedGroups] = useState<TaskGroup[]>([])
-
-  // Pre-defined individual tasks (now using API data)
-  const [predefinedTasks] = useState<Task[]>([])
 
 
 
-  // Drag and drop handlers
-  const handleDragStart = (e: React.DragEvent, type: 'task' | 'group', item: Task | TaskGroup, fromGroup?: TaskGroup) => {
-    console.log('[DRAG-ORDER] Drag started:', { type, item: item.name, fromGroup: fromGroup?.name })
-    setDraggedItem({ type, item, fromGroup })
-    e.dataTransfer.effectAllowed = 'move'
-  }
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-  }
-
-  const handleDropOnDay = async (e: React.DragEvent, day: string) => {
-    e.preventDefault()
-    console.log('[DRAG-ORDER] Drop on day:', { day, draggedItem, draggedTask, selectedMemberId })
-    
-    // Handle existing task being moved between columns
-    if (draggedTask) {
-      console.log('[DRAG-ORDER] Moving existing task between columns:', draggedTask.task.name, 'from', draggedTask.day, 'to', day)
-      
-      if (draggedTask.day === day) {
-        console.log('[DRAG-ORDER] Task dropped on same day, no action needed')
-        setDraggedTask(null)
-        setIsDragging(false)
-        return
-      }
-
-      try {
-        // Move task to new day
-        await moveTaskToNewDay(draggedTask.task, draggedTask.day, day, draggedTask.memberId)
-        console.log('[DRAG-ORDER] ✅ Task moved between columns successfully')
-      } catch (error) {
-        console.error('[DRAG-ORDER] ❌ Error moving task between columns:', error)
-        setError('Failed to move task. Please try again.')
-      }
-      
-      setDraggedTask(null)
-      setIsDragging(false)
-      return
-    }
-    
-    // Handle new task from library
-    if (!draggedItem || !selectedMemberId) {
-      console.log('[DRAG-ORDER] No dragged item or selected member:', { draggedItem, selectedMemberId })
-      return
-    }
-
-    const member = enhancedFamilyMembers.find(m => m.id === selectedMemberId)
-    if (!member) {
-      console.log('[KIDOERS-ROUTINE] Member not found:', selectedMemberId)
-      return
-    }
-
-    // If it's a group, show task selection first
-    if (draggedItem.type === 'group') {
-      console.log('[DRAG-ORDER] Group dropped, showing task selection')
-      const group = draggedItem.item as TaskGroup
-      setSelectedTaskGroup(group)
-      setSelectedTasksInGroup([])
-      setShowTaskSelection(true)
-      setDraggedItem(null)
-      return
-    }
-
-    // Gmail-style: Create task immediately with default settings
-    console.log('[DRAG-ORDER] Creating task immediately:', draggedItem.item)
-    try {
-      const task = draggedItem.item as Task
-      
-      // Create task with default "this member only" and "just this day" settings
-      await addTaskToCalendar(selectedMemberId, task, 'none', day)
-      
-      console.log('[DRAG-ORDER] ✅ Task created successfully')
-    } catch (error) {
-      console.error('[DRAG-ORDER] ❌ Error creating task:', error)
-      setError('Failed to create task. Please try again.')
-    }
-    
-    setDraggedItem(null)
-  }
 
   // Move task to a new day (cross-column dragging)
   const moveTaskToNewDay = async (task: Task, fromDay: string, toDay: string, memberId: string) => {
@@ -1008,48 +918,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     }
   }
 
-  const handleTaskSelection = (task: Task, isSelected: boolean) => {
-    if (isSelected) {
-      setSelectedTasksInGroup(prev => [...prev, task])
-    } else {
-      setSelectedTasksInGroup(prev => prev.filter(t => t.id !== task.id))
-    }
-  }
-
-  const handleSelectAllTasks = () => {
-    if (selectedTaskGroup) {
-      setSelectedTasksInGroup(selectedTaskGroup.tasks)
-    }
-  }
-
-  const handleDeselectAllTasks = () => {
-    setSelectedTasksInGroup([])
-  }
-
-  const handleConfirmTaskSelection = () => {
-    if (!selectedTaskGroup || selectedTasksInGroup.length === 0 || !selectedMemberId) return
-
-    const member = enhancedFamilyMembers.find(m => m.id === selectedMemberId)
-    if (!member) return
-
-    // Set up pending drop with selected tasks - we'll get the day from the drag operation
-    setPendingDrop({
-      type: 'group',
-      item: selectedTaskGroup,
-      targetMemberId: selectedMemberId,
-      targetMemberName: member.name,
-      targetDay: 'monday', // Default day, will be updated when user selects days
-      selectedTasks: selectedTasksInGroup
-    })
-    
-    // Initialize day selection
-    setDaySelection({ mode: 'single', selectedDays: [] })
-    
-    setShowTaskSelection(false)
-    setSelectedWhoOption('none') // Reset to default selection
-    setEditableTaskName(pendingDrop?.item.name || '')
-    setShowApplyToPopup(true)
-  }
 
   // Task reordering handlers (works in both edit mode and normal mode)
   const handleTaskDragStart = (e: React.DragEvent, task: Task, day: string, memberId: string) => {
@@ -1692,51 +1560,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     return total
   }
 
-  // Get all unique task groups that have been assigned to the selected member
-  const getAssignedTaskGroups = () => {
-    const groups = new Map<string, TaskGroup>()
-    
-    Object.values(calendarTasks).forEach(dayTasks => {
-      dayTasks.groups
-        .filter((group: TaskGroup) => {
-          const groupMemberId = extractMemberIdFromId(group.id)
-          return groupMemberId === selectedMemberId
-        })
-        .forEach(group => {
-          if (!groups.has(group.template_id || group.id)) {
-            groups.set(group.template_id || group.id, group)
-          }
-        })
-    })
-    
-    return Array.from(groups.values())
-  }
-
-  // Get tasks for a specific group across all days for the selected member
-  const getTasksForGroup = (group: TaskGroup) => {
-    const tasks: Array<{ task: Task, member: any, day: string }> = []
-    
-    Object.entries(calendarTasks).forEach(([day, dayTasks]) => {
-      dayTasks.groups
-        .filter((assignedGroup: TaskGroup) => {
-          // Only include groups assigned to the selected member
-          const groupMemberId = extractMemberIdFromId(assignedGroup.id)
-          return groupMemberId === selectedMemberId
-        })
-        .forEach(assignedGroup => {
-          if (assignedGroup.template_id === group.template_id || assignedGroup.id === group.id) {
-            assignedGroup.tasks.forEach(task => {
-              const member = enhancedFamilyMembers.find(m => m.id === selectedMemberId)
-              if (member) {
-                tasks.push({ task, member, day })
-              }
-            })
-          }
-        })
-    })
-    
-    return tasks
-  }
 
   const totalTasks = Object.keys(calendarTasks).reduce((sum, day) => sum + getTotalTasksForDay(day), 0)
 
@@ -2252,6 +2075,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                             size="sm"
                             onClick={() => setViewMode('group')}
                             className="flex items-center space-x-2"
+                            disabled={true}
                           >
                             <span>Group View</span>
                           </Button>
@@ -2270,47 +2094,9 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
               </CardContent>
             </Card>
 
-            {/* Task Group Selector for Group View */}
-            {selectedMemberId && viewMode === 'group' && (
-              <Card className="bg-white border border-gray-200 mb-4">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <div className="flex items-center space-x-2">
-                        <Label className="text-sm font-medium text-gray-700">Select task group:</Label>
-                        <Select
-                          value={selectedTaskGroup?.id || ''}
-                          onValueChange={(value) => {
-                            const group = getAssignedTaskGroups().find(g => g.id === value)
-                            setSelectedTaskGroup(group || null)
-                          }}
-                        >
-                          <SelectTrigger className="w-48">
-                            <SelectValue placeholder="Choose a task group" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {getAssignedTaskGroups().map((group) => (
-                              <SelectItem key={group.id} value={group.id}>
-                                {group.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    
-                    {selectedTaskGroup && (
-                      <div className="text-sm text-gray-600">
-                        {getTasksForGroup(selectedTaskGroup).length} tasks assigned
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
 
             {/* Calendar Grid */}
-            {selectedMemberId && viewMode === 'calendar' && (
+            {selectedMemberId && (
               <Card className="bg-white border border-gray-200">
                 <CardContent className="p-0">
                   <div className="grid grid-cols-7 gap-0 min-h-[900px]">
@@ -2325,8 +2111,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                         <div
                           key={day}
                           className="border-r border-gray-200 last:border-r-0 min-h-[900px] flex flex-col cursor-pointer hover:bg-gray-50 transition-colors"
-                          onDragOver={handleDragOver}
-                          onDrop={(e) => handleDropOnDay(e, day)}
                           onClick={() => handleColumnClick(day)}
                         >
                           {/* Day Header */}
@@ -2506,119 +2290,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
               </Card>
             )}
 
-            {/* Group View */}
-            {selectedMemberId && viewMode === 'group' && (
-              <Card className="bg-white border border-gray-200">
-                <CardContent className="p-0">
-                  {!selectedTaskGroup ? (
-                    <div className="text-center py-12">
-                      <Folder className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">No Task Group Selected</h3>
-                      <p className="text-gray-500">Select a task group from the dropdown to view its schedule</p>
-                    </div>
-                  ) : (
-                    <div className="p-6">
-                      <div className="mb-6">
-                        <div className="flex items-center space-x-3 mb-2">
-                          <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                          <h2 className="text-xl font-bold text-gray-900">{selectedTaskGroup.name}</h2>
-                        </div>
-                        <p className="text-gray-600">{selectedTaskGroup.description}</p>
-                      </div>
-                      
-                      {/* Group by Day Visualization */}
-                      <div className="space-y-4">
-                        <h3 className="text-lg font-semibold text-gray-900">Group by Day</h3>
-                        <div className="grid grid-cols-7 gap-4">
-                          {['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].map((day) => {
-                            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-                            const dayIndex = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].indexOf(day)
-                            const dayTasks = getTasksForGroup(selectedTaskGroup).filter(t => t.day === day)
-                            
-                            return (
-                              <div key={day} className="space-y-2">
-                                <div className="text-center">
-                                  <div className="text-sm font-semibold text-gray-700">{dayNames[dayIndex]}</div>
-                                </div>
-                                
-                                <div className="space-y-2 min-h-32">
-                                  {dayTasks.length === 0 ? (
-                                    <div className="text-center py-4 text-gray-400 text-sm">
-                                      No tasks
-                                    </div>
-                                  ) : (
-                                    dayTasks.map(({ task, member }, index) => {
-                                      const colors = getMemberColors(member.color)
-                                      return (
-                                        <div
-                                          key={`${task.id}-${index}`}
-                                          className={`p-2 rounded-lg border-l-4 border-purple-500 ${colors.bg} ${colors.border} border`}
-                                        >
-                                          <div className="flex items-center space-x-2">
-                                            <div className={`w-2 h-2 rounded-full ${colors.border.replace('border-', 'bg-')}`}></div>
-                                            <span className="text-sm font-medium text-gray-900">{task.name}</span>
-                                          </div>
-                                          <div className="text-xs text-gray-600 mt-1">
-                                            {member.name} • {task.points}pts
-                                          </div>
-                                        </div>
-                                      )
-                                    })
-                                  )}
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                      
-                      {/* Group by Member Visualization */}
-                      <div className="mt-8 space-y-4">
-                        <h3 className="text-lg font-semibold text-gray-900">Group by Member</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                          {enhancedFamilyMembers.map((member) => {
-                            const memberTasks = getTasksForGroup(selectedTaskGroup).filter(t => t.member.id === member.id)
-                            const colors = getMemberColors(member.color)
-                            
-                            return (
-                              <div key={member.id} className="space-y-2">
-                                <div className="flex items-center space-x-2 mb-3">
-                                  <div className={`w-3 h-3 rounded-full ${colors.border.replace('border-', 'bg-')}`}></div>
-                                  <h4 className="font-semibold text-gray-900">{member.name}</h4>
-                                  <Badge variant="outline" className="text-xs">
-                                    {memberTasks.length} tasks
-                                  </Badge>
-                                </div>
-                                
-                                <div className="space-y-2">
-                                  {memberTasks.length === 0 ? (
-                                    <div className="text-center py-4 text-gray-400 text-sm">
-                                      No tasks assigned
-                                    </div>
-                                  ) : (
-                                    memberTasks.map(({ task, day }, index) => (
-                                      <div
-                                        key={`${task.id}-${index}`}
-                                        className={`p-2 rounded-lg border-l-4 border-purple-500 ${colors.bg} ${colors.border} border`}
-                                      >
-                                        <div className="text-sm font-medium text-gray-900">{task.name}</div>
-                                        <div className="text-xs text-gray-600 mt-1">
-                                          {day.charAt(0).toUpperCase() + day.slice(1)} • {task.points}pts
-                                        </div>
-                                      </div>
-                                    ))
-                                  )}
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
 
             {/* Save Button */}
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
@@ -2647,7 +2318,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
               <p className="text-center text-sm text-amber-600">
                 {!routineName.trim() 
                   ? "Please enter a routine name to continue"
-                  : "Drag tasks and groups from the library panel to family members"
+                  : "Click on a day to add tasks to your routine"
                 }
               </p>
             )}
@@ -2655,95 +2326,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         </div>
 
 
-        {/* Task Selection Modal */}
-        <Dialog open={showTaskSelection} onOpenChange={setShowTaskSelection}>
-          <DialogContent className="sm:max-w-2xl bg-white">
-            <DialogHeader>
-              <DialogTitle>Select Tasks from {selectedTaskGroup?.name}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-6">
-              <p className="text-sm text-gray-600">
-                Choose which tasks from the "{selectedTaskGroup?.name}" group you want to assign. You can select individual tasks or all tasks.
-              </p>
-              
-              <div className="flex items-center space-x-4 mb-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSelectAllTasks}
-                  className="text-blue-600 border-blue-600 hover:bg-blue-50"
-                >
-                  Select All
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDeselectAllTasks}
-                  className="text-gray-600 border-gray-600 hover:bg-gray-50"
-                >
-                  Deselect All
-                </Button>
-                <div className="text-sm text-gray-600">
-                  {selectedTasksInGroup.length} of {selectedTaskGroup?.tasks.length || 0} tasks selected
-                </div>
-              </div>
-              
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {selectedTaskGroup?.tasks.map((task) => {
-                  const isSelected = selectedTasksInGroup.some(t => t.id === task.id)
-                  return (
-                    <label
-                      key={task.id}
-                      className={`flex items-center space-x-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                        isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={(e) => handleTaskSelection(task, e.target.checked)}
-                        className="sr-only"
-                      />
-                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
-                        isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
-                      }`}>
-                        {isSelected && <Check className="w-3 h-3 text-white" />}
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-medium text-sm text-gray-900">{task.name}</div>
-                        <div className="text-xs text-gray-600">{task.description}</div>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <Badge variant="outline" className="text-xs">
-                            {task.points}pts
-                          </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            {task.estimatedMinutes}min
-                          </Badge>
-                        </div>
-                      </div>
-                    </label>
-                  )
-                })}
-              </div>
-              
-              <div className="flex justify-end space-x-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowTaskSelection(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleConfirmTaskSelection}
-                  disabled={selectedTasksInGroup.length === 0}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  Continue with {selectedTasksInGroup.length} selected tasks
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
 
         {/* Create New Task Modal */}
         <Dialog open={showApplyToPopup} onOpenChange={setShowApplyToPopup}>
