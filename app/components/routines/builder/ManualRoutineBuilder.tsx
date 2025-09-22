@@ -12,9 +12,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../../co
 import { ArrowLeft, Trash2, Save, GripVertical, User, Folder, Users, Baby, UserCheck, Check, Settings, Move, Plus, Loader2 } from 'lucide-react'
 import type { FamilyMember } from '../../../types'
 
-import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, patchRoutineTask, updateOnboardingStep, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules, assignGroupTemplateToMembers, assignExistingGroupToMembers, getRoutineFullData, bulkUpdateDayOrders, bulkCreateIndividualTasks, bulkDeleteTasks, type DaySpecificOrder, type BulkDayOrderUpdate } from '../../../lib/api'
+import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, patchRoutineTask, updateOnboardingStep, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules, assignGroupTemplateToMembers, assignExistingGroupToMembers, getRoutineFullData, bulkUpdateDayOrders, bulkCreateIndividualTasks, bulkUpdateRecurringTasks, bulkDeleteTasks, type DaySpecificOrder, type BulkDayOrderUpdate } from '../../../lib/api'
 import { generateAvatarUrl } from '../../ui/AvatarSelector'
 import RoutineDetailsModal, { type RoutineScheduleData } from './RoutineDetailsModal'
+
+// Day constants - Sunday moved to last position
+const DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
 interface ManualRoutineBuilderProps {
   familyId?: string
@@ -615,7 +619,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       if (taskDays.length === 7) {
         // Task appears every day
         daySelectionMode = 'everyday'
-        selectedDays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+        selectedDays = DAYS_OF_WEEK
         console.log('[TASK-EDIT] ✅ Set to EVERYDAY mode')
       } else if (taskDays.length > 1) {
         // Task appears on multiple specific days
@@ -877,12 +881,26 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       if (daySelection.mode === 'single') {
         targetDays = [pendingDrop.targetDay]
       } else if (daySelection.mode === 'everyday') {
-        targetDays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+        targetDays = DAYS_OF_WEEK
       } else if (daySelection.mode === 'custom') {
         targetDays = daySelection.selectedDays
       }
 
       console.log('[KIDOERS-ROUTINE] Target days:', targetDays)
+
+      // Check if we're editing an existing recurring task
+      const isEditingRecurringTask = selectedTaskForEdit && 
+                                   selectedTaskForEdit.task.recurring_template_id && 
+                                   pendingDrop.type === 'task' &&
+                                   pendingDrop.item.id === selectedTaskForEdit.task.id
+
+      console.log('[KIDOERS-ROUTINE] 🔍 Edit mode check:', {
+        isEditingRecurringTask,
+        hasSelectedTaskForEdit: !!selectedTaskForEdit,
+        hasRecurringTemplateId: selectedTaskForEdit?.task.recurring_template_id,
+        pendingDropType: pendingDrop.type,
+        taskIdsMatch: selectedTaskForEdit?.task.id === pendingDrop.item.id
+      })
 
       // Determine which members should receive the task based on applyToId
       let targetMemberIds: string[] = []
@@ -932,14 +950,93 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
       // Handle task creation with bulk API for better performance
       if (pendingDrop.type === 'task') {
-        console.log('[KIDOERS-ROUTINE] 🚀 Using bulk API for task creation');
-        
         // Ensure routine exists first
         const routineData = await ensureRoutineExists();
         if (!routineData) {
           setError('Failed to create routine. Please try again.');
           return;
         }
+
+        // Check if we're editing an existing recurring task
+        if (isEditingRecurringTask && selectedTaskForEdit) {
+          console.log('[KIDOERS-ROUTINE] 🔄 Updating existing recurring task');
+          
+          const task = pendingDrop.item as Task;
+          const updatePayload = {
+            recurring_template_id: selectedTaskForEdit.task.recurring_template_id!,
+            task_template: {
+              name: editableTaskName || task.name,
+              description: task.description || undefined,
+              points: task.points,
+              duration_mins: task.estimatedMinutes,
+              time_of_day: task.time_of_day || undefined,
+              from_task_template_id: task.is_system ? task.id : undefined
+            },
+            assignments: targetMemberIds.map(memberId => ({
+              member_id: memberId,
+              days_of_week: targetDays,
+              order_index: 0
+            })),
+            new_days_of_week: targetDays
+          };
+
+          console.log('[KIDOERS-ROUTINE] 📦 Recurring update payload:', updatePayload);
+
+          // Call the recurring task update API
+          const result = await bulkUpdateRecurringTasks(routineData.id, updatePayload);
+          console.log('[KIDOERS-ROUTINE] ✅ Recurring task update result:', result);
+
+          // Update UI with the changes
+          // First, remove all existing tasks for this recurring template
+          const newCalendarTasks = { ...calendarTasks };
+          Object.keys(newCalendarTasks).forEach(day => {
+            newCalendarTasks[day] = {
+              ...newCalendarTasks[day],
+              individualTasks: newCalendarTasks[day].individualTasks.filter(task => 
+                task.recurring_template_id !== selectedTaskForEdit.task.recurring_template_id
+              )
+            };
+          });
+
+          // Add the updated tasks
+          for (const updatedTask of result.updated_tasks) {
+            const day = updatedTask.days_of_week[0]; // Each task is for one day
+            if (!newCalendarTasks[day]) {
+              newCalendarTasks[day] = { individualTasks: [], groups: [] };
+            }
+            
+            // Add task to UI for each assigned member
+            for (const assignment of updatedTask.assignments) {
+              const taskForUI = {
+                ...updatedTask,
+                memberId: assignment.member_id,
+                is_saved: true,
+                template_id: updatedTask.recurring_template_id || undefined,
+                recurring_template_id: updatedTask.recurring_template_id || undefined,
+                from_group: undefined,
+                estimatedMinutes: updatedTask.duration_mins || 5,
+                time_of_day: updatedTask.time_of_day as "morning" | "afternoon" | "evening" | "night" | undefined
+              };
+              
+              newCalendarTasks[day].individualTasks.push(taskForUI);
+            }
+          }
+
+          setCalendarTasks(newCalendarTasks);
+          console.log('[KIDOERS-ROUTINE] ✅ Updated calendar tasks for recurring task');
+
+          // Close modal and reset state
+          setShowApplyToPopup(false);
+          setPendingDrop(null);
+          setDaySelection({ mode: 'single', selectedDays: [] });
+          setSelectedWhoOption('none');
+          setEditableTaskName('');
+          setSelectedTaskForEdit(null);
+
+          return; // Exit early for recurring task updates
+        }
+
+        console.log('[KIDOERS-ROUTINE] 🚀 Using bulk API for task creation');
 
         // Prepare bulk task creation payload
         const task = pendingDrop.item as Task;
@@ -2472,7 +2569,9 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         <Dialog open={showApplyToPopup} onOpenChange={setShowApplyToPopup}>
           <DialogContent className="sm:max-w-lg bg-white">
             <DialogHeader>
-              <DialogTitle className="text-lg font-semibold text-gray-800">Create New Task</DialogTitle>
+              <DialogTitle className="text-lg font-semibold text-gray-800">
+                {selectedTaskForEdit ? 'Edit Task' : 'Create New Task'}
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-6">
               {/* Task Title */}
@@ -2511,7 +2610,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                     if (value === 'just-this-day') {
                       setDaySelection({ mode: 'single', selectedDays: [pendingDrop?.targetDay || ''] })
                     } else if (value === 'every-day') {
-                      setDaySelection({ mode: 'everyday', selectedDays: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] })
+                      setDaySelection({ mode: 'everyday', selectedDays: DAYS_OF_WEEK })
                     } else if (value === 'custom-days') {
                       setDaySelection({ mode: 'custom', selectedDays: [pendingDrop?.targetDay || ''] })
                     }
@@ -2532,9 +2631,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                   <div className="ml-6 space-y-2">
                     <div className="text-xs text-gray-600 mb-2">Select days:</div>
                     <div className="grid grid-cols-7 gap-2">
-                      {['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].map((day) => {
-                        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-                        const dayIndex = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].indexOf(day)
+                      {DAYS_OF_WEEK.map((day) => {
+                        const dayIndex = DAYS_OF_WEEK.indexOf(day)
                         const isSelected = daySelection.selectedDays.includes(day)
                         
                         return (
@@ -2563,7 +2661,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                               className="sr-only"
                             />
                             <div className={`w-3 h-3 rounded-full ${isSelected ? 'bg-blue-500' : 'bg-gray-300'}`}></div>
-                            <span className="text-xs font-medium mt-1">{dayNames[dayIndex]}</span>
+                            <span className="text-xs font-medium mt-1">{DAY_NAMES[dayIndex]}</span>
                           </label>
                         )
                       })}

@@ -1025,3 +1025,56 @@ export async function copyDayOrders(routineId: string, request: CopyDayOrdersReq
     body: JSON.stringify(request),
   });
 }
+
+// Bulk Recurring Task Update
+export async function bulkUpdateRecurringTasks(routineId: string, update: {
+  recurring_template_id: string;
+  task_template: {
+    name: string;
+    description?: string;
+    points: number;
+    duration_mins: number;
+    time_of_day?: string;
+    from_task_template_id?: string;
+  };
+  assignments: Array<{
+    member_id: string;
+    days_of_week: string[];
+    order_index?: number;
+  }>;
+  new_days_of_week: string[];
+}): Promise<{
+  routine_id: string;
+  recurring_template_id: string;
+  tasks_created: number;
+  tasks_updated: number;
+  tasks_deleted: number;
+  assignments_created: number;
+  members_assigned: string[];
+  days_assigned: string[];
+  updated_tasks: Array<{
+    id: string;
+    routine_id: string;
+    group_id: string | null;
+    name: string;
+    description: string | null;
+    points: number;
+    duration_mins: number | null;
+    time_of_day: string | null;
+    frequency: string;
+    days_of_week: string[];
+    order_index: number;
+    recurring_template_id: string | null;
+    assignments: Array<{
+      id: string;
+      routine_task_id: string;
+      member_id: string;
+      order_index: number;
+    }>;
+  }>;
+}> {
+  return apiService.makeRequest(`/routines/${routineId}/tasks/bulk-update-recurring`, {
+    method: "POST",
+    body: JSON.stringify(update),
+  });
+}
