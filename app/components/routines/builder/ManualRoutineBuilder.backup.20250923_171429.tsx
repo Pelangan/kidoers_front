@@ -10,26 +10,77 @@ import { Badge } from "../../../../components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../../components/ui/dialog"
 import { ArrowLeft, Trash2, Save, GripVertical, User, Folder, Users, Baby, UserCheck, Check, Settings, Move, Plus, Loader2 } from 'lucide-react'
-import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, patchRoutineTask, updateOnboardingStep, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules, assignGroupTemplateToMembers, assignExistingGroupToMembers, getRoutineFullData, bulkUpdateDayOrders, bulkCreateIndividualTasks, bulkUpdateRecurringTasks, bulkDeleteTasks } from '../../../lib/api'
+import type { FamilyMember } from '../../../types'
+
+import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, patchRoutineTask, updateOnboardingStep, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules, assignGroupTemplateToMembers, assignExistingGroupToMembers, getRoutineFullData, bulkUpdateDayOrders, bulkCreateIndividualTasks, bulkUpdateRecurringTasks, bulkDeleteTasks, type DaySpecificOrder, type BulkDayOrderUpdate } from '../../../lib/api'
 import { generateAvatarUrl } from '../../ui/AvatarSelector'
-import RoutineDetailsModal from './RoutineDetailsModal'
-import type { 
-  ManualRoutineBuilderProps, 
-  Task, 
-  TaskGroup, 
-  ApplyToOption, 
-  PendingDrop, 
-  DaySelection, 
-  FamilyMember, 
-  DaySpecificOrder, 
-  BulkDayOrderUpdate, 
-  RoutineScheduleData 
-} from './types/routineBuilderTypes'
+import RoutineDetailsModal, { type RoutineScheduleData } from './RoutineDetailsModal'
 
 // Day constants - Sunday moved to last position
 const DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
+interface ManualRoutineBuilderProps {
+  familyId?: string
+  onComplete?: () => void
+  isEditMode?: boolean
+  onBack?: () => void
+}
+
+interface Task {
+  id: string
+  name: string
+  description: string | null
+  points: number
+  estimatedMinutes: number
+  completed?: boolean
+  is_system?: boolean
+  time_of_day?: "morning" | "afternoon" | "evening" | "night" | null
+  template_id?: string // Store the original template ID
+  recurring_template_id?: string // Store the recurring template ID for grouping
+  is_saved?: boolean // Track if this task has been saved to backend
+  memberId?: string // Store the member ID for filtering
+  days_of_week?: string[] // Days when this task should appear
+  from_group?: { // Track which group this task came from
+    id: string
+    name: string
+    template_id?: string
+  }
+}
+
+interface TaskGroup {
+  id: string
+  name: string
+  description: string
+  tasks: Task[]
+  color: string
+  is_system?: boolean
+  time_of_day?: "morning" | "afternoon" | "evening" | "night" | null
+  template_id?: string // Store the original template ID
+  is_saved?: boolean // Track if this group has been saved to backend
+}
+
+interface ApplyToOption {
+  id: string
+  label: string
+  icon: React.ReactNode
+  filter: (members: any[]) => any[]
+}
+
+interface PendingDrop {
+  type: 'task' | 'group'
+  item: Task | TaskGroup
+  targetMemberId: string
+  targetMemberName: string
+  targetDay: string
+  selectedTasks?: Task[] // For individual task selection within groups
+  fromGroup?: TaskGroup // Track which group a task came from
+}
+
+interface DaySelection {
+  mode: 'single' | 'everyday' | 'custom'
+  selectedDays: string[]
+}
 
 export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplete, isEditMode = false, onBack }: ManualRoutineBuilderProps = {}) {
   console.log('[KIDOERS-ROUTINE] 🚀 ManualRoutineBuilder: Component mounted with props:', { propFamilyId, isEditMode, hasOnComplete: !!onComplete, hasOnBack: !!onBack });
