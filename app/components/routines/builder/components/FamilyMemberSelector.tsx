@@ -1,6 +1,7 @@
 import React from 'react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { Check } from 'lucide-react'
 import { generateAvatarUrl } from '../../../ui/AvatarSelector'
 import type { EnhancedFamilyMember } from '../../types/routineBuilderTypes'
 
@@ -44,34 +45,34 @@ export const FamilyMemberSelector: React.FC<FamilyMemberSelectorProps> = ({
         return (
           <div
             key={member.id}
-            className={`group relative flex flex-col items-center space-y-2 p-3 rounded-xl transition-all duration-300 cursor-pointer ${
-              selectedMemberId === member.id
-                ? 'bg-white shadow-lg scale-105'
-                : 'hover:bg-white/80 hover:shadow-md'
-            }`}
+            className="flex items-center gap-3 cursor-pointer group transition-all duration-300"
             onClick={() => setSelectedMemberId(member.id)}
           >
             <div className="relative">
-              <img
-                src={avatarUrl}
-                alt={member.name}
+              <div
                 className={`h-12 w-12 rounded-full overflow-hidden border-2 border-white shadow-lg transition-all duration-300 group-hover:scale-105 ${
                   selectedMemberId === member.id
                     ? `ring-2 ring-offset-2 ${colorClasses.ring} ${colorClasses.shadow} scale-110`
                     : `group-hover:ring-1 group-hover:ring-offset-1 ${colorClasses.hover} group-hover:shadow-md`
                 }`}
-              />
+              >
+                <img
+                  src={avatarUrl}
+                  alt={`${member.name}'s avatar`}
+                  className="h-full w-full object-cover scale-110"
+                />
+              </div>
 
               {selectedMemberId === member.id && (
                 <div className="absolute -top-1 -right-1 bg-white rounded-full p-1 shadow-lg ring-1 ring-white">
                   <div className={`${colorClasses.bg} rounded-full p-1`}>
-                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                    <Check className="h-3 w-3 text-white stroke-[2]" />
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="text-center">
+            <div className="flex flex-col">
               <p
                 className={`text-sm font-semibold transition-all duration-300 ${
                   selectedMemberId === member.id
