@@ -36,6 +36,8 @@ import { useFamilyMembers } from './hooks/useFamilyMembers'
 import { useCalendarTasks } from './hooks/useCalendarTasks'
 import { useTaskModals } from './hooks/useTaskModals'
 import { useTaskDragAndDrop } from './hooks/useTaskDragAndDrop'
+import { FamilyMemberSelector } from './components/FamilyMemberSelector'
+import { CalendarGrid } from './components/CalendarGrid'
 
 // Day constants - Sunday moved to last position
 const DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
@@ -1467,158 +1469,19 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                       </div>
                       
                       {/* Family Member Selector */}
-                      <div className="flex-1 min-w-fit">
-                        <div className="flex items-center justify-center gap-10 py-0 px-16 bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 rounded-3xl shadow-sm border border-white/50 min-w-fit">
-                          {enhancedFamilyMembers.length === 0 && (
-                            <div className="text-sm text-gray-500">Loading family members...</div>
-                          )}
-                          {enhancedFamilyMembers.map((member) => {
-                            const colors = getMemberColors(member.color)
-                            const avatarUrl = member.avatar_url || generateAvatarUrl(
-                              member.avatar_seed || member.name.toLowerCase().replace(/\s+/g, '-'),
-                              member.avatar_style || 'adventurer',
-                              member.avatar_options || {}
-                            )
-                            
-                            const memberColor = (member.color as string) || 'blue'
-                            const colorClasses = {
-                              blue: {
-                                ring: 'ring-blue-500',
-                                bg: 'bg-blue-500',
-                                shadow: 'shadow-blue-200',
-                                hover: 'hover:ring-blue-300',
-                              },
-                              green: {
-                                ring: 'ring-green-500',
-                                bg: 'bg-green-500',
-                                shadow: 'shadow-green-200',
-                                hover: 'hover:ring-green-300',
-                              },
-                              yellow: {
-                                ring: 'ring-yellow-500',
-                                bg: 'bg-yellow-500',
-                                shadow: 'shadow-yellow-200',
-                                hover: 'hover:ring-yellow-300',
-                              },
-                              orange: {
-                                ring: 'ring-orange-500',
-                                bg: 'bg-orange-500',
-                                shadow: 'shadow-orange-200',
-                                hover: 'hover:ring-orange-300',
-                              },
-                              purple: {
-                                ring: 'ring-purple-500',
-                                bg: 'bg-purple-500',
-                                shadow: 'shadow-purple-200',
-                                hover: 'hover:ring-purple-300',
-                              },
-                              pink: {
-                                ring: 'ring-pink-500',
-                                bg: 'bg-pink-500',
-                                shadow: 'shadow-pink-200',
-                                hover: 'hover:ring-pink-300',
-                              },
-                              teal: {
-                                ring: 'ring-teal-500',
-                                bg: 'bg-teal-500',
-                                shadow: 'shadow-teal-200',
-                                hover: 'hover:ring-teal-300',
-                              },
-                              indigo: {
-                                ring: 'ring-indigo-500',
-                                bg: 'bg-indigo-500',
-                                shadow: 'shadow-indigo-200',
-                                hover: 'hover:ring-indigo-300',
-                              },
-                            }[memberColor] || {
-                              ring: 'ring-blue-500',
-                              bg: 'bg-blue-500',
-                              shadow: 'shadow-blue-200',
-                              hover: 'hover:ring-blue-300',
-                            }
-                            
-                            return (
-                              <div
-                                key={member.id}
-                                className="flex items-center gap-3 cursor-pointer group transition-all duration-300"
-                                onClick={() => setSelectedMemberId(member.id)}
-                              >
-                                <div className="relative">
-                                  <div
-                                    className={`h-12 w-12 rounded-full overflow-hidden border-2 border-white shadow-lg transition-all duration-300 group-hover:scale-105 ${
-                                      selectedMemberId === member.id
-                                        ? `ring-2 ring-offset-2 ${colorClasses.ring} ${colorClasses.shadow} scale-110`
-                                        : `group-hover:ring-1 group-hover:ring-offset-1 ${colorClasses.hover} group-hover:shadow-md`
-                                    }`}
-                                  >
-                                    <img
-                                      src={avatarUrl || "/placeholder.svg"}
-                                      alt={`${member.name}'s avatar`}
-                                      className="h-full w-full object-cover scale-110"
-                                    />
-                                  </div>
-
-                                  {selectedMemberId === member.id && (
-                                    <div className="absolute -top-1 -right-1 bg-white rounded-full p-1 shadow-lg ring-1 ring-white">
-                                      <div className={`${colorClasses.bg} rounded-full p-1`}>
-                                        <Check className="h-3 w-3 text-white stroke-[2]" />
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-
-                                <div className="flex flex-col">
-                                  <p
-                                    className={`text-sm font-semibold transition-all duration-300 ${
-                                      selectedMemberId === member.id
-                                        ? "text-gray-900 scale-105"
-                                        : "text-gray-600 group-hover:text-gray-800"
-                                    }`}
-                                  >
-                                    {member.name}
-                                  </p>
-                                  {selectedMemberId === member.id && (
-                                    <div
-                                      className={`h-1 w-10 ${colorClasses.bg} rounded-full mt-1 shadow-sm`}
-                                    />
-                                  )}
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* View Mode Toggle - Moved to the right */}
-                    {selectedMemberId && (
-                      <div className="flex-shrink-0">
-                        <Label className="text-sm font-medium text-gray-700">View Mode</Label>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <Button
-                            variant={viewMode === 'calendar' ? 'default' : 'outline'}
-                            size="sm"
-                            onClick={() => setViewMode('calendar')}
-                            className="flex items-center space-x-2"
-                          >
-                            <span>Calendar View</span>
-                          </Button>
-                          <Button
-                            variant={viewMode === 'group' ? 'default' : 'outline'}
-                            size="sm"
-                            onClick={() => setViewMode('group')}
-                            className="flex items-center space-x-2"
-                            disabled={true}
-                          >
-                            <span>Group View</span>
-                          </Button>
-                        </div>
-                      </div>
-                    )}
+                      <FamilyMemberSelector
+                        enhancedFamilyMembers={enhancedFamilyMembers}
+                        selectedMemberId={selectedMemberId}
+                        setSelectedMemberId={setSelectedMemberId}
+                        getMemberColors={getMemberColors}
+                        viewMode={viewMode}
+                        setViewMode={setViewMode}
+                      />
                     
                   </div>
+                </div>
 
-                  {!selectedMemberId && (
+                {!selectedMemberId && (
                     <p className="text-sm text-amber-600">
                       Please select a family member to start building their routine
                     </p>
@@ -1630,195 +1493,27 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
             {/* Calendar Grid */}
             {selectedMemberId && (
-              <Card className="bg-white border border-gray-200">
-                <CardContent className="p-0">
-                  <div className="grid grid-cols-7 gap-0 min-h-[900px]">
-                    {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => {
-                      const dayTasks = calendarTasks[day]
-                      const totalDayTasks = getTotalTasksForDay(day, calendarTasks, selectedMemberId)
-                      const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-                      const dayIndex = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].indexOf(day)
-                      
-                      
-                      return (
-                        <div
-                          key={day}
-                          className="border-r border-gray-200 last:border-r-0 min-h-[900px] flex flex-col cursor-pointer hover:bg-gray-50 transition-colors"
-                          onClick={() => handleColumnClick(day)}
-                        >
-                          {/* Day Header */}
-                          <div className="text-center p-3 bg-gray-50">
-                            <div className="text-sm font-semibold text-gray-700">{dayNames[dayIndex]}</div>
-                          </div>
-
-                          {/* Separator Line */}
-                          <div className="border-b border-gray-200"></div>
-
-                          {/* Tasks Area */}
-                          <div className="flex-1 p-3 bg-white space-y-2">
-                            {totalDayTasks > 0 && (
-                              <>
-                                {/* Groups - Filtered by Selected Member */}
-                                {dayTasks.groups
-                                  .filter((group: TaskGroup) => {
-                                    // Extract member ID from group ID (format: templateId-memberId-day-timestamp)
-                                    const groupMemberId = extractMemberIdFromId(group.id, selectedMemberId)
-                                    return groupMemberId === selectedMemberId
-                                  })
-                                  .map((group: TaskGroup) => (
-                                  <div key={group.id} className="space-y-1" onClick={(e) => e.stopPropagation()}>
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center space-x-1">
-                                        <Folder className="w-3 h-3 text-purple-600" />
-                                        <span className="font-medium text-xs text-gray-900">{group.name}</span>
-                                        <Badge variant="outline" className="text-xs bg-purple-100 text-purple-800">
-                                          group
-                                        </Badge>
-                                      </div>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => removeGroupFromCalendar(day, group.id)}
-                                        className="text-red-500 hover:text-red-700 h-4 w-4 p-0"
-                                      >
-                                        <Trash2 className="w-2 h-2" />
-                                      </Button>
-                                    </div>
-                                    
-                                    {group.tasks.map((task: Task) => (
-                                      <div 
-                                        key={task.id} 
-                                        className={`ml-3 flex items-center space-x-1 p-1 bg-purple-50 rounded border-l-4 border-purple-500 border border-gray-200 cursor-pointer ${
-                                          draggedTask?.task.id === task.id ? 'opacity-50 task-dragging' : ''
-                                        }`}
-                                        draggable={true}
-                                        onDragStart={(e) => handleTaskDragStart(e, task, day, selectedMemberId)}
-                                        onDragEnd={handleTaskDragEnd}
-                                      >
-                                        {/* Always show drag handle in routine builder */}
-                                        <div className="w-3 h-3 flex items-center justify-center text-gray-400">
-                                          <Move className="w-2 h-2" />
-                                        </div>
-                                        
-                                        <div className="flex-1">
-                                          <div className="text-xs font-medium text-gray-900">{task.name}</div>
-                                          <div className="text-xs text-purple-600">from {group.name}</div>
-                                        </div>
-                                        <div className="text-xs text-gray-500">{task.points}pts</div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ))}
-
-                                {/* Individual Tasks - Filtered by Selected Member */}
-                                {getTasksWithDayOrder(
-                                  dayTasks.individualTasks.filter((task: Task) => {
-                                    const taskMemberId = task.memberId || extractMemberIdFromId(task.id, selectedMemberId)
-                                    const matches = taskMemberId === selectedMemberId
-                                    console.log('[KIDOERS-ROUTINE] Filtering task:', { 
-                                      taskId: task.id, 
-                                      taskName: task.name, 
-                                      taskMemberId, 
-                                      selectedMemberId, 
-                                      matches 
-                                    })
-                                    return matches
-                                  }), 
-                                  day, 
-                                  selectedMemberId
-                                )
-                                  .map((task: Task, taskIndex: number, taskArray: Task[]) => (
-                                  <div key={task.id}>
-                                    {/* Drop zone before this task */}
-                                    {(
-                                      <div
-                                        className={`h-1 transition-colors ${
-                                          dragOverPosition?.day === day && 
-                                          dragOverPosition?.memberId === selectedMemberId && 
-                                          dragOverPosition?.position === 'before' && 
-                                          dragOverPosition?.targetTaskId === task.id
-                                            ? 'bg-blue-500' 
-                                            : 'hover:bg-blue-200'
-                                        }`}
-                                        onDragOver={(e) => handleTaskDragOver(e, day, selectedMemberId, 'before', task.id)}
-                                        onDragLeave={handleTaskDragLeave}
-                                        onDrop={(e) => handleTaskDrop(e, day, selectedMemberId)}
-                                      />
-                                    )}
-                                    
-                                    <div 
-                                      className={`flex items-center space-x-1 p-1 rounded border border-gray-200 ${
-                                        task.from_group 
-                                          ? 'bg-purple-50 border-l-4 border-purple-500' 
-                                          : 'bg-green-50 border-l-4 border-green-500'
-                                      } cursor-pointer hover:shadow-sm transition-shadow ${
-                                        draggedTask?.task.id === task.id ? 'opacity-50 task-dragging' : ''
-                                      }`}
-                                      draggable={true}
-                                      onDragStart={(e) => handleTaskDragStart(e, task, day, selectedMemberId)}
-                                      onDragEnd={handleTaskDragEnd}
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        handleTaskClick(e, task, day, selectedMemberId)
-                                      }}
-                                    >
-                                    {/* Always show drag handle in routine builder */}
-                                    <div className="w-3 h-3 flex items-center justify-center text-gray-400">
-                                      <Move className="w-2 h-2" />
-                                    </div>
-                                    
-                                    
-                                    <div className="flex-1">
-                                      <div className="text-xs font-medium text-gray-900">{task.name}</div>
-                                      <div className={`text-xs flex items-center space-x-1 ${
-                                        task.from_group ? 'text-purple-600' : 'text-green-600'
-                                      }`}>
-                                        {task.from_group ? (
-                                          <>
-                                            <Folder className="w-3 h-3" />
-                                            <span>from {task.from_group.name}</span>
-                                          </>
-                                        ) : (
-                                          <span>individual task</span>
-                                        )}
-                                    </div>
-                                    </div>
-                                    <div className="text-xs text-gray-500">{task.points}pts</div>
-                                  </div>
-                                  
-                                  {/* Drop zone after this task */}
-                                  {taskIndex === taskArray.length - 1 && (
-                                    <div
-                                      className={`h-1 transition-colors ${
-                                        dragOverPosition?.day === day && 
-                                        dragOverPosition?.memberId === selectedMemberId && 
-                                        dragOverPosition?.position === 'after' && 
-                                        dragOverPosition?.targetTaskId === task.id
-                                          ? 'bg-blue-500' 
-                                          : 'hover:bg-blue-200'
-                                      }`}
-                                      onDragOver={(e) => handleTaskDragOver(e, day, selectedMemberId, 'after', task.id)}
-                                      onDragLeave={handleTaskDragLeave}
-                                      onDrop={(e) => handleTaskDrop(e, day, selectedMemberId)}
-                                    />
-                                  )}
-                                </div>
-                                ))}
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
+              <CalendarGrid
+                calendarTasks={calendarTasks}
+                selectedMemberId={selectedMemberId}
+                draggedTask={draggedTask}
+                dragOverPosition={dragOverPosition}
+                onColumnClick={handleColumnClick}
+                onTaskDragStart={handleTaskDragStart}
+                onTaskDragEnd={handleTaskDragEnd}
+                onTaskDragOver={handleTaskDragOver}
+                onTaskDragLeave={handleTaskDragLeave}
+                onTaskDrop={handleTaskDrop}
+                onTaskClick={handleTaskClick}
+                onRemoveGroup={removeGroupFromCalendar}
+                getTasksWithDayOrder={getTasksWithDayOrder}
+                extractMemberIdFromId={extractMemberIdFromId}
+                getTotalTasksForDay={getTotalTasksForDay}
+              />
             )}
-
 
             {/* Save Button */}
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
-
 
               <Button
                 onClick={handleSaveRoutineWrapper}
@@ -1849,7 +1544,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
             )}
           </div>
         </div>
-
 
 
         {/* Create New Task Modal */}
