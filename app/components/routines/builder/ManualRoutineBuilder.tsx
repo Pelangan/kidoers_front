@@ -25,6 +25,17 @@ import type {
   BulkDayOrderUpdate, 
   RoutineScheduleData 
 } from './types/routineBuilderTypes'
+import { 
+  extractMemberIdFromId, 
+  extractRoutineTaskIdFromId, 
+  getTotalTasksForDay, 
+  deriveScheduleFromCalendar 
+} from './utils/taskUtils'
+import { useRoutineData } from './hooks/useRoutineData'
+import { useFamilyMembers } from './hooks/useFamilyMembers'
+import { useCalendarTasks } from './hooks/useCalendarTasks'
+import { useTaskModals } from './hooks/useTaskModals'
+import { useTaskDragAndDrop } from './hooks/useTaskDragAndDrop'
 
 // Day constants - Sunday moved to last position
 const DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
@@ -47,32 +58,71 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     }
   }, [])
   
-  const [routine, setRoutine] = useState<{ id: string; family_id: string; name: string; status: "draft"|"active"|"archived" }|null>(null)
-  const [routineName, setRoutineName] = useState('My Routine')
-  const [isCreatingRoutine, setIsCreatingRoutine] = useState(false)
-  
-  // Promise-based routine creation to prevent race conditions
-  const routineCreationPromise = useRef<Promise<{ id: string; family_id: string; name: string; status: "draft"|"active"|"archived" } | null> | null>(null)
+  // Use routine data hook
+  const {
+    routine,
+    routineName,
+    isCreatingRoutine,
+    hasUnsavedChanges,
+    routineScheduleData,
+    currentRoutineId,
+    setRoutine,
+    setRoutineName,
+    setHasUnsavedChanges,
+    setRoutineScheduleData,
+    setCurrentRoutineId,
+    ensureRoutineExists,
+    handleSaveRoutineDetails,
+    handleSaveRoutine
+  } = useRoutineData(familyId, isEditMode, onComplete)
   const [pendingDrop, setPendingDrop] = useState<PendingDrop | null>(null)
-  const [showApplyToPopup, setShowApplyToPopup] = useState(false)
-  const [editableTaskName, setEditableTaskName] = useState('')
-  const [isCreatingTasks, setIsCreatingTasks] = useState(false)
-  const [showTaskMiniPopup, setShowTaskMiniPopup] = useState(false)
-  const [selectedTaskForEdit, setSelectedTaskForEdit] = useState<{ task: Task, day: string, memberId: string } | null>(null)
-  const [miniPopupPosition, setMiniPopupPosition] = useState<{ x: number, y: number } | null>(null)
-  const [isDeletingTask, setIsDeletingTask] = useState(false)
-  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false)
-  const [deleteScope, setDeleteScope] = useState<'this_day' | 'this_and_following' | 'all_days'>('this_day')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string|null>(null)
   const [isLoadingData, setIsLoadingData] = useState(false)
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const [showRoutineDetails, setShowRoutineDetails] = useState(false)
-  const [routineScheduleData, setRoutineScheduleData] = useState<RoutineScheduleData | null>(null)
-  const [daySelection, setDaySelection] = useState<DaySelection>({ mode: 'single', selectedDays: [] })
-  const [selectedWhoOption, setSelectedWhoOption] = useState<string>('none')
-  const [selectedRoutineGroup, setSelectedRoutineGroup] = useState<string>('none')
-  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false)
+
+  // Use task modals hook
+  const {
+    showApplyToPopup,
+    showTaskMiniPopup,
+    showDeleteConfirmModal,
+    showRoutineDetails,
+    showCreateGroupModal,
+    editableTaskName,
+    selectedTaskForEdit,
+    miniPopupPosition,
+    deleteScope,
+    daySelection,
+    selectedWhoOption,
+    selectedRoutineGroup,
+    isCreatingTasks,
+    isDeletingTask,
+    setShowApplyToPopup,
+    setShowTaskMiniPopup,
+    setShowDeleteConfirmModal,
+    setShowRoutineDetails,
+    setShowCreateGroupModal,
+    setEditableTaskName,
+    setSelectedTaskForEdit,
+    setMiniPopupPosition,
+    setDeleteScope,
+    setDaySelection,
+    setSelectedWhoOption,
+    setSelectedRoutineGroup,
+    setIsCreatingTasks,
+    setIsDeletingTask,
+    openTaskModal,
+    closeTaskModal,
+    openTaskMiniPopup,
+    closeTaskMiniPopup,
+    openDeleteConfirmModal,
+    closeDeleteConfirmModal,
+    openRoutineDetailsModal,
+    closeRoutineDetailsModal,
+    openCreateGroupModal,
+    closeCreateGroupModal,
+    resetFormState,
+    closeAllModals
+  } = useTaskModals()
   const [routineGroups, setRoutineGroups] = useState<TaskGroup[]>([])
   const [viewMode, setViewMode] = useState<'calendar' | 'group'>('calendar')
 
@@ -104,36 +154,34 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     }
   ]
 
-  // Family members with colors from the family creation
-  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
-  const [enhancedFamilyMembers, setEnhancedFamilyMembers] = useState<any[]>([])
-  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
+  // Use family members hook
+  const {
+    familyMembers,
+    enhancedFamilyMembers,
+    selectedMemberId,
+    setFamilyMembers,
+    setEnhancedFamilyMembers,
+    setSelectedMemberId,
+    loadFamilyMembers,
+    getMemberColors,
+    getSelectedMember,
+    getMemberById,
+    getMemberNameById
+  } = useFamilyMembers(familyId)
 
-  // Calendar data structure - tasks organized by day
-  const [calendarTasks, setCalendarTasks] = useState<Record<string, { groups: TaskGroup[], individualTasks: Task[] }>>({
-    'sunday': { groups: [], individualTasks: [] },
-    'monday': { groups: [], individualTasks: [] },
-    'tuesday': { groups: [], individualTasks: [] },
-    'wednesday': { groups: [], individualTasks: [] },
-    'thursday': { groups: [], individualTasks: [] },
-    'friday': { groups: [], individualTasks: [] },
-    'saturday': { groups: [], individualTasks: [] }
-  })
+  // Use calendar tasks hook
+  const {
+    calendarTasks,
+    setCalendarTasks,
+    addTaskToCalendarUI,
+    addTaskToCalendar,
+    removeGroupFromCalendar,
+    addGroupToCalendar,
+    addGroupToCalendarUI,
+    updateCalendarTasks,
+    getTotalTasks
+  } = useCalendarTasks(selectedMemberId, ensureRoutineExists, setError)
 
-  // Color mapping function for family members
-  const getMemberColors = (color: string) => {
-    const colorMap: Record<string, { border: string; bg: string; bgColor: string; borderColor: string }> = {
-      blue: { border: 'border-blue-300', bg: 'bg-blue-50', bgColor: '#dbeafe', borderColor: '#93c5fd' },
-      green: { border: 'border-green-300', bg: 'bg-green-50', bgColor: '#dcfce7', borderColor: '#86efac' },
-      yellow: { border: 'border-yellow-300', bg: 'bg-yellow-50', bgColor: '#fef3c7', borderColor: '#fde047' },
-      orange: { border: 'border-orange-300', bg: 'bg-orange-50', bgColor: '#fed7aa', borderColor: '#fdba74' },
-      purple: { border: 'border-purple-300', bg: 'bg-purple-50', bgColor: '#e9d5ff', borderColor: '#c4b5fd' },
-      pink: { border: 'border-pink-300', bg: 'bg-pink-50', bgColor: '#fce7f3', borderColor: '#f9a8d4' },
-      teal: { border: 'border-teal-300', bg: 'bg-teal-50', bgColor: '#ccfbf1', borderColor: '#5eead4' },
-      indigo: { border: 'border-indigo-300', bg: 'bg-indigo-50', bgColor: '#e0e7ff', borderColor: '#a5b4fc' }
-    }
-    return colorMap[color] || { border: 'border-gray-300', bg: 'bg-gray-50', bgColor: '#f9fafb', borderColor: '#d1d5db' }
-  }
 
   // Load all initial data (family members and existing routine)
   useEffect(() => {
@@ -193,13 +241,9 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         
         // Load all data concurrently
         console.log('[KIDOERS-ROUTINE] 🔄 ManualRoutineBuilder: Starting API call...');
-        console.log('[KIDOERS-ROUTINE] 📞 ManualRoutineBuilder: Calling getFamilyMembers()');
         
-        const members = await apiService.getFamilyMembers(familyId);
-        
-        console.log('[KIDOERS-ROUTINE] ✅ ManualRoutineBuilder: API data loaded:', { 
-          membersCount: members?.length || 0
-        });
+        // Load family members using the hook
+        const enhanced = await loadFamilyMembers();
         
         // Try to load existing routine (onboarding routine first, then active routine)
         let existingRoutine = null;
@@ -248,61 +292,9 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           console.warn('[KIDOERS-ROUTINE] ','Error loading routines:', e);
         }
         
-        // Convert API response to FamilyMember type and set family members
-        const convertedMembers: FamilyMember[] = members.map((member: any) => ({
-          id: member.id,
-          name: member.name,
-          role: member.role,
-          color: member.color,
-          age: member.age,
-          avatar_url: member.avatar_url,
-          avatar_style: member.avatar_style,
-          avatar_seed: member.avatar_seed,
-          avatar_options: typeof member.avatar_options === 'string' 
-            ? JSON.parse(member.avatar_options || '{}') 
-            : member.avatar_options || {},
-          calmMode: false, // Default value
-          textToSpeech: false, // Default value
-          // Backward compatibility fields
-          avatarStyle: member.avatar_style,
-          avatarOptions: typeof member.avatar_options === 'string' 
-            ? JSON.parse(member.avatar_options || '{}') 
-            : member.avatar_options || {},
-          avatarUrl: member.avatar_url
-        }))
-        
-        setFamilyMembers(convertedMembers);
-        
-        // Enhance family members with the structure needed for the routine builder
-        const enhanced = convertedMembers.map((member) => {
-          const colors = getMemberColors(member.color)
-          
-          return {
-            id: member.id,
-            name: member.name,
-            type: member.role,
-            color: member.color, // Keep original color for avatar generation
-            avatar_url: member.avatar_url,
-            avatar_style: member.avatar_style,
-            avatar_seed: member.avatar_seed,
-            avatar_options: member.avatar_options,
-            borderColor: colors.border,
-            taskBgColor: colors.bg,
-            groups: [],
-            individualTasks: []
-          }
-        })
-        setEnhancedFamilyMembers(enhanced)
-        console.log('[KIDOERS-ROUTINE] Enhanced family members loaded:', enhanced)
-        
-        // Set the first family member as selected by default
-        if (enhanced.length > 0 && !selectedMemberId) {
-          setSelectedMemberId(enhanced[0].id)
-          console.log('[KIDOERS-ROUTINE] Set default selected member:', enhanced[0].id, enhanced[0].name)
-        }
         
         // Load existing routine data after enhanced family members are set
-        if (existingRoutine) {
+        if (existingRoutine && enhanced) {
           await loadExistingRoutineData(existingRoutine.id, enhanced);
         }
         
@@ -330,32 +322,25 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
 
 
-  // Task reordering state (only in edit mode)
-  const [draggedTask, setDraggedTask] = useState<{task: Task, day: string, memberId: string} | null>(null)
-  const [dragOverPosition, setDragOverPosition] = useState<{day: string, memberId: string, position: 'before' | 'after', targetTaskId?: string} | null>(null)
-  const [dayOrders, setDayOrders] = useState<DaySpecificOrder[]>([])
-  const [isDragging, setIsDragging] = useState(false)
-  const [currentRoutineId, setCurrentRoutineId] = useState<string | null>(null)
-
-  // Update body class when dragging
-  useEffect(() => {
-    console.log('[CURSOR-DEBUG] isDragging changed to:', isDragging)
-    if (isDragging) {
-      document.body.classList.add('dragging')
-      document.body.style.cursor = 'move'
-      console.log('[CURSOR-DEBUG] Added dragging class to body and set cursor to move')
-    } else {
-      document.body.classList.remove('dragging')
-      document.body.style.cursor = ''
-      console.log('[CURSOR-DEBUG] Removed dragging class from body and reset cursor')
-    }
-    
-    // Cleanup on unmount
-    return () => {
-      document.body.classList.remove('dragging')
-      document.body.style.cursor = ''
-    }
-  }, [isDragging])
+  // Use task drag and drop hook
+  const {
+    draggedTask,
+    dragOverPosition,
+    dayOrders,
+    isDragging,
+    setDraggedTask,
+    setDragOverPosition,
+    setDayOrders,
+    setIsDragging,
+    handleTaskDragStart,
+    handleTaskDragOver,
+    handleTaskDragLeave,
+    handleTaskDrop,
+    handleTaskDragEnd,
+    moveTaskToPosition,
+    getTasksWithDayOrder,
+    loadDayOrders
+  } = useTaskDragAndDrop(updateCalendarTasks, extractRoutineTaskIdFromId, currentRoutineId)
 
 
 
@@ -397,9 +382,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           }]
         }
         
-        // Update day orders for the move with the new task order
-        const finalTaskOrder = newCalendarTasks[toDay].individualTasks.filter(t => t.memberId === memberId)
-        updateDayOrdersForTaskMove(task, fromDay, memberId, toDay, memberId, finalTaskOrder)
+        // Day orders are now handled by the drag and drop hook
         
         return newCalendarTasks
       })
@@ -440,8 +423,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     console.log('[KIDOERS-ROUTINE] Column clicked for day:', day)
     
     // Get the selected member name
-    const selectedMember = enhancedFamilyMembers.find(m => m.id === selectedMemberId)
-    const memberName = selectedMember?.name || 'Unknown'
+    const memberName = getMemberNameById(selectedMemberId)
     
     // Create a new task with no title placeholder
     const newTask: Task = {
@@ -513,7 +495,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       type: 'task',
       item: selectedTaskForEdit.task,
       targetMemberId: selectedTaskForEdit.memberId,
-      targetMemberName: enhancedFamilyMembers.find(m => m.id === selectedTaskForEdit.memberId)?.name || '',
+      targetMemberName: getMemberNameById(selectedTaskForEdit.memberId),
       targetDay: selectedTaskForEdit.day,
       fromGroup: undefined
     })
@@ -602,8 +584,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     console.log('[TASK-EDIT] ===== EDIT TASK DEBUG END =====')
     
     // Close mini popup and open main modal
-    setShowTaskMiniPopup(false)
-    setSelectedWhoOption('none') // Reset to default selection
+    closeTaskMiniPopup()
+    resetFormState()
     setEditableTaskName(selectedTaskForEdit.task.name)
     setShowApplyToPopup(true)
   }
@@ -654,8 +636,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     
     if (taskAppearsOnDays > 1) {
       // Show confirmation modal for multi-day tasks
-      setShowDeleteConfirmModal(true)
-      setDeleteScope('this_day') // Default to this day
+      openDeleteConfirmModal()
       return
     }
     
@@ -674,9 +655,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     const taskToDelete = selectedTaskForEdit
     
     // Close popups
-    setShowTaskMiniPopup(false)
-    setShowDeleteConfirmModal(false)
-    setSelectedTaskForEdit(null)
+    closeAllModals()
     setMiniPopupPosition(null)
     
     // Small delay to ensure popup is closed before removing task
@@ -690,11 +669,32 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         }
 
         // Check if this is a recurring task
+        console.log('[TASK-DELETE] 🔍 Task deletion debug:', {
+          taskId: taskToDelete.task.id,
+          taskName: taskToDelete.task.name,
+          hasRecurringTemplateId: !!taskToDelete.task.recurring_template_id,
+          hasTemplateId: !!taskToDelete.task.template_id,
+          isSystem: !!taskToDelete.task.is_system,
+          routineId: routineData.id,
+          scope: scope,
+          targetDay: taskToDelete.day,
+          memberId: taskToDelete.memberId
+        })
+        
         if (taskToDelete.task.recurring_template_id || taskToDelete.task.template_id || taskToDelete.task.is_system) {
           // Use bulk delete for recurring tasks
           console.log('[TASK-DELETE] 🗑️ Using bulk delete for recurring task:', taskToDelete.task.name)
+          const taskTemplateId = taskToDelete.task.recurring_template_id || taskToDelete.task.template_id || taskToDelete.task.id
+          console.log('[TASK-DELETE] 🔍 Sending to backend:', {
+            routine_id: routineData.id,
+            task_template_id: taskTemplateId,
+            delete_scope: scope,
+            target_day: taskToDelete.day,
+            member_id: taskToDelete.memberId
+          })
+          
           const result = await bulkDeleteTasks(routineData.id, {
-            task_template_id: taskToDelete.task.recurring_template_id || taskToDelete.task.template_id || taskToDelete.task.id,
+            task_template_id: taskTemplateId,
             delete_scope: scope,
             target_day: taskToDelete.day,
             member_id: taskToDelete.memberId
@@ -857,11 +857,10 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       console.log('[KIDOERS-ROUTINE] 🔍 Assignment Debug Info:')
       console.log('[KIDOERS-ROUTINE] - applyToId:', selectedApplyToId)
       console.log('[KIDOERS-ROUTINE] - enhancedFamilyMembers:', enhancedFamilyMembers)
-      console.log('[KIDOERS-ROUTINE] - Member roles:', enhancedFamilyMembers.map(m => ({ id: m.id, name: m.name, role: m.role })))
+      console.log('[KIDOERS-ROUTINE] - Member roles:', enhancedFamilyMembers.map(m => ({ id: m.id, name: m.name, type: m.type })))
       console.log('[KIDOERS-ROUTINE] - Full member details:', enhancedFamilyMembers.map(m => ({ 
         id: m.id, 
         name: m.name, 
-        role: m.role, 
         type: m.type,
         allFields: Object.keys(m),
         memberObject: m
@@ -1074,246 +1073,11 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   }
 
 
-  // Task reordering handlers (works in both edit mode and normal mode)
-  const handleTaskDragStart = (e: React.DragEvent, task: Task, day: string, memberId: string) => {
-    console.log('[DRAG-ORDER] 🚀 DRAG START EVENT TRIGGERED!', { task: task.name, day, memberId })
-    console.log('[DRAG-ORDER] 🔧 DEBUG: handleTaskDragStart called with:', { task, day, memberId })
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', '')
-    
-    // Set cursor directly on the event
-    if (e.currentTarget instanceof HTMLElement) {
-      e.currentTarget.style.cursor = 'move'
-    }
-    
-    setDraggedTask({ task, day, memberId })
-    setIsDragging(true)
-    console.log('[DRAG-ORDER] ✅ Started dragging task:', task.name, 'from day:', day, 'member:', memberId)
-    console.log('[CURSOR-DEBUG] Set isDragging to true')
-  }
 
-  const handleTaskDragOver = (e: React.DragEvent, day: string, memberId: string, position: 'before' | 'after', targetTaskId?: string) => {
-    if (!draggedTask) return
-    
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    
-    const newDragOverPosition = { day, memberId, position, targetTaskId }
-    
-    // Only log when position actually changes to reduce noise
-    if (!dragOverPosition || 
-        dragOverPosition.day !== newDragOverPosition.day ||
-        dragOverPosition.memberId !== newDragOverPosition.memberId ||
-        dragOverPosition.position !== newDragOverPosition.position ||
-        dragOverPosition.targetTaskId !== newDragOverPosition.targetTaskId) {
-      console.log('[DRAG-ORDER] 🎯 Drag over position:', newDragOverPosition)
-    }
-    
-    setDragOverPosition(newDragOverPosition)
-  }
 
-  const handleTaskDragLeave = () => {
-    setDragOverPosition(null)
-  }
 
-  const handleTaskDrop = async (e: React.DragEvent, targetDay: string, targetMemberId: string) => {
-    if (!draggedTask) {
-      console.log('[DRAG-ORDER] ❌ No dragged task on drop')
-      return
-    }
-    
-    e.preventDefault()
-    
-    const { task, day: sourceDay, memberId: sourceMemberId } = draggedTask
-    
-    console.log('[DRAG-ORDER] 🎯 Task dropped:', {
-      task: task.name,
-      sourceDay,
-      sourceMemberId,
-      targetDay,
-      targetMemberId,
-      dragOverPosition
-    })
-    
-    // Don't reorder if dropped in the same position AND no drag over position is specified
-    if (sourceDay === targetDay && sourceMemberId === targetMemberId && (!dragOverPosition || !dragOverPosition.targetTaskId)) {
-      console.log('[DRAG-ORDER] ⚠️ Dropped in same position with no specific target, no reorder needed')
-      setDraggedTask(null)
-      setDragOverPosition(null)
-      return
-    }
 
-    // Move the task to the new position
-    console.log('[DRAG-ORDER] ✅ Proceeding with reorder - dragOverPosition:', dragOverPosition)
-    await moveTaskToPosition(task, sourceDay, sourceMemberId, targetDay, targetMemberId, dragOverPosition)
-    
-    setDraggedTask(null)
-    setDragOverPosition(null)
-  }
 
-  const moveTaskToPosition = async (task: Task, sourceDay: string, sourceMemberId: string, targetDay: string, targetMemberId: string, currentDragOverPosition: any) => {
-    console.log('[KIDOERS-ROUTINE] 🔄 moveTaskToPosition called:', {
-      task: task.name,
-      sourceDay,
-      sourceMemberId,
-      targetDay,
-      targetMemberId,
-      currentDragOverPosition
-    })
-
-    let finalTaskOrder: Task[] = []
-
-    setCalendarTasks(prev => {
-      const newCalendarTasks = { ...prev }
-      
-      // Find and remove task from source position
-      const sourceDayTasks = newCalendarTasks[sourceDay]
-      const sourceTaskIndex = sourceDayTasks.individualTasks.findIndex((t: Task) => t.id === task.id)
-      
-      if (sourceTaskIndex === -1) {
-        console.log('[KIDOERS-ROUTINE] ❌ Task not found in source position')
-        return newCalendarTasks
-      }
-      
-      // Remove task from source
-      const [movedTask] = sourceDayTasks.individualTasks.splice(sourceTaskIndex, 1)
-      console.log('[KIDOERS-ROUTINE] ✅ Removed task from source at index:', sourceTaskIndex)
-      
-      // Add task to target position
-      const targetDayTasks = newCalendarTasks[targetDay]
-      
-      if (currentDragOverPosition && currentDragOverPosition.targetTaskId && currentDragOverPosition.day === targetDay) {
-        // Insert at specific position
-        const targetIndex = targetDayTasks.individualTasks.findIndex((t: Task) => t.id === currentDragOverPosition.targetTaskId)
-        if (targetIndex !== -1) {
-          const insertIndex = currentDragOverPosition.position === 'before' ? targetIndex : targetIndex + 1
-          targetDayTasks.individualTasks.splice(insertIndex, 0, movedTask)
-          console.log('[KIDOERS-ROUTINE] ✅ Inserted task at specific position:', insertIndex)
-        } else {
-          targetDayTasks.individualTasks.push(movedTask)
-          console.log('[KIDOERS-ROUTINE] ✅ Added task to end (target not found)')
-        }
-      } else {
-        // Add to end
-        targetDayTasks.individualTasks.push(movedTask)
-        console.log('[KIDOERS-ROUTINE] ✅ Added task to end (no specific position)')
-      }
-      
-      // Store the final task order for the target day and member
-      finalTaskOrder = targetDayTasks.individualTasks.filter((t: Task) => {
-        const taskMemberId = t.memberId || extractMemberIdFromId(t.id);
-        return taskMemberId === targetMemberId;
-      });
-      
-      console.log('[DRAG-ORDER] 📊 Final task order for', targetDay, ':', finalTaskOrder.map(t => t.name))
-      
-      return newCalendarTasks
-    })
-
-    // Update day orders with the calculated final order
-    updateDayOrdersForTaskMove(task, sourceDay, sourceMemberId, targetDay, targetMemberId, finalTaskOrder)
-  }
-
-  // Update day orders when tasks are moved and save immediately to backend
-  const updateDayOrdersForTaskMove = async (task: Task, sourceDay: string, sourceMemberId: string, targetDay: string, targetMemberId: string, finalTaskOrder: Task[]) => {
-    console.log('[DRAG-ORDER] 🔄 Updating day orders for task move:', {
-      task: task.name,
-      sourceDay,
-      sourceMemberId,
-      targetDay,
-      targetMemberId,
-      finalTaskOrder: finalTaskOrder.map(t => t.name)
-    })
-
-    try {
-      // Ensure routine exists
-      const routineData = await ensureRoutineExists();
-      if (!routineData) {
-        console.error('[DRAG-ORDER] ❌ No routine found for saving day orders');
-        return;
-      }
-
-      // Check if the moved task is in the final order
-      const targetTaskIndex = finalTaskOrder.findIndex((t: Task) => t.id === task.id)
-      
-      if (targetTaskIndex === -1) {
-        console.log('[DRAG-ORDER] ⚠️ Task not found in final order, skipping order update');
-        return;
-      }
-
-      // Create day order entries for all tasks in the target day
-      const dayOrdersToSave: DaySpecificOrder[] = finalTaskOrder.map((t: Task, index: number) => ({
-        id: `temp-${Date.now()}-${Math.random()}`,
-        routine_id: routineData.id,
-        member_id: targetMemberId,
-        day_of_week: targetDay,
-        routine_task_id: t.id,
-        order_index: index,
-        created_at: new Date().toISOString()
-      }));
-
-      // Group by member and day for bulk update
-      const bulkUpdate: BulkDayOrderUpdate = {
-        member_id: targetMemberId,
-        day_of_week: targetDay,
-        task_orders: dayOrdersToSave.map(order => ({
-          routine_task_id: order.routine_task_id,
-          order_index: order.order_index
-        }))
-      };
-
-      console.log('[DRAG-ORDER] 📤 Saving day orders immediately:', bulkUpdate);
-      await bulkUpdateDayOrders(routineData.id, bulkUpdate);
-      console.log('[DRAG-ORDER] ✅ Day orders saved successfully');
-
-      // Update local state to reflect the saved orders
-      setDayOrders(prev => {
-        const newDayOrders = [...prev]
-        
-        // Remove existing order entries for this member/day combination
-        const filteredOrders = newDayOrders.filter(order => 
-          !(order.member_id === targetMemberId && order.day_of_week === targetDay)
-        )
-        
-        // Add the new orders
-        filteredOrders.push(...dayOrdersToSave);
-        
-        console.log('[DRAG-ORDER] 📊 Updated local day orders for', targetDay, ':', dayOrdersToSave.map(o => ({ taskId: o.routine_task_id, order: o.order_index })))
-        
-        return filteredOrders
-      });
-
-    } catch (error) {
-      console.error('[DRAG-ORDER] ❌ Error saving day orders:', error);
-      // Don't show error to user for drag operations, just log it
-    }
-  }
-
-  // Get day-specific order for tasks
-  const getTasksWithDayOrder = (tasks: Task[], day: string, memberId: string): Task[] => {
-    if (!dayOrders.length) {
-      return tasks
-    }
-
-    // Find day-specific orders for this member/day
-    const memberDayOrders = dayOrders.filter(order => 
-      order.member_id === memberId && order.day_of_week === day
-    )
-
-    if (!memberDayOrders.length) {
-      return tasks
-    }
-
-    // Sort tasks by day-specific order
-    const sortedTasks = [...tasks].sort((a, b) => {
-      const orderA = memberDayOrders.find(order => order.routine_task_id === a.id)?.order_index ?? 999
-      const orderB = memberDayOrders.find(order => order.routine_task_id === b.id)?.order_index ?? 999
-      return orderA - orderB
-    })
-
-    console.log('[DRAG-ORDER] 📋 Sorted tasks by day order:', { day, memberId, tasks: sortedTasks.map(t => t.name) })
-    return sortedTasks
-  }
 
   // Save day-specific order to backend
   const saveDaySpecificOrder = async (day: string, memberId: string, tasks: Task[]) => {
@@ -1361,455 +1125,37 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     }
   }
 
-  // UI-only function for adding groups to calendar (no backend calls)
-  const addGroupToCalendarUI = (memberId: string, group: TaskGroup, applyTo: string, day: string, selectedTasks?: Task[]) => {
 
-    // If specific tasks are selected, create a group with only those tasks
-    const groupToAdd = selectedTasks && selectedTasks.length > 0 
-      ? { ...group, tasks: selectedTasks }
-      : group
 
-    // Add group to calendar for the specified day
-    setCalendarTasks(prev => ({
-      ...prev,
-      [day]: {
-        ...prev[day],
-        groups: [...prev[day].groups, { 
-          ...groupToAdd, 
-          id: `${group.id}-${memberId}-${day}-${Date.now()}`,
-          template_id: group.id, // Store the original template ID
-          is_saved: false // Mark as unsaved
-        }]
-      }
-    }))
-    
-    // Day orders are now saved immediately when dragging, no need to track unsaved changes
-  }
 
-  const addGroupToCalendar = async (memberId: string, group: TaskGroup, applyTo: string, day: string, routineData?: any) => {
-    // Don't create routine yet - just add to local state
-    // Routine will be created when user clicks "Save Progress"
-    
-    const applyToOption = applyToOptions.find(option => option.id === applyTo)
-    if (!applyToOption) return
 
-    const targetMembers = applyTo === 'none' 
-      ? enhancedFamilyMembers.filter(m => m.id === memberId)
-      : applyToOption.filter(enhancedFamilyMembers)
 
-    // Add group to calendar for the specified day
-    setCalendarTasks(prev => ({
-      ...prev,
-      [day]: {
-        ...prev[day],
-        groups: [...prev[day].groups, { 
-          ...group, 
-          id: `${group.id}-${memberId}-${day}-${Date.now()}`,
-          template_id: group.id // Store the original template ID
-        }]
-      }
-    }))
-    
-    // Day orders are now saved immediately when dragging, no need to track unsaved changes
-  }
-
-  // UI-only function for adding tasks to calendar (no backend calls)
-  const addTaskToCalendarUI = (memberId: string, task: Task, applyTo: string, day: string, fromGroup?: TaskGroup) => {
-    console.log('[KIDOERS-ROUTINE] addTaskToCalendarUI called:', { memberId, task: task.name, applyTo, day, fromGroup })
-
-    const newTaskId = `${task.id}-${memberId}-${day}-${Date.now()}`
-    console.log('[KIDOERS-ROUTINE] Creating new task with ID:', newTaskId)
-
-    // Add task to calendar for the specified day
-    setCalendarTasks(prev => {
-      const newState = {
-      ...prev,
-      [day]: {
-        ...prev[day],
-        individualTasks: [...prev[day].individualTasks, { 
-          ...task, 
-            id: newTaskId,
-          template_id: task.id, // Store the original template ID
-            is_saved: false, // Mark as unsaved
-            from_group: fromGroup ? {
-              id: fromGroup.id,
-              name: fromGroup.name,
-              template_id: fromGroup.template_id
-            } : undefined
-          }]
-        }
-      }
-      console.log('[KIDOERS-ROUTINE] Updated calendar state:', newState)
-      return newState
-    })
-    
-    // Day orders are now saved immediately when dragging, no need to track unsaved changes
-    console.log('[KIDOERS-ROUTINE] Task added to calendar successfully')
-  }
-
-  const addTaskToCalendar = async (memberId: string, task: Task, applyTo: string, day: string, routineData?: any) => {
-    console.log('[TASK-DEBUG] 🔍 addTaskToCalendar called with applyTo:', applyTo);
-    
-    // Handle 'none' case directly without looking for applyToOption
-    if (applyTo === 'none') {
-      // This is the case where we're adding to a specific member only
-      console.log('[TASK-DEBUG] 🎯 Adding task to specific member only');
-    } else {
-      const applyToOption = applyToOptions.find(option => option.id === applyTo)
-      if (!applyToOption) {
-        console.log('[TASK-DEBUG] ❌ No applyToOption found for:', applyTo);
-        return;
-      }
-    }
-
+  // Wrapper functions to handle error state
+  const handleSaveRoutineDetailsWrapper = async (scheduleData: RoutineScheduleData) => {
     try {
-      console.log('[TASK-DEBUG] 🚀 Adding task:', task.name, 'for member:', memberId, 'on day:', day);
-      console.log('[TASK-DEBUG] 🔍 Original task ID:', task.id);
-      
-      // Ensure routine exists first
-      console.log('[TASK-DEBUG] 🔍 Ensuring routine exists...');
-      const routineData = await ensureRoutineExists();
-      if (!routineData) {
-        console.log('[TASK-DEBUG] ❌ Failed to create routine');
-        setError('Failed to create routine. Please try again.');
-        return;
-      }
-      console.log('[TASK-DEBUG] ✅ Routine exists:', routineData.id);
-
-      // Save task to backend immediately
-      console.log('[TASK-DEBUG] 💾 Saving task to backend:', task.name);
-      const savedTask = await addRoutineTask(routineData.id, {
-        name: task.name,
-        description: task.description || undefined,
-        points: task.points,
-        duration_mins: task.estimatedMinutes,
-        time_of_day: task.time_of_day || undefined,
-        days_of_week: [day],
-        from_task_template_id: task.is_system ? task.id : undefined,
-        order_index: 0
-      });
-      console.log('[TASK-DEBUG] ✅ Task saved to backend:', savedTask);
-
-      // Create task assignment
-      console.log('[TASK-DEBUG] 🎯 Creating task assignment...');
-      await createTaskAssignment(routineData.id, savedTask.id, memberId, 0);
-      console.log('[TASK-DEBUG] ✅ Task assignment created');
-
-      // Add task to calendar with real ID
-      console.log('[TASK-DEBUG] 📅 Adding to UI with memberId:', memberId);
-      const taskToAdd = { 
-        ...task, 
-        id: savedTask.id, // Use real ID from backend
-        memberId: memberId, // Set the member ID for filtering
-        is_saved: true
-      };
-      console.log('[TASK-DEBUG] 📋 Task object to add:', taskToAdd);
-      setCalendarTasks(prev => ({
-        ...prev,
-        [day]: {
-          ...prev[day],
-          individualTasks: [...prev[day].individualTasks, taskToAdd]
-        }
-      }))
-      
-      // Day orders are now saved immediately when dragging, no need to track unsaved changes
-      console.log('[TASK-DEBUG] ✅ Task added successfully');
-    } catch (e: any) {
-      console.error('[TASK-DEBUG] ❌ Error:', e?.message);
-      setError(e?.message || 'Failed to save task. Please try again.');
-    }
-  }
-
-
-
-  const removeGroupFromCalendar = (day: string, groupId: string) => {
-    setCalendarTasks(prev => ({
-      ...prev,
-      [day]: {
-        ...prev[day],
-        groups: prev[day].groups.filter((group: TaskGroup) => group.id !== groupId)
-      }
-    }))
-  }
-
-
-
-
-  const handleSaveRoutineDetails = async (scheduleData: RoutineScheduleData) => {
-    try {
-      // Ensure routine exists before saving schedule
-      const routineData = await ensureRoutineExists()
-      if (!routineData) {
-        setError('Failed to create routine. Please try again.')
-        return
-      }
-      
-      // Save schedule data
-      setRoutineScheduleData(scheduleData)
+      await handleSaveRoutineDetails(scheduleData)
       setShowRoutineDetails(false)
-      
-      // Create the schedule
-      await createRoutineSchedule(routineData.id, scheduleData)
-      console.log('[KIDOERS-ROUTINE] Routine schedule saved successfully:', scheduleData)
     } catch (err) {
-      console.error('[KIDOERS-ROUTINE] ','Error saving routine details:', err)
       setError('Failed to save routine details. Please try again.')
     }
   }
 
-  const handleSaveRoutine = async () => {
-    console.log('[KIDOERS-ROUTINE] ManualRoutineBuilder: handleSaveRoutine called, isEditMode:', isEditMode, 'onComplete:', !!onComplete);
+  const handleSaveRoutineWrapper = async () => {
     setBusy(true)
     try {
-      // Ensure routine exists (create if needed)
-      const routineData = await ensureRoutineExists();
-      if (!routineData) {
-        setError('Failed to create routine. Please try again.');
-        return;
-      }
-      
-      // Update routine name if changed
-      if (routineData.name !== routineName.trim()) {
-        console.log('[KIDOERS-ROUTINE] 📝 Updating routine name:', routineName.trim());
-        await patchRoutine(routineData.id, { name: routineName.trim() });
-        console.log('[KIDOERS-ROUTINE] ✅ Routine name updated');
-      }
-      
-      // Day orders are now saved immediately when dragging, so no need to save them here
-      console.log('[KIDOERS-ROUTINE] ✅ Routine name updated, proceeding to finalize routine');
-      
-      // Publish the routine
-      await patchRoutine(routineData.id, { status: "active" })
-      
-      // Create a basic routine schedule (required for task instance generation)
-      try {
-        const today = new Date()
-        const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
-        
-        const scheduleData: RoutineScheduleData = {
-          scope: 'everyday',
-          days_of_week: [],
-          start_date: today,
-          end_date: nextWeek,
-          timezone: 'UTC',
-          is_active: true
-        }
-        
-        await createRoutineSchedule(routineData.id, scheduleData)
-        console.log('[KIDOERS-ROUTINE] Routine schedule created successfully')
-      } catch (scheduleError) {
-        console.error('[KIDOERS-ROUTINE] ','Failed to create routine schedule:', scheduleError)
-        // Don't fail the whole process if schedule creation fails
-      }
-
-      // Generate task instances (using task-level schedules)
-      if (familyId) {
-        try {
-          const today = new Date()
-          const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
-          
-          // Generate task instances based on individual task schedules
-          await generateTaskInstances(familyId, {
-            start_date: today,
-            end_date: nextWeek
-          })
-        } catch (error) {
-          console.error('[KIDOERS-ROUTINE] ','Failed to generate task instances:', error)
-          // Don't fail the whole process if instance generation fails
-        }
-      }
-      
-      // If we have an onComplete callback and we're not in edit mode (onboarding flow), mark onboarding as completed
-      if (onComplete && !isEditMode) {
-        console.log('[KIDOERS-ROUTINE] ManualRoutineBuilder: Calling onComplete (onboarding flow)');
-        // Mark onboarding as completed via API
-        try {
-          await apiService.completeOnboarding(familyId!)
-        } catch (error) {
-          console.error('[KIDOERS-ROUTINE] ','Failed to mark onboarding as completed:', error)
-        }
-        onComplete()
-      } else if (!isEditMode) {
-        console.log('[KIDOERS-ROUTINE] ManualRoutineBuilder: Navigating to dashboard (standalone mode)');
-        // Otherwise, navigate to dashboard (standalone mode)
-        router.push('/dashboard')
-      } else {
-        console.log('[KIDOERS-ROUTINE] ManualRoutineBuilder: In edit mode, staying in routine builder');
-      }
-      // If isEditMode is true, stay in the routine builder (don't call onComplete or navigate)
+      await handleSaveRoutine()
     } catch (error) {
-      console.error('[KIDOERS-ROUTINE] ','Failed to save routine:', error)
       setError('Failed to save routine. Please try again.')
     } finally {
       setBusy(false)
     }
   }
 
-  // Helper function to extract member ID from task/group ID
-  const extractMemberIdFromId = (id: string): string => {
-    // ID format: templateId-memberId-day-timestamp
-    // Since UUIDs contain dashes, we need to find the member ID by looking for the pattern
-    // The member ID is the second UUID in the string (after the template UUID)
-    const parts = id.split('-')
-    
-    // If we have at least 9 parts (template UUID has 5 parts, member UUID has 5 parts)
-    if (parts.length >= 9) {
-      // Template UUID: parts[0-4], Member UUID: parts[5-9]
-      return `${parts[5]}-${parts[6]}-${parts[7]}-${parts[8]}-${parts[9]}`
-    }
-    
-    // Fallback: try to find member ID by looking for the selected member ID in the string
-    if (selectedMemberId && id.includes(selectedMemberId)) {
-      return selectedMemberId
-    }
-    
-    // Last resort: return empty string
-    return ''
-  }
-
-  const extractRoutineTaskIdFromId = (id: string): string => {
-    // ID format: templateId-memberId-day-timestamp
-    // We need the templateId (routine_task_id) which is the first UUID
-    const parts = id.split('-')
-    
-    // If we have at least 5 parts (template UUID has 5 parts)
-    if (parts.length >= 5) {
-      // Template UUID: parts[0-4]
-      return `${parts[0]}-${parts[1]}-${parts[2]}-${parts[3]}-${parts[4]}`
-    }
-    
-    return id // Fallback to original ID
-  }
-
-  const getTotalTasksForDay = (day: string) => {
-    const dayTasks = calendarTasks[day]
-    
-    if (!dayTasks) {
-      return 0
-    }
-    
-    // Filter groups by selected member
-    const filteredGroups = dayTasks.groups.filter((group: TaskGroup) => {
-      const groupMemberId = extractMemberIdFromId(group.id)
-      const matches = groupMemberId === selectedMemberId
-      return matches
-    })
-    
-    // Filter individual tasks by selected member
-    const filteredIndividualTasks = dayTasks.individualTasks.filter((task: Task) => {
-      const taskMemberId = task.memberId || extractMemberIdFromId(task.id)
-      const matches = taskMemberId === selectedMemberId
-      console.log('[FILTER-DEBUG] Filtering task:', {
-        taskName: task.name,
-        taskId: task.id,
-        taskMemberId: taskMemberId,
-        selectedMemberId: selectedMemberId,
-        matches: matches,
-        hasMemberId: !!task.memberId,
-        memberIdValue: task.memberId
-      });
-      return matches
-    })
-    
-    const total = filteredGroups.reduce((sum: number, group: TaskGroup) => sum + group.tasks.length, 0) + filteredIndividualTasks.length
-    return total
-  }
 
 
-  const totalTasks = Object.keys(calendarTasks).reduce((sum, day) => sum + getTotalTasksForDay(day), 0)
-
-  // Derive schedule from calendar task placement
-  const deriveScheduleFromCalendar = () => {
-    const daysWithTasks = Object.keys(calendarTasks).filter(day => getTotalTasksForDay(day) > 0)
-    
-    if (daysWithTasks.length === 0) {
-      return { scope: 'everyday' as const, days_of_week: [] }
-    }
-    
-    if (daysWithTasks.length === 7) {
-      return { scope: 'everyday' as const, days_of_week: [] }
-    }
-    
-    if (daysWithTasks.length === 5 && 
-        daysWithTasks.includes('monday') && 
-        daysWithTasks.includes('tuesday') && 
-        daysWithTasks.includes('wednesday') && 
-        daysWithTasks.includes('thursday') && 
-        daysWithTasks.includes('friday') &&
-        !daysWithTasks.includes('saturday') &&
-        !daysWithTasks.includes('sunday')) {
-      return { scope: 'weekdays' as const, days_of_week: [] }
-    }
-    
-    if (daysWithTasks.length === 2 && 
-        daysWithTasks.includes('saturday') && 
-        daysWithTasks.includes('sunday') &&
-        !daysWithTasks.includes('monday') &&
-        !daysWithTasks.includes('tuesday') &&
-        !daysWithTasks.includes('wednesday') &&
-        !daysWithTasks.includes('thursday') &&
-        !daysWithTasks.includes('friday')) {
-      return { scope: 'weekends' as const, days_of_week: [] }
-    }
-    
-    // Custom schedule with specific days
-    return { 
-      scope: 'custom' as const, 
-      days_of_week: daysWithTasks 
-    }
-  }
+  const totalTasks = getTotalTasks()
 
 
-  // Lazy routine creation - only create when user actually starts building
-  const ensureRoutineExists = async () => {
-    // If routine already exists, return it immediately
-    if (routine) {
-      console.log('[KIDOERS-ROUTINE] Routine already exists, returning:', routine.id);
-      return routine;
-    }
-    
-    if (!familyId) {
-      console.log('[KIDOERS-ROUTINE] No family ID, returning null');
-      return null;
-    }
-    
-    // If routine creation is already in progress, return the existing promise
-    if (routineCreationPromise.current) {
-      console.log('[KIDOERS-ROUTINE] Routine creation already in progress, waiting for existing promise...');
-      return routineCreationPromise.current;
-    }
-    
-    // Create new routine creation promise
-    console.log('[KIDOERS-ROUTINE] Starting routine creation...');
-    routineCreationPromise.current = (async () => {
-      try {
-        setIsCreatingRoutine(true);
-        console.log('[KIDOERS-ROUTINE] Creating routine draft lazily...');
-        const created = await createRoutineDraft(familyId, routineName);
-        console.log('[KIDOERS-ROUTINE] Routine draft created:', created);
-        const routineData = {
-          id: created.id,
-          family_id: created.family_id,
-          name: created.name,
-          status: created.status as "draft"|"active"|"archived"
-        };
-        setRoutine(routineData);
-        setCurrentRoutineId(routineData.id);
-        console.log('[KIDOERS-ROUTINE] Set currentRoutineId to:', routineData.id);
-        return routineData;
-      } catch (e: any) {
-        console.error('[KIDOERS-ROUTINE] ','Error creating routine:', e);
-        setError(e?.message || "Failed to create routine");
-        return null;
-      } finally {
-        setIsCreatingRoutine(false);
-        // Clear the promise reference so future calls can create new routines if needed
-        routineCreationPromise.current = null;
-      }
-    })();
-    
-    return routineCreationPromise.current;
-  };
 
   // Load existing routine data using the new full-data endpoint
   const loadExistingRoutineData = async (routineId: string, enhancedMembers: any[]) => {
@@ -1896,7 +1242,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       
       // Load day-specific orders
       console.log('[DRAG-ORDER] 📋 ManualRoutineBuilder: Loading day-specific orders');
-      setDayOrders(fullData.day_orders || []);
+      loadDayOrders(fullData.day_orders || []);
       console.log('[DRAG-ORDER] ✅ ManualRoutineBuilder: Day orders loaded:', fullData.day_orders);
       
       // Create a map of task assignments by member
@@ -2289,7 +1635,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                   <div className="grid grid-cols-7 gap-0 min-h-[900px]">
                     {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => {
                       const dayTasks = calendarTasks[day]
-                      const totalDayTasks = getTotalTasksForDay(day)
+                      const totalDayTasks = getTotalTasksForDay(day, calendarTasks, selectedMemberId)
                       const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
                       const dayIndex = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].indexOf(day)
                       
@@ -2316,7 +1662,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                                 {dayTasks.groups
                                   .filter((group: TaskGroup) => {
                                     // Extract member ID from group ID (format: templateId-memberId-day-timestamp)
-                                    const groupMemberId = extractMemberIdFromId(group.id)
+                                    const groupMemberId = extractMemberIdFromId(group.id, selectedMemberId)
                                     return groupMemberId === selectedMemberId
                                   })
                                   .map((group: TaskGroup) => (
@@ -2347,11 +1693,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                                         }`}
                                         draggable={true}
                                         onDragStart={(e) => handleTaskDragStart(e, task, day, selectedMemberId)}
-                                        onDragEnd={() => {
-                                          setDraggedTask(null)
-                                          setDragOverPosition(null)
-                                          setIsDragging(false)
-                                        }}
+                                        onDragEnd={handleTaskDragEnd}
                                       >
                                         {/* Always show drag handle in routine builder */}
                                         <div className="w-3 h-3 flex items-center justify-center text-gray-400">
@@ -2371,7 +1713,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                                 {/* Individual Tasks - Filtered by Selected Member */}
                                 {getTasksWithDayOrder(
                                   dayTasks.individualTasks.filter((task: Task) => {
-                                    const taskMemberId = task.memberId || extractMemberIdFromId(task.id)
+                                    const taskMemberId = task.memberId || extractMemberIdFromId(task.id, selectedMemberId)
                                     const matches = taskMemberId === selectedMemberId
                                     console.log('[KIDOERS-ROUTINE] Filtering task:', { 
                                       taskId: task.id, 
@@ -2414,11 +1756,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                                       }`}
                                       draggable={true}
                                       onDragStart={(e) => handleTaskDragStart(e, task, day, selectedMemberId)}
-                                      onDragEnd={() => {
-                                        setDraggedTask(null)
-                                        setDragOverPosition(null)
-                                        setIsDragging(false)
-                                      }}
+                                      onDragEnd={handleTaskDragEnd}
                                       onClick={(e) => {
                                         e.stopPropagation()
                                         handleTaskClick(e, task, day, selectedMemberId)
@@ -2483,7 +1821,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
 
               <Button
-                onClick={handleSaveRoutine}
+                onClick={handleSaveRoutineWrapper}
                 disabled={totalTasks === 0 || busy || !routineName.trim()}
                 className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white flex items-center justify-center space-x-2 flex-1"
               >
@@ -2809,7 +2147,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         <RoutineDetailsModal
           isOpen={showRoutineDetails}
           onClose={() => setShowRoutineDetails(false)}
-          onSave={handleSaveRoutineDetails}
+          onSave={handleSaveRoutineDetailsWrapper}
           initialScheduleData={routineScheduleData || undefined}
           totalTasks={totalTasks}
           familyMembers={enhancedFamilyMembers.length}
