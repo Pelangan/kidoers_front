@@ -168,3 +168,36 @@ export const getTaskDaysOfWeek = (
   console.log('[DAYS-OF-WEEK] Found template for task:', task.name, 'days_of_week:', template.days_of_week)
   return template.days_of_week || []
 }
+
+// Get display frequency text for a task
+export const getTaskDisplayFrequency = (
+  task: Task,
+  recurringTemplates: RecurringTemplate[]
+): string => {
+  // If task has a recurring template, use the template's frequency type
+  if (task.recurring_template_id) {
+    const template = recurringTemplates.find(t => t.id === task.recurring_template_id)
+    if (template) {
+      switch (template.frequency_type) {
+        case 'every_day':
+          return 'Daily'
+        case 'specific_days':
+        case 'just_this_day':
+          return 'Specific Days'
+        default:
+          return 'Specific Days'
+      }
+    }
+  }
+  
+  // For non-recurring tasks, determine based on days_of_week
+  const taskDays = task.days_of_week || []
+  if (taskDays.length === 1) {
+    return 'Weekly'
+  } else if (taskDays.length > 1) {
+    return 'Specific Days'
+  }
+  
+  // Default fallback
+  return 'Weekly'
+}

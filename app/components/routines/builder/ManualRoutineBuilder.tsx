@@ -463,7 +463,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   }
 
   // Handle edit task - opens the Apply Tasks To modal
-  const handleEditTask = () => {
+  const handleEditTask = async () => {
     if (!selectedTaskForEdit) return
     
     console.log('[TASK-EDIT] ===== EDIT TASK DEBUG START =====')
@@ -478,6 +478,18 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       memberId: selectedTaskForEdit.task.memberId,
       id: selectedTaskForEdit.task.id
     })
+    
+    // Refresh routine data to ensure we have the latest template information
+    if (currentRoutineId) {
+      console.log('[TASK-EDIT] 🔄 Refreshing routine data to get latest template info...')
+      try {
+        const fullData = await getRoutineFullData(currentRoutineId)
+        setRecurringTemplates(fullData.recurring_templates || [])
+        console.log('[TASK-EDIT] ✅ Updated recurring templates:', fullData.recurring_templates)
+      } catch (error) {
+        console.warn('[TASK-EDIT] ⚠️ Failed to refresh routine data:', error)
+      }
+    }
     
     // Check if this task appears on multiple days in the calendar
     const taskAppearsOnDays: string[] = []
@@ -529,6 +541,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       selectedDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
     } else if (frequencyType === 'specific_days') {
       daySelectionMode = 'custom'
+      // Always use the template days of week for specific_days tasks, as they represent the current state
       selectedDays = templateDaysOfWeek.length > 0 ? templateDaysOfWeek : taskAppearsOnDays
     } else {
       // 'just_this_day' - single day task
@@ -539,6 +552,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     console.log('[TASK-EDIT] Final day selection:', { mode: daySelectionMode, selectedDays })
     
     // Initialize day selection with the correct mode based on template frequency
+    // This will be set immediately before opening the modal
     setDaySelection({ mode: daySelectionMode, selectedDays: selectedDays })
     
     console.log('[TASK-EDIT] ===== EDIT TASK DEBUG END =====')
@@ -1542,6 +1556,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                 selectedMemberId={selectedMemberId}
                 draggedTask={draggedTask}
                 dragOverPosition={dragOverPosition}
+                recurringTemplates={recurringTemplates}
                 onColumnClick={handleColumnClick}
                 onTaskDragStart={handleTaskDragStart}
                 onTaskDragEnd={handleTaskDragEnd}
@@ -1592,7 +1607,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
         {/* Create New Task Modal */}
         <Dialog open={showApplyToPopup} onOpenChange={setShowApplyToPopup}>
-          <DialogContent className="sm:max-w-lg bg-white">
+          <DialogContent className="sm:max-w-2xl bg-white">
             <DialogHeader>
               <DialogTitle className="text-lg font-semibold text-gray-800">
                 {selectedTaskForEdit ? 'Edit Task' : 'Create New Task'}

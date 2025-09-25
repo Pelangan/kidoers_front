@@ -1,7 +1,7 @@
 import React from 'react'
 import { TaskItem } from './TaskItem'
 import { TaskGroup } from './TaskGroup'
-import type { Task, TaskGroup as TaskGroupType } from '../types/routineBuilderTypes'
+import type { Task, TaskGroup as TaskGroupType, RecurringTemplate } from '../types/routineBuilderTypes'
 
 interface DayColumnProps {
   day: string
@@ -9,6 +9,7 @@ interface DayColumnProps {
   selectedMemberId: string
   draggedTask: { task: Task; day: string; memberId: string } | null
   dragOverPosition: { day: string; memberId: string; position: 'before' | 'after'; targetTaskId?: string } | null
+  recurringTemplates: RecurringTemplate[]
   onColumnClick: (day: string) => void
   onTaskDragStart: (e: React.DragEvent, task: Task, day: string, memberId: string) => void
   onTaskDragEnd: () => void
@@ -28,6 +29,7 @@ export const DayColumn: React.FC<DayColumnProps> = ({
   selectedMemberId,
   draggedTask,
   dragOverPosition,
+  recurringTemplates,
   onColumnClick,
   onTaskDragStart,
   onTaskDragEnd,
@@ -76,6 +78,7 @@ export const DayColumn: React.FC<DayColumnProps> = ({
                   day={day}
                   memberId={selectedMemberId}
                   draggedTask={draggedTask}
+                  recurringTemplates={recurringTemplates}
                   onDragStart={onTaskDragStart}
                   onDragEnd={onTaskDragEnd}
                   onRemoveGroup={onRemoveGroup}
@@ -127,6 +130,7 @@ export const DayColumn: React.FC<DayColumnProps> = ({
                     day={day}
                     memberId={selectedMemberId}
                     isDragging={draggedTask?.task.id === task.id}
+                    recurringTemplates={recurringTemplates}
                     onDragStart={onTaskDragStart}
                     onDragEnd={onTaskDragEnd}
                     onClick={onTaskClick}

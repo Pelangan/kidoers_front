@@ -1,13 +1,14 @@
 import React from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { DayColumn } from './DayColumn'
-import type { Task, TaskGroup as TaskGroupType } from '../types/routineBuilderTypes'
+import type { Task, TaskGroup as TaskGroupType, RecurringTemplate } from '../types/routineBuilderTypes'
 
 interface CalendarGridProps {
   calendarTasks: Record<string, { groups: TaskGroupType[]; individualTasks: Task[] }>
   selectedMemberId: string
   draggedTask: { task: Task; day: string; memberId: string } | null
   dragOverPosition: { day: string; memberId: string; position: 'before' | 'after'; targetTaskId?: string } | null
+  recurringTemplates: RecurringTemplate[]
   onColumnClick: (day: string) => void
   onTaskDragStart: (e: React.DragEvent, task: Task, day: string, memberId: string) => void
   onTaskDragEnd: () => void
@@ -26,6 +27,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
   selectedMemberId,
   draggedTask,
   dragOverPosition,
+  recurringTemplates,
   onColumnClick,
   onTaskDragStart,
   onTaskDragEnd,
@@ -52,6 +54,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
               selectedMemberId={selectedMemberId}
               draggedTask={draggedTask}
               dragOverPosition={dragOverPosition}
+              recurringTemplates={recurringTemplates}
               onColumnClick={onColumnClick}
               onTaskDragStart={onTaskDragStart}
               onTaskDragEnd={onTaskDragEnd}
