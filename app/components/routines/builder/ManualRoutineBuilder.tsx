@@ -745,6 +745,11 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
             member_id: taskToDelete.memberId
           })
           console.log('[TASK-DELETE] ✅ Bulk delete result:', result)
+          
+          // Log cleanup results
+          if (result.cleaned_templates && result.cleaned_templates.length > 0) {
+            console.log('[TASK-DELETE] 🧹 Cleaned up orphaned templates:', result.cleaned_templates)
+          }
         } else {
           // Use regular delete for custom tasks
           console.log('[TASK-DELETE] 🗑️ Deleting custom task from backend:', taskToDelete.task.id)

@@ -712,6 +712,7 @@ export async function bulkDeleteTasks(routineId: string, payload: {
     assignments_deleted: number;
     days_affected: string[];
     message: string;
+    cleaned_templates: string[];
   }>(`/routines/${routineId}/tasks/bulk-delete`, {
     method: "POST",
     body: JSON.stringify(payload),
