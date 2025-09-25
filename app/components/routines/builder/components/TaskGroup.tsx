@@ -1,7 +1,7 @@
 import React from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Trash2, Move, Folder, RotateCcw } from 'lucide-react'
+import { Trash2, Move, Folder } from 'lucide-react'
 import type { TaskGroup as TaskGroupType, Task, RecurringTemplate } from '../types/routineBuilderTypes'
 import { getTaskDisplayFrequency } from '../utils/taskUtils'
 
@@ -61,13 +61,6 @@ export const TaskGroup: React.FC<TaskGroupProps> = ({
             <div className="text-xs text-gray-500">{getTaskDisplayFrequency(task, recurringTemplates)}</div>
             <div className="text-xs text-purple-600">from {group.name}</div>
           </div>
-          
-          {/* Recurring task indicator */}
-          {task.recurring_template_id && (
-            <div className="absolute top-1 right-1">
-              <RotateCcw className="w-3 h-3 text-blue-700" />
-            </div>
-          )}
         </div>
       ))}
     </div>

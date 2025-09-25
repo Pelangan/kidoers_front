@@ -1,5 +1,5 @@
 import React from 'react'
-import { Move, Folder, RotateCcw } from 'lucide-react'
+import { Move, Folder } from 'lucide-react'
 import type { Task, RecurringTemplate } from '../types/routineBuilderTypes'
 import { getTaskDisplayFrequency } from '../utils/taskUtils'
 
@@ -51,13 +51,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           </div>
         )}
       </div>
-      
-      {/* Recurring task indicator */}
-      {task.recurring_template_id && (
-        <div className="absolute top-1 right-1">
-          <RotateCcw className="w-3 h-3 text-blue-700" />
-        </div>
-      )}
     </div>
   )
 }
