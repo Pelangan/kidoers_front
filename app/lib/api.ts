@@ -699,7 +699,8 @@ export async function bulkCreateIndividualTasks(routineId: string, payload: {
 
 // Bulk task deletion
 export async function bulkDeleteTasks(routineId: string, payload: {
-  task_template_id: string;
+  recurring_template_id?: string;
+  task_template_id?: string;
   delete_scope: "this_day" | "this_and_following" | "all_days";
   target_day?: string;
   member_id?: string;

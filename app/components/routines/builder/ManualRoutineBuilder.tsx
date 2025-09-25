@@ -675,18 +675,61 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           taskId: taskToDelete.task.id,
           taskName: taskToDelete.task.name,
           hasRecurringTemplateId: !!taskToDelete.task.recurring_template_id,
+          recurringTemplateId: taskToDelete.task.recurring_template_id,
           hasTemplateId: !!taskToDelete.task.template_id,
+          templateId: taskToDelete.task.template_id,
           isSystem: !!taskToDelete.task.is_system,
           routineId: routineData.id,
           scope: scope,
           targetDay: taskToDelete.day,
-          memberId: taskToDelete.memberId
+          memberId: taskToDelete.memberId,
+          fullTaskObject: taskToDelete.task
         })
         
-        if (taskToDelete.task.recurring_template_id || taskToDelete.task.template_id || taskToDelete.task.is_system) {
+        // Check if this is a recurring task by looking at the task data or by checking if it appears on multiple days
+        const isRecurringTask = taskToDelete.task.recurring_template_id || taskToDelete.task.template_id || taskToDelete.task.is_system
+        
+        // Additional check: if task appears on multiple days, it's likely recurring
+        const taskAppearsOnMultipleDays = Object.keys(calendarTasks).filter(day => {
+          const dayTasks = calendarTasks[day].individualTasks || []
+          return dayTasks.some(task => task.name === taskToDelete.task.name && task.memberId === taskToDelete.memberId)
+        }).length > 1
+        
+        const shouldUseBulkDelete = isRecurringTask || taskAppearsOnMultipleDays
+        
+        console.log('[TASK-DELETE] 🔍 Recurring task detection:', {
+          isRecurringTask,
+          taskAppearsOnMultipleDays,
+          shouldUseBulkDelete,
+          recurringTemplateId: taskToDelete.task.recurring_template_id
+        })
+        
+        if (shouldUseBulkDelete) {
           // Use bulk delete for recurring tasks
           console.log('[TASK-DELETE] 🗑️ Using bulk delete for recurring task:', taskToDelete.task.name)
-          const taskTemplateId = taskToDelete.task.recurring_template_id || taskToDelete.task.template_id || taskToDelete.task.id
+          console.log('[TASK-DELETE] 🔍 Task details:', {
+            id: taskToDelete.task.id,
+            recurring_template_id: taskToDelete.task.recurring_template_id,
+            template_id: taskToDelete.task.template_id,
+            is_system: taskToDelete.task.is_system
+          })
+          
+          // For recurring tasks, we need to use the recurring_template_id, not the individual task id
+          let taskTemplateId = taskToDelete.task.recurring_template_id || taskToDelete.task.template_id
+          
+          // Fallback: if we don't have the recurring_template_id, try to get it from the backend data
+          if (!taskTemplateId) {
+            console.log('[TASK-DELETE] 🔍 No recurring_template_id found, looking up in backend data...')
+            // This should have been loaded in loadExistingRoutineData
+            // For now, we'll use the task ID as fallback
+            taskTemplateId = taskToDelete.task.id
+          }
+          
+          // DEBUG: Check if the recurring_template_id matches what's in the database
+          console.log('[TASK-DELETE] 🔍 DEBUG: Expected recurring_template_id from database: 93c6f050-b2e5-459f-b203-ead4d9303668')
+          console.log('[TASK-DELETE] 🔍 DEBUG: Actual recurring_template_id from task:', taskToDelete.task.recurring_template_id)
+          
+          console.log('[TASK-DELETE] 🔍 Using task_template_id:', taskTemplateId)
           console.log('[TASK-DELETE] 🔍 Sending to backend:', {
             routine_id: routineData.id,
             task_template_id: taskTemplateId,
@@ -696,7 +739,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           })
           
           const result = await bulkDeleteTasks(routineData.id, {
-            task_template_id: taskTemplateId,
+            recurring_template_id: taskTemplateId,
             delete_scope: scope,
             target_day: taskToDelete.day,
             member_id: taskToDelete.memberId
@@ -1146,7 +1189,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     setBusy(true)
     try {
       await handleSaveRoutine()
-    } catch (error) {
+        } catch (error) {
       setError('Failed to save routine. Please try again.')
     } finally {
       setBusy(false)
@@ -1176,6 +1219,10 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         days_of_week: task.days_of_week,
         recurring_template_id: task.recurring_template_id
       })));
+      
+      // Debug: Check if recurring_template_id matches database
+      console.log('[KIDOERS-ROUTINE] 🔍 DEBUG: Expected recurring_template_id from database: 93c6f050-b2e5-459f-b203-ead4d9303668');
+      console.log('[KIDOERS-ROUTINE] 🔍 DEBUG: Actual recurring_template_ids from backend:', fullData.individual_tasks.map(t => t.recurring_template_id));
       
       // Debug: Log the specific task we're looking for
       const targetTask = fullData.individual_tasks.find(task => task.name === 'recurrent');
@@ -1324,19 +1371,33 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         saturday: { individualTasks: [], groups: [] }
       };
       
-      // Process individual tasks
+      // Process individual tasks - Assign tasks to their correct members based on assignments
+      console.log('[KIDOERS-ROUTINE] 🔍 Processing individual tasks for calendar population');
+      console.log('[KIDOERS-ROUTINE] 🔍 selectedMemberId:', selectedMemberId);
+      console.log('[KIDOERS-ROUTINE] 🔍 enhancedMembers[0]?.id:', enhancedMembers[0]?.id);
+      
       for (const task of individualTasks) {
-        const memberTaskIds = assignmentsByMember.get(selectedMemberId || enhancedMembers[0]?.id) || [];
-        if (memberTaskIds.includes(task.id) && task.days_of_week) {
-          // Add this task to each day it's scheduled for
+        console.log('[KIDOERS-ROUTINE] 🔍 Task:', task.name, 'days_of_week:', task.days_of_week);
+        
+        if (task.days_of_week) {
+          // Add this task to each day it's scheduled for, for each assigned member
           for (const day of task.days_of_week) {
             if (newCalendarTasks[day]) {
-              newCalendarTasks[day].individualTasks.push({
+              // Get assignments from the original backend data
+              const backendTask = fullData.individual_tasks.find(bt => bt.id === task.id);
+              if (backendTask?.assignments) {
+                // Create a task instance for each assigned member
+                for (const assignment of backendTask.assignments) {
+                  const taskWithMemberId = {
                 ...task,
                 id: task.id, // Use real UUID from backend
-                memberId: selectedMemberId || enhancedMembers[0]?.id, // Set member ID for filtering
+                    memberId: assignment.member_id, // Set the correct member ID from assignment
                 is_saved: true // Mark as saved
-              });
+                  };
+                  newCalendarTasks[day].individualTasks.push(taskWithMemberId);
+                  console.log('[KIDOERS-ROUTINE] ✅ Added task to calendar:', task.name, 'on day:', day, 'for member:', assignment.member_id);
+                }
+              }
             }
           }
         }
@@ -1478,10 +1539,10 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                         setViewMode={setViewMode}
                       />
                     
+                                      </div>
                   </div>
-                </div>
 
-                {!selectedMemberId && (
+                  {!selectedMemberId && (
                     <p className="text-sm text-amber-600">
                       Please select a family member to start building their routine
                     </p>

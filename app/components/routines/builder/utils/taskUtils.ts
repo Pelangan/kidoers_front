@@ -56,16 +56,14 @@ export const getTotalTasksForDay = (
   
   // Filter individual tasks by selected member
   const filteredIndividualTasks = dayTasks.individualTasks.filter((task: Task) => {
-    const taskMemberId = task.memberId || extractMemberIdFromId(task.id, selectedMemberId)
-    const matches = taskMemberId === selectedMemberId
+    // Filter tasks by selected member ID
+    const matches = task.memberId === selectedMemberId
     console.log('[FILTER-DEBUG] Filtering task:', {
       taskName: task.name,
       taskId: task.id,
-      taskMemberId: taskMemberId,
+      taskMemberId: task.memberId,
       selectedMemberId: selectedMemberId,
-      matches: matches,
-      hasMemberId: !!task.memberId,
-      memberIdValue: task.memberId
+      matches: matches
     });
     return matches
   })

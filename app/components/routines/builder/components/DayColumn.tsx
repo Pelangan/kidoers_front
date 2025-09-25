@@ -83,22 +83,28 @@ export const DayColumn: React.FC<DayColumnProps> = ({
               ))}
 
             {/* Individual Tasks - Filtered by Selected Member */}
-            {getTasksWithDayOrder(
-              dayTasks.individualTasks.filter((task: Task) => {
-                const taskMemberId = task.memberId || extractMemberIdFromId(task.id, selectedMemberId)
-                const matches = taskMemberId === selectedMemberId
+            {(() => {
+              console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - Processing day:', day);
+              console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - dayTasks.individualTasks:', dayTasks.individualTasks);
+              console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - selectedMemberId:', selectedMemberId);
+              
+              const filteredTasks = dayTasks.individualTasks.filter((task: Task) => {
+                // Filter tasks by selected member ID
+                const matches = task.memberId === selectedMemberId
                 console.log('[KIDOERS-ROUTINE] Filtering task:', { 
                   taskId: task.id, 
                   taskName: task.name, 
-                  taskMemberId, 
+                  taskMemberId: task.memberId, 
                   selectedMemberId, 
-                  matches 
+                  matches
                 })
                 return matches
-              }), 
-              day, 
-              selectedMemberId
-            )
+              });
+              
+              console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - filteredTasks:', filteredTasks);
+              
+              return getTasksWithDayOrder(filteredTasks, day, selectedMemberId);
+            })()
               .map((task: Task, taskIndex: number, taskArray: Task[]) => (
                 <div key={task.id}>
                   {/* Drop zone before this task */}
