@@ -671,6 +671,7 @@ export async function bulkCreateIndividualTasks(routineId: string, payload: {
     order_index?: number;
   }>;
   create_recurring_template?: boolean;
+  existing_recurring_template_id?: string;
 }) {
   return apiService.makeRequest<{
     routine_id: string;

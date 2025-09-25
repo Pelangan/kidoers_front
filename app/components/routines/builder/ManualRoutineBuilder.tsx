@@ -1033,6 +1033,16 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
         // Prepare bulk task creation payload
         const task = pendingDrop.item as Task;
+        
+        // Check if we're extending an existing recurring task
+        let existingRecurringTemplateId: string | undefined = undefined;
+        if (targetDays.length > 1 && task.recurring_template_id) {
+          // We're creating a multi-day task and the source task has a recurring template
+          // This means we're extending an existing recurring task
+          existingRecurringTemplateId = task.recurring_template_id;
+          console.log('[KIDOERS-ROUTINE] 🔄 Extending existing recurring template:', existingRecurringTemplateId);
+        }
+        
         const bulkPayload = {
           task_template: {
             name: editableTaskName || task.name,
@@ -1047,7 +1057,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
             days_of_week: targetDays,
             order_index: 0
           })),
-          create_recurring_template: targetDays.length > 1 // Create recurring template for multi-day tasks
+          create_recurring_template: targetDays.length > 1, // Create recurring template for multi-day tasks
+          existing_recurring_template_id: existingRecurringTemplateId // Extend existing template if available
         };
 
         console.log('[KIDOERS-ROUTINE] 📦 Bulk payload:', bulkPayload);
