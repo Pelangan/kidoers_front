@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createRoutineDraft, patchRoutine, createRoutineSchedule, generateTaskInstances } from '../../../../lib/api'
-import type { RoutineScheduleData } from '../types/routineBuilderTypes'
+import type { RoutineScheduleData, RecurringTemplate } from '../types/routineBuilderTypes'
 
 interface RoutineData {
   id: string
@@ -20,6 +20,7 @@ export const useRoutineData = (familyId: string | null, isEditMode: boolean, onC
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [routineScheduleData, setRoutineScheduleData] = useState<RoutineScheduleData | null>(null)
   const [currentRoutineId, setCurrentRoutineId] = useState<string | null>(null)
+  const [recurringTemplates, setRecurringTemplates] = useState<RecurringTemplate[]>([])
   
   // Promise-based routine creation to prevent race conditions
   const routineCreationPromise = useRef<Promise<RoutineData | null> | null>(null)
@@ -180,6 +181,7 @@ export const useRoutineData = (familyId: string | null, isEditMode: boolean, onC
     hasUnsavedChanges,
     routineScheduleData,
     currentRoutineId,
+    recurringTemplates,
     
     // Setters
     setRoutine,
@@ -187,6 +189,7 @@ export const useRoutineData = (familyId: string | null, isEditMode: boolean, onC
     setHasUnsavedChanges,
     setRoutineScheduleData,
     setCurrentRoutineId,
+    setRecurringTemplates,
     
     // Functions
     ensureRoutineExists,

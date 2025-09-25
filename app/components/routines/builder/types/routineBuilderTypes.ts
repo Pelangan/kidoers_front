@@ -70,5 +70,21 @@ export interface DaySelection {
   selectedDays: string[]
 }
 
+// Recurring template interface
+export interface RecurringTemplate {
+  id: string
+  routine_id: string
+  name: string
+  description: string | null
+  points: number
+  duration_mins: number | null
+  time_of_day: string | null
+  frequency_type: string // 'just_this_day', 'every_day', 'specific_days'
+  days_of_week: string[]
+  frequency: string
+  created_at: string
+  updated_at: string
+}
+
 // Re-export imported types for convenience
 export type { FamilyMember, DaySpecificOrder, BulkDayOrderUpdate, RoutineScheduleData }

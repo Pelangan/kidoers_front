@@ -29,7 +29,9 @@ import {
   extractMemberIdFromId, 
   extractRoutineTaskIdFromId, 
   getTotalTasksForDay, 
-  deriveScheduleFromCalendar 
+  deriveScheduleFromCalendar,
+  getTaskFrequencyType,
+  getTaskDaysOfWeek
 } from './utils/taskUtils'
 import { useRoutineData } from './hooks/useRoutineData'
 import { useFamilyMembers } from './hooks/useFamilyMembers'
@@ -68,11 +70,13 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     hasUnsavedChanges,
     routineScheduleData,
     currentRoutineId,
+    recurringTemplates,
     setRoutine,
     setRoutineName,
     setHasUnsavedChanges,
     setRoutineScheduleData,
     setCurrentRoutineId,
+    setRecurringTemplates,
     ensureRoutineExists,
     handleSaveRoutineDetails,
     handleSaveRoutine
@@ -502,94 +506,53 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       fromGroup: undefined
     })
     
-    // Determine the correct day selection mode based on task type and days_of_week
+    // Get frequency information from recurring template
+    console.log('[TASK-EDIT] 🔍 DEBUG: Available recurring templates:', recurringTemplates)
+    console.log('[TASK-EDIT] 🔍 DEBUG: Task recurring_template_id:', selectedTaskForEdit.task.recurring_template_id)
+    
+    const frequencyType = getTaskFrequencyType(selectedTaskForEdit.task, recurringTemplates)
+    const templateDaysOfWeek = getTaskDaysOfWeek(selectedTaskForEdit.task, recurringTemplates)
+    
+    console.log('[TASK-EDIT] Frequency information:', {
+      frequencyType,
+      templateDaysOfWeek,
+      taskRecurringTemplateId: selectedTaskForEdit.task.recurring_template_id,
+      availableTemplates: recurringTemplates.length
+    })
+    
+    // Determine the correct day selection mode based on frequency type
     let daySelectionMode: 'single' | 'everyday' | 'custom' = 'single'
     let selectedDays: string[] = [selectedTaskForEdit.day]
     
-    console.log('[TASK-EDIT] Initial day selection:', { mode: daySelectionMode, selectedDays })
-    
-    // Check if this is a recurring task
-    const isRecurringTask = selectedTaskForEdit.task.recurring_template_id || 
-                           selectedTaskForEdit.task.template_id || 
-                           selectedTaskForEdit.task.is_system
-    
-    console.log('[TASK-EDIT] Is recurring task?', {
-      isRecurringTask,
-      hasRecurringTemplateId: !!selectedTaskForEdit.task.recurring_template_id,
-      hasTemplateId: !!selectedTaskForEdit.task.template_id,
-      isSystem: !!selectedTaskForEdit.task.is_system,
-      daysOfWeek: selectedTaskForEdit.task.days_of_week
-    })
-    
-    // For recurring tasks, use calendar detection instead of task.days_of_week
-    // because each task instance only knows about its own day
-    const effectiveDays = isRecurringTask ? taskAppearsOnDays : (selectedTaskForEdit.task.days_of_week || [])
-    
-    console.log('[TASK-EDIT] Effective days for detection:', {
-      fromTaskDaysOfWeek: selectedTaskForEdit.task.days_of_week,
-      fromCalendar: taskAppearsOnDays,
-      effectiveDays,
-      isRecurringTask
-    })
-    
-    // FALLBACK: If we can't detect recurring from template_id, use calendar data
-    // This handles cases where the task data isn't fully loaded
-    const isRecurringByCalendar = taskAppearsOnDays.length > 1
-    const finalIsRecurring = isRecurringTask || isRecurringByCalendar
-    
-    console.log('[TASK-EDIT] Recurring detection fallback:', {
-      isRecurringTask,
-      isRecurringByCalendar,
-      finalIsRecurring,
-      calendarDays: taskAppearsOnDays.length
-    })
-    
-    if (finalIsRecurring && effectiveDays.length > 0) {
-      const taskDays = effectiveDays
-      
-      console.log('[TASK-EDIT] Processing recurring task with days:', taskDays)
-      
-      if (taskDays.length === 7) {
-        // Task appears every day
-        daySelectionMode = 'everyday'
-        selectedDays = DAYS_OF_WEEK
-        console.log('[TASK-EDIT] ✅ Set to EVERYDAY mode')
-      } else if (taskDays.length > 1) {
-        // Task appears on multiple specific days
-        daySelectionMode = 'custom'
-        selectedDays = taskDays
-        console.log('[TASK-EDIT] ✅ Set to CUSTOM mode with days:', taskDays)
-      } else {
-        // Task appears on single day (but is recurring)
-        daySelectionMode = 'single'
-        selectedDays = taskDays
-        console.log('[TASK-EDIT] ✅ Set to SINGLE mode (recurring but single day)')
-      }
-    } else if (finalIsRecurring) {
-      console.log('[TASK-EDIT] ⚠️ Recurring task but no days found in calendar, using single mode')
+    if (frequencyType === 'every_day') {
+      daySelectionMode = 'everyday'
+      selectedDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+    } else if (frequencyType === 'specific_days') {
+      daySelectionMode = 'custom'
+      selectedDays = templateDaysOfWeek.length > 0 ? templateDaysOfWeek : taskAppearsOnDays
     } else {
-      console.log('[TASK-EDIT] ⚠️ Not a recurring task, using single mode')
+      // 'just_this_day' - single day task
+      daySelectionMode = 'single'
+      selectedDays = [selectedTaskForEdit.day]
     }
     
-    console.log('[TASK-EDIT] ===== FINAL DAY SELECTION =====')
-    console.log('[TASK-EDIT] Setting day selection:', {
-      mode: daySelectionMode,
-      selectedDays: selectedDays,
-      isRecurringTask: isRecurringTask,
-      originalTaskDays: selectedTaskForEdit.task.days_of_week,
-      calendarDays: taskAppearsOnDays
-    })
+    console.log('[TASK-EDIT] Final day selection:', { mode: daySelectionMode, selectedDays })
     
-    // Initialize day selection with the correct mode
+    // Initialize day selection with the correct mode based on template frequency
     setDaySelection({ mode: daySelectionMode, selectedDays: selectedDays })
     
     console.log('[TASK-EDIT] ===== EDIT TASK DEBUG END =====')
     
-    // Close mini popup and open main modal
+    // Close mini popup and prepare for modal
     closeTaskMiniPopup()
-    resetFormState()
     setEditableTaskName(selectedTaskForEdit.task.name)
-    setShowApplyToPopup(true)
+    setSelectedWhoOption('none')
+    setSelectedRoutineGroup('none')
+    
+    // Use setTimeout to ensure state update happens before modal opens
+    setTimeout(() => {
+      setShowApplyToPopup(true)
+    }, 0)
   }
 
   // Handle delete task
@@ -1228,6 +1191,10 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       const fullData = await getRoutineFullData(routineId);
       console.log('[KIDOERS-ROUTINE] ✅ ManualRoutineBuilder: Full routine data loaded:', fullData);
       
+      // Load recurring templates
+      console.log('[KIDOERS-ROUTINE] 📋 Loading recurring templates:', fullData.recurring_templates);
+      setRecurringTemplates(fullData.recurring_templates || []);
+      
       // Debug: Log individual tasks data
       console.log('[KIDOERS-ROUTINE] 🔍 Individual tasks from backend:', fullData.individual_tasks.map(task => ({
         id: task.id,
@@ -1663,8 +1630,13 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                   <Label className="text-sm font-medium text-gray-700">When should this task be done?</Label>
                 </div>
                 <Select
-                  value={daySelection.mode === 'single' ? 'just-this-day' : daySelection.mode === 'everyday' ? 'every-day' : 'custom-days'}
+                  value={(() => {
+                    const selectValue = daySelection.mode === 'single' ? 'just-this-day' : daySelection.mode === 'everyday' ? 'every-day' : 'custom-days'
+                    console.log('[MODAL-SELECT] 🔍 DEBUG: daySelection.mode:', daySelection.mode, 'calculated selectValue:', selectValue)
+                    return selectValue
+                  })()}
                   onValueChange={(value) => {
+                    console.log('[MODAL-SELECT] Day selection changed to:', value, 'Current daySelection:', daySelection)
                     if (value === 'just-this-day') {
                       setDaySelection({ mode: 'single', selectedDays: [pendingDrop?.targetDay || ''] })
                     } else if (value === 'every-day') {

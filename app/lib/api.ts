@@ -971,6 +971,20 @@ export async function getRoutineFullData(routineId: string) {
         order_index: number;
       }>;
     }>;
+    recurring_templates: Array<{
+      id: string;
+      routine_id: string;
+      name: string;
+      description: string | null;
+      points: number;
+      duration_mins: number | null;
+      time_of_day: string | null;
+      frequency_type: string;
+      days_of_week: string[];
+      frequency: string;
+      created_at: string;
+      updated_at: string;
+    }>;
     schedules: Array<{
       id: string;
       routine_id: string;

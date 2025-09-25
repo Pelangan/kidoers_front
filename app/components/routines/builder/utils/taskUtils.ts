@@ -1,4 +1,4 @@
-import type { Task, TaskGroup } from '../types/routineBuilderTypes'
+import type { Task, TaskGroup, RecurringTemplate } from '../types/routineBuilderTypes'
 
 // Helper function to extract member ID from task/group ID
 export const extractMemberIdFromId = (id: string, selectedMemberId?: string | null): string => {
@@ -114,4 +114,57 @@ export const deriveScheduleFromCalendar = (
     scope: 'custom' as const, 
     days_of_week: daysWithTasks 
   }
+}
+
+// Get frequency type of a task based on its recurring template
+export const getTaskFrequencyType = (
+  task: Task,
+  recurringTemplates: RecurringTemplate[]
+): 'just_this_day' | 'every_day' | 'specific_days' => {
+  console.log('[FREQUENCY-TYPE] 🔍 DEBUG: getTaskFrequencyType called with:', {
+    taskName: task.name,
+    taskRecurringTemplateId: task.recurring_template_id,
+    availableTemplates: recurringTemplates.length,
+    templateIds: recurringTemplates.map(t => t.id)
+  })
+  
+  // If task has no recurring template, it's a single day task
+  if (!task.recurring_template_id) {
+    console.log('[FREQUENCY-TYPE] No recurring_template_id, returning just_this_day')
+    return 'just_this_day'
+  }
+  
+  // Find the recurring template
+  const template = recurringTemplates.find(t => t.id === task.recurring_template_id)
+  
+  if (!template) {
+    console.warn('[FREQUENCY-TYPE] Template not found for task:', task.name, 'template_id:', task.recurring_template_id)
+    console.warn('[FREQUENCY-TYPE] Available template IDs:', recurringTemplates.map(t => t.id))
+    return 'just_this_day' // Fallback to single day
+  }
+  
+  console.log('[FREQUENCY-TYPE] ✅ Found template for task:', task.name, 'frequency_type:', template.frequency_type)
+  return template.frequency_type as 'just_this_day' | 'every_day' | 'specific_days'
+}
+
+// Get days of week for a task based on its recurring template
+export const getTaskDaysOfWeek = (
+  task: Task,
+  recurringTemplates: RecurringTemplate[]
+): string[] => {
+  // If task has no recurring template, return the task's own days_of_week
+  if (!task.recurring_template_id) {
+    return task.days_of_week || []
+  }
+  
+  // Find the recurring template
+  const template = recurringTemplates.find(t => t.id === task.recurring_template_id)
+  
+  if (!template) {
+    console.warn('[DAYS-OF-WEEK] Template not found for task:', task.name, 'template_id:', task.recurring_template_id)
+    return task.days_of_week || [] // Fallback to task's own days
+  }
+  
+  console.log('[DAYS-OF-WEEK] Found template for task:', task.name, 'days_of_week:', template.days_of_week)
+  return template.days_of_week || []
 }
