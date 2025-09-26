@@ -719,6 +719,94 @@ export async function bulkDeleteTasks(routineId: string, payload: {
   });
 }
 
+// Multi-member task creation
+export async function createMultiMemberTask(routineId: string, payload: {
+  name: string;
+  description?: string;
+  points?: number;
+  duration_mins?: number;
+  time_of_day?: "morning" | "afternoon" | "evening" | "night" | "any";
+  frequency: "one_off" | "daily" | "specific_days" | "weekly";
+  days_of_week?: string[];
+  date?: string;
+  member_ids: string[];
+}) {
+  return apiService.makeRequest<{
+    routine_id: string;
+    task_id: string;
+    member_count: number;
+    assignments_created: number;
+    instances_created: number;
+    created_assignments: Array<{
+      id: string;
+      routine_task_id: string;
+      member_id: string;
+      order_index: number;
+    }>;
+    created_instances: Array<{
+      id: string;
+      routine_id: string;
+      routine_task_id: string;
+      member_id: string;
+      due_date: string;
+      time_of_day: string;
+      status: string;
+      points_awarded: number;
+    }>;
+  }>(`/routines/${routineId}/tasks/multi-member`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// Get tasks with assignee information
+export async function getTasksWithAssignees(routineId: string) {
+  return apiService.makeRequest<Array<{
+    id: string;
+    routine_id: string;
+    group_id: string | null;
+    name: string;
+    description: string | null;
+    points: number;
+    duration_mins: number | null;
+    time_of_day: string | null;
+    frequency: string;
+    days_of_week: string[];
+    order_index: number;
+    recurring_template_id: string | null;
+    member_count: number;
+    assignees: Array<{
+      id: string;
+      name: string;
+      role: string;
+      avatar_url: string | null;
+      color: string;
+    }>;
+  }>>(`/routines/${routineId}/tasks/with-assignees`, {
+    method: "GET",
+  });
+}
+
+// Delete multi-member task with scope options
+export async function deleteMultiMemberTask(routineId: string, payload: {
+  routine_task_id: string;
+  delete_scope: "this_occurrence" | "this_and_following" | "all_occurrences";
+  member_scope: "this_member" | "all_members";
+  target_member_id?: string;
+  target_date?: string;
+}) {
+  return apiService.makeRequest<{
+    routine_id: string;
+    tasks_deleted: number;
+    assignments_deleted: number;
+    instances_deleted: number;
+    message: string;
+  }>(`/routines/${routineId}/tasks/multi-member-delete`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 // Groups & tasks within routine
 export async function addRoutineGroup(routineId: string, payload: { name?: string; time_of_day?: "morning"|"afternoon"|"evening"|"night"; from_group_template_id?: string; order_index?: number }) {
   return apiService.makeRequest<{

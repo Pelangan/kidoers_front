@@ -17,6 +17,7 @@ export const useTaskModals = () => {
   const [daySelection, setDaySelection] = useState<DaySelection>({ mode: 'single', selectedDays: [] })
   const [selectedWhoOption, setSelectedWhoOption] = useState<string>('none')
   const [selectedRoutineGroup, setSelectedRoutineGroup] = useState<string>('none')
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([])
 
   // Loading states
   const [isCreatingTasks, setIsCreatingTasks] = useState(false)
@@ -79,6 +80,7 @@ export const useTaskModals = () => {
     setEditableTaskName('')
     setSelectedWhoOption('none')
     setSelectedRoutineGroup('none')
+    setSelectedMemberIds([])
     setDaySelection({ mode: 'single', selectedDays: [] })
   }
 
@@ -109,6 +111,7 @@ export const useTaskModals = () => {
     daySelection,
     selectedWhoOption,
     selectedRoutineGroup,
+    selectedMemberIds,
     
     // Loading states
     isCreatingTasks,
@@ -127,6 +130,7 @@ export const useTaskModals = () => {
     setDaySelection,
     setSelectedWhoOption,
     setSelectedRoutineGroup,
+    setSelectedMemberIds,
     setIsCreatingTasks,
     setIsDeletingTask,
     

@@ -25,11 +25,22 @@ export interface Task {
   is_saved?: boolean // Track if this task has been saved to backend
   memberId?: string // Store the member ID for filtering
   days_of_week?: string[] // Days when this task should appear
+  frequency?: string // Task frequency: one_off, daily, specific_days, weekly
   from_group?: { // Track which group this task came from
     id: string
     name: string
     template_id?: string
   }
+  // Multi-member task fields
+  member_count?: number // Number of members assigned to this task
+  assignees?: Array<{ // List of assignees for multi-member tasks
+    id: string
+    name: string
+    role: string
+    avatar_url?: string | null
+    color: string
+  }>
+  routine_task_id?: string // Backend routine task ID for multi-member tasks
 }
 
 // Task group interface

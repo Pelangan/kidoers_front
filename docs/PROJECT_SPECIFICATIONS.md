@@ -359,6 +359,141 @@ When assigning chores to multiple family members:
 - **Visual Feedback**: Selected members show their assigned colors
 - **Bulk Creation**: Single form submission creates multiple chore instances
 
+## 🔄 Multi-Member Task Assignment System
+
+### Overview
+The multi-member task assignment system allows creating tasks that can be assigned to multiple family members simultaneously, with proper instance generation and management for both one-off and recurring tasks.
+
+### Database Schema Updates
+- **`task_assignments`**: Added `is_active` column for soft delete functionality
+- **`routine_tasks`**: Added `is_active` column for soft delete functionality
+- **Unique Constraint**: Added `task_assignments_unique_member` constraint to prevent duplicate assignments
+- **View**: Created `v_routine_tasks_with_assignees` view for efficient querying of tasks with assignee information
+
+### Backend API Endpoints
+
+#### Multi-Member Task Creation
+- **`POST /routines/{routine_id}/tasks/multi-member`**: Create a task and assign it to multiple members
+  - **Request Body**: `MultiMemberTaskCreate` with name, description, points, duration, time_of_day, frequency, days_of_week, date, member_ids
+  - **Response**: `MultiMemberTaskResponse` with task_id, member_count, assignments_created, instances_created
+  - **Features**: Automatic instance generation based on frequency (one_off, daily, specific_days, weekly)
+
+#### Task with Assignees Query
+- **`GET /routines/{routine_id}/tasks/with-assignees`**: Get all tasks with assignee information
+  - **Response**: Array of `TaskWithAssignees` with member_count and assignees array
+  - **Features**: Uses database view for efficient querying
+
+#### Multi-Member Task Deletion
+- **`POST /routines/{routine_id}/tasks/multi-member-delete`**: Delete task with scope options
+  - **Request Body**: `MultiMemberTaskDelete` with delete_scope and member_scope
+  - **Scopes**: Time scope (this_occurrence, this_and_following, all_occurrences) and Member scope (this_member, all_members)
+  - **Response**: `MultiMemberTaskDeleteResponse` with deletion statistics
+
+### Frontend Components
+
+#### MultiMemberSelector
+- **Purpose**: Component for selecting multiple family members for task assignment
+- **Features**:
+  - Quick selection buttons (All Family, All Kids, All Parents)
+  - Individual member selection with avatar display
+  - Selected members preview with remove functionality
+  - Multi-member indicator when multiple members selected
+- **Location**: `app/components/routines/builder/components/MultiMemberSelector.tsx`
+
+#### MultiMemberBadge
+- **Purpose**: Visual indicator for multi-member tasks
+- **Features**:
+  - Shows member count with Users icon
+  - Stacked avatars of assigned members (up to 3 visible)
+  - "+N" indicator for additional members
+  - Tooltip with member names and roles
+- **Location**: `app/components/routines/builder/components/MultiMemberBadge.tsx`
+
+#### MultiMemberDeleteModal
+- **Purpose**: Two-step deletion modal for multi-member tasks
+- **Features**:
+  - Step 1: Time scope selection (this occurrence, this & following, all occurrences)
+  - Step 2: Member scope selection (this member only, all assigned members)
+  - Context-aware options based on task type (recurring vs one-off)
+  - Clear descriptions of what will be deleted
+- **Location**: `app/components/routines/builder/components/MultiMemberDeleteModal.tsx`
+
+### Task Creation Flow
+1. **Member Selection**: User selects one or more family members using MultiMemberSelector
+2. **Task Configuration**: User sets task name, description, points, duration, time of day, and frequency
+3. **API Call**: Frontend calls `createMultiMemberTask` with all configuration
+4. **Backend Processing**: 
+   - Creates single `routine_tasks` record
+   - Creates multiple `task_assignments` records (one per member)
+   - Generates `routine_task_instances` based on frequency and date range
+5. **UI Update**: Frontend updates calendar view with new tasks showing multi-member indicators
+
+### Visual Indicators
+- **👥 Badge**: Shows member count for multi-member tasks
+- **Stacked Avatars**: Displays up to 3 member avatars with "+N" for additional members
+- **Task Cards**: Multi-member tasks show assignee information in task cards
+- **Calendar View**: Each member sees their own instance of multi-member tasks
+
+### Data Models
+
+#### MultiMemberTaskCreate
+```typescript
+interface MultiMemberTaskCreate {
+  name: string
+  description?: string
+  points: number
+  duration_mins?: number
+  time_of_day?: "morning" | "afternoon" | "evening" | "night" | "any"
+  frequency: "one_off" | "daily" | "specific_days" | "weekly"
+  days_of_week?: string[]
+  date?: string
+  member_ids: string[]
+}
+```
+
+#### TaskWithAssignees
+```typescript
+interface TaskWithAssignees {
+  id: string
+  routine_id: string
+  group_id?: string
+  name: string
+  description?: string
+  points: number
+  duration_mins?: number
+  time_of_day?: string
+  frequency: string
+  days_of_week: string[]
+  order_index: number
+  recurring_template_id?: string
+  member_count: number
+  assignees: Array<{
+    id: string
+    name: string
+    role: string
+    avatar_url?: string
+    color: string
+  }>
+}
+```
+
+### Deletion Scopes
+- **Time Scope**:
+  - `this_occurrence`: Delete only the specific date instance
+  - `this_and_following`: Delete from specific date onwards (recurring tasks)
+  - `all_occurrences`: Delete all instances (recurring tasks)
+- **Member Scope**:
+  - `this_member`: Remove task only for the current member
+  - `all_members`: Remove task for all assigned members
+
+### Implementation Benefits
+- **Efficiency**: Single API call creates multiple assignments and instances
+- **Consistency**: All members get identical task configuration
+- **Flexibility**: Support for both one-off and recurring multi-member tasks
+- **User Experience**: Clear visual indicators and intuitive selection interface
+- **Data Integrity**: Proper constraints prevent duplicate assignments
+- **Scalability**: Database view optimizes querying of multi-member tasks
+
 ### Implemented Functions
 
 #### Chore Operations
@@ -599,6 +734,11 @@ interface Reward {
 ### Group Assignment API Endpoints
 - **`POST /routines/{routine_id}/groups/{group_template_id}/assign`**: Assign group template to members
 - **`POST /routines/{routine_id}/groups/{group_id}/assign`**: Assign existing group to members
+
+### Multi-Member Task Assignment API Endpoints
+- **`POST /routines/{routine_id}/tasks/multi-member`**: Create a task and assign it to multiple members
+- **`GET /routines/{routine_id}/tasks/with-assignees`**: Get all tasks with assignee information
+- **`POST /routines/{routine_id}/tasks/multi-member-delete`**: Delete task with scope options (time + member scope)
 
 ### Full Routine Data API Endpoints
 - **`GET /routines/{routine_id}/full-data`**: Get complete routine data with groups, tasks, assignments, and schedules

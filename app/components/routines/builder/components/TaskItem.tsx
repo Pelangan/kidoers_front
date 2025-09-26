@@ -2,6 +2,7 @@ import React from 'react'
 import { Move, Folder } from 'lucide-react'
 import type { Task, RecurringTemplate } from '../types/routineBuilderTypes'
 import { getTaskDisplayFrequency } from '../utils/taskUtils'
+import { MultiMemberBadge } from './MultiMemberBadge'
 
 interface TaskItemProps {
   task: Task
@@ -42,7 +43,13 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       }}
     >
       <div className="flex-1">
-        <div className="text-xs font-medium text-gray-900">{task.name}</div>
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-medium text-gray-900">{task.name}</div>
+          <MultiMemberBadge 
+            memberCount={task.member_count || 1}
+            assignees={task.assignees || []}
+          />
+        </div>
         <div className="text-xs text-gray-500">{getTaskDisplayFrequency(task, recurringTemplates)}</div>
         {task.from_group && (
           <div className="text-xs flex items-center space-x-1 text-purple-600">
