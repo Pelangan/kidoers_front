@@ -1,7 +1,5 @@
 'use client'
 
-import { Badge } from '../../../../../components/ui/badge'
-import { Users } from 'lucide-react'
 import { generateAvatarUrl } from '../../../ui/AvatarSelector'
 
 interface MultiMemberBadgeProps {
@@ -17,16 +15,9 @@ interface MultiMemberBadgeProps {
 }
 
 export function MultiMemberBadge({ memberCount, assignees, className = "" }: MultiMemberBadgeProps) {
-  if (memberCount <= 1) return null
-
+  // Always show avatars, even for single-member tasks
   return (
     <div className={`flex items-center space-x-2 ${className}`}>
-      {/* Multi-member badge */}
-      <Badge variant="secondary" className="flex items-center space-x-1 text-xs">
-        <Users className="w-3 h-3" />
-        <span>{memberCount}</span>
-      </Badge>
-      
       {/* Stacked avatars */}
       <div className="flex -space-x-1">
         {assignees.slice(0, 3).map((assignee, index) => {
@@ -35,7 +26,7 @@ export function MultiMemberBadge({ memberCount, assignees, className = "" }: Mul
           return (
             <div
               key={assignee.id}
-              className="relative w-6 h-6 rounded-full border-2 border-white overflow-hidden"
+              className="relative w-8 h-8 rounded-full border-2 border-white overflow-hidden"
               title={`${assignee.name} (${assignee.role})`}
             >
               <img
@@ -50,7 +41,7 @@ export function MultiMemberBadge({ memberCount, assignees, className = "" }: Mul
                 }}
               />
               <div
-                className="w-full h-full flex items-center justify-center text-white font-medium text-xs"
+                className="w-full h-full flex items-center justify-center text-white font-medium text-sm"
                 style={{ backgroundColor: assignee.color, display: 'none' }}
               >
                 {assignee.name.charAt(0).toUpperCase()}
@@ -61,7 +52,7 @@ export function MultiMemberBadge({ memberCount, assignees, className = "" }: Mul
         
         {/* Show "+N" if there are more than 3 assignees */}
         {assignees.length > 3 && (
-          <div className="w-6 h-6 rounded-full border-2 border-white bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600">
+          <div className="w-8 h-8 rounded-full border-2 border-white bg-gray-100 flex items-center justify-center text-sm font-medium text-gray-600">
             +{assignees.length - 3}
           </div>
         )}

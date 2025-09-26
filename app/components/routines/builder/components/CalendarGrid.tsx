@@ -9,6 +9,13 @@ interface CalendarGridProps {
   draggedTask: { task: Task; day: string; memberId: string } | null
   dragOverPosition: { day: string; memberId: string; position: 'before' | 'after'; targetTaskId?: string } | null
   recurringTemplates: RecurringTemplate[]
+  familyMembers: Array<{
+    id: string
+    name: string
+    role: string
+    avatar_url?: string | null
+    color: string
+  }>
   onColumnClick: (day: string) => void
   onTaskDragStart: (e: React.DragEvent, task: Task, day: string, memberId: string) => void
   onTaskDragEnd: () => void
@@ -28,6 +35,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
   draggedTask,
   dragOverPosition,
   recurringTemplates,
+  familyMembers,
   onColumnClick,
   onTaskDragStart,
   onTaskDragEnd,
@@ -55,6 +63,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
               draggedTask={draggedTask}
               dragOverPosition={dragOverPosition}
               recurringTemplates={recurringTemplates}
+              familyMembers={familyMembers}
               onColumnClick={onColumnClick}
               onTaskDragStart={onTaskDragStart}
               onTaskDragEnd={onTaskDragEnd}

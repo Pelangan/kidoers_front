@@ -1414,7 +1414,57 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       for (const task of individualTasks) {
         console.log('[KIDOERS-ROUTINE] 🔍 Task:', task.name, 'days_of_week:', task.days_of_week, 'frequency:', task.frequency);
         
-        if (task.days_of_week && task.days_of_week.length > 0) {
+        if (task.frequency === 'one_off') {
+          // For one_off tasks, use the days_of_week from the task data
+          console.log('[KIDOERS-ROUTINE] 🔍 Processing one_off task:', task.name, 'days_of_week:', task.days_of_week);
+          
+          // Get assignments from the original backend data
+          const backendTask = fullData.individual_tasks.find(bt => bt.id === task.id);
+          
+          if (backendTask?.assignments && task.days_of_week && task.days_of_week.length > 0) {
+            // For one_off tasks, use the days_of_week from the task data
+            for (const day of task.days_of_week) {
+              if (newCalendarTasks[day]) {
+                // Create a single task instance with all assignees for multi-member tasks
+                // This ensures the task appears for all members, not just individual instances
+                const taskWithAssignees = {
+                  ...task,
+                  id: `${task.id}_${day}`, // Single ID for the day
+                  memberId: backendTask.assignments[0].member_id, // Use first member as primary
+                  is_saved: true,
+                  routine_task_id: task.id,
+                  member_count: backendTask.assignments.length,
+                  assignees: backendTask.assignments.map(assignment => {
+                    const member = enhancedMembers.find(m => m.id === assignment.member_id);
+                    console.log('[KIDOERS-ROUTINE] 🔍 Creating assignee:', {
+                      assignmentMemberId: assignment.member_id,
+                      foundMember: member ? { id: member.id, name: member.name } : null,
+                      allEnhancedMemberIds: enhancedMembers.map(m => m.id)
+                    });
+                    return member ? {
+                      id: assignment.member_id,
+                      name: member.name,
+                      role: member.role,
+                      avatar_url: member.avatar_url || null,
+                      color: member.color
+                    } : null;
+                  }).filter((assignee): assignee is NonNullable<typeof assignee> => assignee !== null)
+                };
+                
+                console.log('[KIDOERS-ROUTINE] 🔍 Final task with assignees:', {
+                  taskName: task.name,
+                  assigneesCount: taskWithAssignees.assignees.length,
+                  assignees: taskWithAssignees.assignees.map(a => ({ id: a.id, name: a.name }))
+                });
+                
+                newCalendarTasks[day].individualTasks.push(taskWithAssignees);
+                console.log('[KIDOERS-ROUTINE] ✅ Added one_off multi-member task to calendar:', task.name, 'on day:', day, 'with', backendTask.assignments.length, 'assignees');
+              }
+            }
+          } else {
+            console.warn('[KIDOERS-ROUTINE] ⚠️ One-off task has no days_of_week or assignments:', task.name);
+          }
+        } else if (task.days_of_week && task.days_of_week.length > 0) {
           // Add this task to each day it's scheduled for, for each assigned member
           for (const day of task.days_of_week) {
             if (newCalendarTasks[day]) {
@@ -1434,45 +1484,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                 }
               }
             }
-          }
-        } else if (task.frequency === 'one_off') {
-          // For one_off tasks, use the days_of_week from the task data
-          console.log('[KIDOERS-ROUTINE] 🔍 Processing one_off task:', task.name, 'days_of_week:', task.days_of_week);
-          
-          // Get assignments from the original backend data
-          const backendTask = fullData.individual_tasks.find(bt => bt.id === task.id);
-          
-          if (backendTask?.assignments && task.days_of_week && task.days_of_week.length > 0) {
-            // For one_off tasks, use the days_of_week from the task data
-            for (const day of task.days_of_week) {
-              if (newCalendarTasks[day]) {
-                // Create a task instance for each assigned member
-                for (const assignment of backendTask.assignments) {
-                  const taskWithMemberId = {
-                    ...task,
-                    id: `${task.id}_${assignment.member_id}_${day}`, // Unique ID per day/member
-                    memberId: assignment.member_id,
-                    is_saved: true,
-                    routine_task_id: task.id, // Add this for multi-member tasks
-                    member_count: backendTask.assignments.length,
-                    assignees: backendTask.assignments.map(assignment => {
-                      const member = enhancedMembers.find(m => m.id === assignment.member_id);
-                      return member ? {
-                        id: assignment.member_id,
-                        name: member.name,
-                        role: member.role,
-                        avatar_url: member.avatar_url || null,
-                        color: member.color
-                      } : null;
-                    }).filter((assignee): assignee is NonNullable<typeof assignee> => assignee !== null)
-                  };
-                  newCalendarTasks[day].individualTasks.push(taskWithMemberId);
-                  console.log('[KIDOERS-ROUTINE] ✅ Added one_off task to calendar:', task.name, 'on day:', day, 'for member:', assignment.member_id);
-                }
-              }
-            }
-          } else {
-            console.warn('[KIDOERS-ROUTINE] ⚠️ One-off task has no days_of_week or assignments:', task.name);
           }
         }
       }
@@ -1634,6 +1645,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                 draggedTask={draggedTask}
                 dragOverPosition={dragOverPosition}
                 recurringTemplates={recurringTemplates}
+                familyMembers={familyMembers}
                 onColumnClick={handleColumnClick}
                 onTaskDragStart={handleTaskDragStart}
                 onTaskDragEnd={handleTaskDragEnd}

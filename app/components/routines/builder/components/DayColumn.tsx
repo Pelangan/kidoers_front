@@ -10,6 +10,13 @@ interface DayColumnProps {
   draggedTask: { task: Task; day: string; memberId: string } | null
   dragOverPosition: { day: string; memberId: string; position: 'before' | 'after'; targetTaskId?: string } | null
   recurringTemplates: RecurringTemplate[]
+  familyMembers: Array<{
+    id: string
+    name: string
+    role: string
+    avatar_url?: string | null
+    color: string
+  }>
   onColumnClick: (day: string) => void
   onTaskDragStart: (e: React.DragEvent, task: Task, day: string, memberId: string) => void
   onTaskDragEnd: () => void
@@ -30,6 +37,7 @@ export const DayColumn: React.FC<DayColumnProps> = ({
   draggedTask,
   dragOverPosition,
   recurringTemplates,
+  familyMembers,
   onColumnClick,
   onTaskDragStart,
   onTaskDragEnd,
@@ -92,16 +100,29 @@ export const DayColumn: React.FC<DayColumnProps> = ({
               console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - selectedMemberId:', selectedMemberId);
               
               const filteredTasks = dayTasks.individualTasks.filter((task: Task) => {
-                // Filter tasks by selected member ID
-                const matches = task.memberId === selectedMemberId
-                console.log('[KIDOERS-ROUTINE] Filtering task:', { 
+                // For multi-member tasks, show to all assigned members
+                if (task.member_count && task.member_count > 1 && task.assignees) {
+                  const isAssignedToCurrentMember = task.assignees.some(assignee => assignee.id === selectedMemberId);
+                  console.log('[KIDOERS-ROUTINE] Multi-member task filtering:', { 
+                    taskId: task.id, 
+                    taskName: task.name, 
+                    memberCount: task.member_count,
+                    isAssignedToCurrentMember,
+                    selectedMemberId
+                  });
+                  return isAssignedToCurrentMember;
+                }
+                
+                // For single-member tasks, filter by selected member ID
+                const matches = task.memberId === selectedMemberId;
+                console.log('[KIDOERS-ROUTINE] Single-member task filtering:', { 
                   taskId: task.id, 
                   taskName: task.name, 
                   taskMemberId: task.memberId, 
                   selectedMemberId, 
                   matches
-                })
-                return matches
+                });
+                return matches;
               });
               
               console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - filteredTasks:', filteredTasks);
@@ -131,6 +152,7 @@ export const DayColumn: React.FC<DayColumnProps> = ({
                     memberId={selectedMemberId}
                     isDragging={draggedTask?.task.id === task.id}
                     recurringTemplates={recurringTemplates}
+                    familyMembers={familyMembers}
                     onDragStart={onTaskDragStart}
                     onDragEnd={onTaskDragEnd}
                     onClick={onTaskClick}
