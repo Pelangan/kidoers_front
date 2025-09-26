@@ -50,9 +50,20 @@ export const DayColumn: React.FC<DayColumnProps> = ({
   extractMemberIdFromId,
   getTotalTasksForDay
 }) => {
+  // Debug: Log when selectedMemberId changes
+  console.log('[KIDOERS-ROUTINE] 🔄 DayColumn re-rendered:', { day, selectedMemberId });
+  console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - dayTasks received:', { day, dayTasks, individualTasksCount: dayTasks?.individualTasks?.length || 0 });
   const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
   const dayIndex = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].indexOf(day)
   const totalDayTasks = getTotalTasksForDay(day, { [day]: dayTasks }, selectedMemberId)
+  
+  // Debug: Log totalDayTasks calculation
+  console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - totalDayTasks calculation:', { 
+    day, 
+    selectedMemberId, 
+    totalDayTasks, 
+    individualTasksCount: dayTasks?.individualTasks?.length || 0 
+  });
 
   return (
     <div
@@ -96,10 +107,28 @@ export const DayColumn: React.FC<DayColumnProps> = ({
             {/* Individual Tasks - Filtered by Selected Member */}
             {(() => {
               console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - Processing day:', day);
+              console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - dayTasks:', dayTasks);
               console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - dayTasks.individualTasks:', dayTasks.individualTasks);
               console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - selectedMemberId:', selectedMemberId);
               
+              // Check if individualTasks exists and has length
+              if (!dayTasks.individualTasks || dayTasks.individualTasks.length === 0) {
+                console.log('[KIDOERS-ROUTINE] ⚠️ No individual tasks to process for day:', day);
+                return [];
+              }
+              
               const filteredTasks = dayTasks.individualTasks.filter((task: Task) => {
+                // Debug: Log task structure to understand why multi-member filtering isn't working
+                console.log('[KIDOERS-ROUTINE] 🔍 Task structure debug:', {
+                  taskId: task.id,
+                  taskName: task.name,
+                  memberCount: task.member_count,
+                  hasAssignees: !!task.assignees,
+                  assigneesLength: task.assignees?.length,
+                  taskMemberId: task.memberId,
+                  selectedMemberId
+                });
+                
                 // For multi-member tasks, show to all assigned members
                 if (task.member_count && task.member_count > 1 && task.assignees) {
                   const isAssignedToCurrentMember = task.assignees.some(assignee => assignee.id === selectedMemberId);
