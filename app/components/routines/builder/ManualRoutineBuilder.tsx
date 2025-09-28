@@ -469,9 +469,12 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     setDaySelection({ mode: 'single', selectedDays: [day] })
     setSelectedWhoOption('none')
     setSelectedRoutineGroup('none')
+    // Initialize task assignment with currently selected members from calendar
+    setTaskAssignmentMemberIds(selectedMemberIds)
     setShowApplyToPopup(true)
     
     console.log('[KIDOERS-ROUTINE] Apply To Popup opened for new task creation')
+    console.log('[KIDOERS-ROUTINE] 🎯 Pre-selected members for new task:', selectedMemberIds)
   }
 
   // Handle edit task - opens the Apply Tasks To modal

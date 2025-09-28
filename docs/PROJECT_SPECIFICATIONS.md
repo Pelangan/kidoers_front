@@ -701,8 +701,12 @@ interface Reward {
       - **Fifth Member**: Dark Spring Green (#188038)
     - **Color Assignment**: Colors are automatically assigned based on family member order (not database color field)
     - **Visual Distinction**: Easy to identify which member each task belongs to at a glance
-    - **Multi-Member Tasks**: Use the color of the first assignee
-    - **Group Tasks**: Maintain purple color for tasks from groups
+  - **Multi-Member Tasks**: Use the color of the first assignee
+  - **Group Tasks**: Maintain purple color for tasks from groups
+- **Smart Task Creation**: When creating new tasks, automatically pre-selects the same members that are currently selected in the calendar view
+  - **Consistent Selection**: If Cristian, Guille, and Clàudia are selected in the calendar, they will be pre-selected in the task creation modal
+  - **User Experience**: Eliminates the need to manually re-select members when creating tasks
+  - **Workflow Efficiency**: Maintains context between calendar view and task creation
 - **Collapsible Right Panel**: Task library panel that can be collapsed/expanded
 - **Responsive Layout**: Main content expands to full width when right panel is collapsed
 - **Task Library Features**: 
