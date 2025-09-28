@@ -3,12 +3,12 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Check } from 'lucide-react'
 import { generateAvatarUrl } from '../../../ui/AvatarSelector'
-import type { EnhancedFamilyMember } from '../../types/routineBuilderTypes'
+import type { EnhancedFamilyMember } from '/Users/cristian/Development/kidoers/kidoers_workspace/kidoers_front/app/components/routines/builder/types/routineBuilderTypes'
 
 interface FamilyMemberSelectorProps {
   enhancedFamilyMembers: EnhancedFamilyMember[]
-  selectedMemberId: string | null
-  setSelectedMemberId: (id: string) => void
+  selectedMemberIds: string[]
+  setSelectedMemberIds: (ids: string[]) => void
   getMemberColors: (color: string) => { border: string; bg: string; bgColor: string; borderColor: string }
   viewMode: 'calendar' | 'group'
   setViewMode: (mode: 'calendar' | 'group') => void
@@ -16,8 +16,8 @@ interface FamilyMemberSelectorProps {
 
 export const FamilyMemberSelector: React.FC<FamilyMemberSelectorProps> = ({
   enhancedFamilyMembers,
-  selectedMemberId,
-  setSelectedMemberId,
+  selectedMemberIds,
+  setSelectedMemberIds,
   getMemberColors,
   viewMode,
   setViewMode
@@ -35,26 +35,52 @@ export const FamilyMemberSelector: React.FC<FamilyMemberSelectorProps> = ({
           member.avatar_options || {}
         )
 
-        const colorClasses = {
-          ring: `ring-${member.color}-400`,
-          shadow: `shadow-${member.color}-200`,
-          hover: `hover:ring-${member.color}-300`,
-          bg: `bg-${member.color}-100`
+        // Use the custom colors from getMemberColors function
+        const memberColors = getMemberColors(member.color)
+
+        const isSelected = selectedMemberIds.includes(member.id)
+        
+        const handleMemberClick = () => {
+          if (isSelected) {
+            // Remove member from selection
+            setSelectedMemberIds(selectedMemberIds.filter(id => id !== member.id))
+          } else {
+            // Add member to selection
+            setSelectedMemberIds([...selectedMemberIds, member.id])
+          }
         }
 
         return (
           <div
             key={member.id}
             className="flex items-center gap-3 cursor-pointer group transition-all duration-300"
-            onClick={() => setSelectedMemberId(member.id)}
+            onClick={handleMemberClick}
           >
             <div className="relative">
               <div
-                className={`h-12 w-12 rounded-full overflow-hidden border-2 border-white shadow-lg transition-all duration-300 group-hover:scale-105 ${
-                  selectedMemberId === member.id
-                    ? `ring-2 ring-offset-2 ${colorClasses.ring} ${colorClasses.shadow} scale-110`
-                    : `group-hover:ring-1 group-hover:ring-offset-1 ${colorClasses.hover} group-hover:shadow-md`
+                className={`h-12 w-12 rounded-full overflow-hidden border-2 shadow-lg transition-all duration-300 group-hover:scale-105 ${
+                  isSelected
+                    ? `ring-2 ring-offset-2 scale-110`
+                    : `group-hover:ring-1 group-hover:ring-offset-1 group-hover:shadow-md`
                 }`}
+                style={{
+                  borderColor: isSelected ? memberColors.borderColor : '#ffffff',
+                  boxShadow: isSelected 
+                    ? `0 0 0 2px ${memberColors.borderColor}` 
+                    : '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSelected) {
+                    e.currentTarget.style.borderColor = memberColors.borderColor
+                    e.currentTarget.style.boxShadow = `0 0 0 1px ${memberColors.borderColor}`
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSelected) {
+                    e.currentTarget.style.borderColor = '#ffffff'
+                    e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                  }
+                }}
               >
                 <img
                   src={avatarUrl}
@@ -63,9 +89,12 @@ export const FamilyMemberSelector: React.FC<FamilyMemberSelectorProps> = ({
                 />
               </div>
 
-              {selectedMemberId === member.id && (
+              {isSelected && (
                 <div className="absolute -top-1 -right-1 bg-white rounded-full p-1 shadow-lg ring-1 ring-white">
-                  <div className={`${colorClasses.bg} rounded-full p-1`}>
+                  <div 
+                    className="rounded-full p-1"
+                    style={{ backgroundColor: memberColors.borderColor }}
+                  >
                     <Check className="h-3 w-3 text-white stroke-[2]" />
                   </div>
                 </div>
@@ -75,7 +104,7 @@ export const FamilyMemberSelector: React.FC<FamilyMemberSelectorProps> = ({
             <div className="flex flex-col">
               <p
                 className={`text-sm font-semibold transition-all duration-300 ${
-                  selectedMemberId === member.id
+                  isSelected
                     ? "text-gray-900 scale-105"
                     : "text-gray-600 group-hover:text-gray-800"
                 }`}
@@ -83,9 +112,10 @@ export const FamilyMemberSelector: React.FC<FamilyMemberSelectorProps> = ({
                 {member.name}
               </p>
               <p className="text-xs text-gray-500 capitalize">{member.type}</p>
-              {selectedMemberId === member.id && (
+              {isSelected && (
                 <div
-                  className={`h-1 w-10 ${colorClasses.bg} rounded-full mt-1 shadow-sm`}
+                  className="h-1 w-10 rounded-full mt-1 shadow-sm"
+                  style={{ backgroundColor: memberColors.borderColor }}
                 />
               )}
             </div>
@@ -94,7 +124,7 @@ export const FamilyMemberSelector: React.FC<FamilyMemberSelectorProps> = ({
       })}
 
       {/* View Mode Toggle - Moved to the right */}
-      {selectedMemberId && (
+      {selectedMemberIds.length > 0 && (
         <div className="flex-shrink-0">
           <Label className="text-sm font-medium text-gray-700">View Mode</Label>
           <div className="flex space-x-1 mt-1">

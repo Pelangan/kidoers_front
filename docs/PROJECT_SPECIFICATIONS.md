@@ -672,12 +672,37 @@ interface Reward {
 
 ### Manual Routine Builder
 - **Wireframe-Exact Implementation**: Complete recreation of the routine builder interface
-- **Family Member Selection**: Interactive family member selector with avatar display
+- **Family Member Selection**: Interactive multi-member selector with avatar display
+  - **Multi-Selection Support**: Users can select multiple family members simultaneously
   - **Avatar Display**: Shows family member avatars using DiceBear API or fallback colored circles
   - **Avatar Fallback**: Colored circles with first letter of name when avatars fail to load
   - **Member Colors**: Each family member has a unique color scheme for visual identification
-  - **Selection State**: Visual feedback for selected family member with blue border and shadow
-- **Family Member Columns**: Individual columns for each family member with their selected colors
+  - **Selection State**: Visual feedback for selected family members with colored borders and checkmarks
+  - **Avatar Borders**: Each member's avatar circle uses their specific color (Celtic Blue, Selective Yellow, Pigment Red, Sea Green, Dark Spring Green)
+  - **Checkmark Colors**: Selection checkmarks use the member's specific color
+  - **Hover Effects**: Avatar borders change to member's color on hover
+  - **Toggle Selection**: Click to add/remove members from selection
+  - **Calendar Display**: Shows calendars for all selected members side by side
+- **Multi-Member Calendar Display**: Calendar grid showing tasks from all selected members
+  - **Original Layout**: Maintains the same 7-column day layout as before
+  - **Combined Tasks**: Shows tasks from all selected members in the same day columns
+  - **Day Headers**: Clear day labels at the top of each column (Monday, Tuesday, etc.)
+  - **Task Filtering**: Displays tasks belonging to any of the selected family members
+  - **Multi-Member Tasks**: Shows multi-member tasks if any selected member is assigned
+  - **Single-Member Tasks**: Shows individual tasks for selected members
+  - **Unified View**: All selected members' tasks appear together in the same calendar
+  - **Google Calendar-Style Colors**: Each family member has a unique color for their tasks
+    - **Member-Specific Colors**: Tasks are colored based on the assigned family member
+    - **Color Palette**: Uses specific Google Calendar colors assigned by member order:
+      - **First Member**: Celtic Blue (#1967D2)
+      - **Second Member**: Selective Yellow (#FBBC04)
+      - **Third Member**: Pigment Red (#F72A25)
+      - **Fourth Member**: Sea Green (#34A853)
+      - **Fifth Member**: Dark Spring Green (#188038)
+    - **Color Assignment**: Colors are automatically assigned based on family member order (not database color field)
+    - **Visual Distinction**: Easy to identify which member each task belongs to at a glance
+    - **Multi-Member Tasks**: Use the color of the first assignee
+    - **Group Tasks**: Maintain purple color for tasks from groups
 - **Collapsible Right Panel**: Task library panel that can be collapsed/expanded
 - **Responsive Layout**: Main content expands to full width when right panel is collapsed
 - **Task Library Features**: 

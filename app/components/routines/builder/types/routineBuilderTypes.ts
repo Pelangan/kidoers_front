@@ -97,5 +97,21 @@ export interface RecurringTemplate {
   updated_at: string
 }
 
+// Enhanced family member interface
+export interface EnhancedFamilyMember {
+  id: string
+  name: string
+  type: string
+  color: string
+  avatar_url?: string
+  avatar_style?: string
+  avatar_seed?: string
+  avatar_options?: any
+  borderColor: string
+  taskBgColor: string
+  groups: TaskGroup[]
+  individualTasks: Task[]
+}
+
 // Re-export imported types for convenience
 export type { FamilyMember, DaySpecificOrder, BulkDayOrderUpdate, RoutineScheduleData }

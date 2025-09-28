@@ -6,7 +6,7 @@ import type { Task, TaskGroup as TaskGroupType, RecurringTemplate } from '../typ
 interface DayColumnProps {
   day: string
   dayTasks: { groups: TaskGroupType[]; individualTasks: Task[] }
-  selectedMemberId: string
+  selectedMemberIds: string[]
   draggedTask: { task: Task; day: string; memberId: string } | null
   dragOverPosition: { day: string; memberId: string; position: 'before' | 'after'; targetTaskId?: string } | null
   recurringTemplates: RecurringTemplate[]
@@ -17,6 +17,7 @@ interface DayColumnProps {
     avatar_url?: string | null
     color: string
   }>
+  getMemberColors?: (color: string) => { border: string; bg: string; bgColor: string; borderColor: string }
   onColumnClick: (day: string) => void
   onTaskDragStart: (e: React.DragEvent, task: Task, day: string, memberId: string) => void
   onTaskDragEnd: () => void
@@ -33,11 +34,12 @@ interface DayColumnProps {
 export const DayColumn: React.FC<DayColumnProps> = ({
   day,
   dayTasks,
-  selectedMemberId,
+  selectedMemberIds,
   draggedTask,
   dragOverPosition,
   recurringTemplates,
   familyMembers,
+  getMemberColors,
   onColumnClick,
   onTaskDragStart,
   onTaskDragEnd,
@@ -50,17 +52,22 @@ export const DayColumn: React.FC<DayColumnProps> = ({
   extractMemberIdFromId,
   getTotalTasksForDay
 }) => {
-  // Debug: Log when selectedMemberId changes
-  console.log('[KIDOERS-ROUTINE] 🔄 DayColumn re-rendered:', { day, selectedMemberId });
+  // Debug: Log when selectedMemberIds changes
+  console.log('[KIDOERS-ROUTINE] 🔄 DayColumn re-rendered:', { day, selectedMemberIds });
   console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - dayTasks received:', { day, dayTasks, individualTasksCount: dayTasks?.individualTasks?.length || 0 });
+  
   const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
   const dayIndex = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].indexOf(day)
-  const totalDayTasks = getTotalTasksForDay(day, { [day]: dayTasks }, selectedMemberId)
+  
+  // Calculate total tasks for all selected members
+  const totalDayTasks = selectedMemberIds.reduce((total, memberId) => {
+    return total + getTotalTasksForDay(day, { [day]: dayTasks }, memberId)
+  }, 0)
   
   // Debug: Log totalDayTasks calculation
   console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - totalDayTasks calculation:', { 
     day, 
-    selectedMemberId, 
+    selectedMemberIds, 
     totalDayTasks, 
     individualTasksCount: dayTasks?.individualTasks?.length || 0 
   });
@@ -83,19 +90,19 @@ export const DayColumn: React.FC<DayColumnProps> = ({
       <div className="flex-1 p-3 bg-white space-y-2">
         {totalDayTasks > 0 && (
           <>
-            {/* Groups - Filtered by Selected Member */}
+            {/* Groups - Filtered by Selected Members */}
             {dayTasks.groups
               .filter((group: TaskGroupType) => {
                 // Extract member ID from group ID (format: templateId-memberId-day-timestamp)
-                const groupMemberId = extractMemberIdFromId(group.id, selectedMemberId)
-                return groupMemberId === selectedMemberId
+                const groupMemberId = extractMemberIdFromId(group.id, selectedMemberIds[0])
+                return selectedMemberIds.includes(groupMemberId)
               })
               .map((group: TaskGroupType) => (
                 <TaskGroup
                   key={group.id}
                   group={group}
                   day={day}
-                  memberId={selectedMemberId}
+                  memberId={extractMemberIdFromId(group.id, selectedMemberIds[0])}
                   draggedTask={draggedTask}
                   recurringTemplates={recurringTemplates}
                   onDragStart={onTaskDragStart}
@@ -104,12 +111,12 @@ export const DayColumn: React.FC<DayColumnProps> = ({
                 />
               ))}
 
-            {/* Individual Tasks - Filtered by Selected Member */}
+            {/* Individual Tasks - Filtered by Selected Members */}
             {(() => {
               console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - Processing day:', day);
               console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - dayTasks:', dayTasks);
               console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - dayTasks.individualTasks:', dayTasks.individualTasks);
-              console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - selectedMemberId:', selectedMemberId);
+              console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - selectedMemberIds:', selectedMemberIds);
               
               // Check if individualTasks exists and has length
               if (!dayTasks.individualTasks || dayTasks.individualTasks.length === 0) {
@@ -126,29 +133,31 @@ export const DayColumn: React.FC<DayColumnProps> = ({
                   hasAssignees: !!task.assignees,
                   assigneesLength: task.assignees?.length,
                   taskMemberId: task.memberId,
-                  selectedMemberId
+                  selectedMemberIds
                 });
                 
                 // For multi-member tasks, show to all assigned members
                 if (task.member_count && task.member_count > 1 && task.assignees) {
-                  const isAssignedToCurrentMember = task.assignees.some(assignee => assignee.id === selectedMemberId);
+                  const isAssignedToAnySelectedMember = task.assignees.some(assignee => 
+                    selectedMemberIds.includes(assignee.id)
+                  );
                   console.log('[KIDOERS-ROUTINE] Multi-member task filtering:', { 
                     taskId: task.id, 
                     taskName: task.name, 
                     memberCount: task.member_count,
-                    isAssignedToCurrentMember,
-                    selectedMemberId
+                    isAssignedToAnySelectedMember,
+                    selectedMemberIds
                   });
-                  return isAssignedToCurrentMember;
+                  return isAssignedToAnySelectedMember;
                 }
                 
-                // For single-member tasks, filter by selected member ID
-                const matches = task.memberId === selectedMemberId;
+                // For single-member tasks, filter by selected member IDs
+                const matches = task.memberId && selectedMemberIds.includes(task.memberId);
                 console.log('[KIDOERS-ROUTINE] Single-member task filtering:', { 
                   taskId: task.id, 
                   taskName: task.name, 
                   taskMemberId: task.memberId, 
-                  selectedMemberId, 
+                  selectedMemberIds, 
                   matches
                 });
                 return matches;
@@ -156,7 +165,7 @@ export const DayColumn: React.FC<DayColumnProps> = ({
               
               console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - filteredTasks:', filteredTasks);
               
-              return getTasksWithDayOrder(filteredTasks, day, selectedMemberId);
+              return getTasksWithDayOrder(filteredTasks, day, selectedMemberIds[0]);
             })()
               .map((task: Task, taskIndex: number, taskArray: Task[]) => (
                 <div key={task.id}>
@@ -164,24 +173,25 @@ export const DayColumn: React.FC<DayColumnProps> = ({
                   <div
                     className={`h-1 transition-colors ${
                       dragOverPosition?.day === day && 
-                      dragOverPosition?.memberId === selectedMemberId && 
+                        dragOverPosition?.memberId === (task.memberId || selectedMemberIds[0]) &&
                       dragOverPosition?.position === 'before' && 
                       dragOverPosition?.targetTaskId === task.id
                         ? 'bg-blue-500' 
                         : 'hover:bg-blue-200'
                     }`}
-                    onDragOver={(e) => onTaskDragOver(e, day, selectedMemberId, 'before', task.id)}
+                    onDragOver={(e) => onTaskDragOver(e, day, task.memberId || selectedMemberIds[0], 'before', task.id)}
                     onDragLeave={onTaskDragLeave}
-                    onDrop={(e) => onTaskDrop(e, day, selectedMemberId)}
+                    onDrop={(e) => onTaskDrop(e, day, task.memberId || selectedMemberIds[0])}
                   />
                   
                   <TaskItem
                     task={task}
                     day={day}
-                    memberId={selectedMemberId}
+                    memberId={task.memberId || selectedMemberIds[0]}
                     isDragging={draggedTask?.task.id === task.id}
                     recurringTemplates={recurringTemplates}
                     familyMembers={familyMembers}
+                    getMemberColors={getMemberColors}
                     onDragStart={onTaskDragStart}
                     onDragEnd={onTaskDragEnd}
                     onClick={onTaskClick}
@@ -192,15 +202,15 @@ export const DayColumn: React.FC<DayColumnProps> = ({
                     <div
                       className={`h-1 transition-colors ${
                         dragOverPosition?.day === day && 
-                        dragOverPosition?.memberId === selectedMemberId && 
+                        dragOverPosition?.memberId === task.memberId && 
                         dragOverPosition?.position === 'after' && 
                         dragOverPosition?.targetTaskId === task.id
                           ? 'bg-blue-500' 
                           : 'hover:bg-blue-200'
                       }`}
-                      onDragOver={(e) => onTaskDragOver(e, day, selectedMemberId, 'after', task.id)}
+                      onDragOver={(e) => onTaskDragOver(e, day, task.memberId || selectedMemberIds[0], 'after', task.id)}
                       onDragLeave={onTaskDragLeave}
-                      onDrop={(e) => onTaskDrop(e, day, selectedMemberId)}
+                      onDrop={(e) => onTaskDrop(e, day, task.memberId || selectedMemberIds[0])}
                     />
                   )}
                 </div>

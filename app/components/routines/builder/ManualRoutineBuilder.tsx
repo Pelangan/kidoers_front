@@ -102,7 +102,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     daySelection,
     selectedWhoOption,
     selectedRoutineGroup,
-    selectedMemberIds,
+    taskAssignmentMemberIds,
     isCreatingTasks,
     isDeletingTask,
     setShowApplyToPopup,
@@ -117,7 +117,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     setDaySelection,
     setSelectedWhoOption,
     setSelectedRoutineGroup,
-    setSelectedMemberIds,
+    setTaskAssignmentMemberIds,
     setIsCreatingTasks,
     setIsDeletingTask,
     openTaskModal,
@@ -168,13 +168,14 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   const {
     familyMembers,
     enhancedFamilyMembers,
-    selectedMemberId,
+    selectedMemberIds,
     setFamilyMembers,
     setEnhancedFamilyMembers,
-    setSelectedMemberId,
+    setSelectedMemberIds,
     loadFamilyMembers,
     getMemberColors,
-    getSelectedMember,
+    getSelectedMembers,
+    getSelectedMember, // For backward compatibility
     getMemberById,
     getMemberNameById
   } = useFamilyMembers(familyId)
@@ -190,7 +191,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     addGroupToCalendarUI,
     updateCalendarTasks,
     getTotalTasks
-  } = useCalendarTasks(selectedMemberId, ensureRoutineExists, setError)
+  } = useCalendarTasks(selectedMemberIds[0], ensureRoutineExists, setError)
 
 
   // Load all initial data (family members and existing routine)
@@ -435,12 +436,12 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
   // Handle column click to create new task
   const handleColumnClick = async (day: string) => {
-    if (!selectedMemberId) return
+    if (selectedMemberIds.length === 0) return
     
     console.log('[KIDOERS-ROUTINE] Column clicked for day:', day)
     
     // Get the selected member name
-    const memberName = getMemberNameById(selectedMemberId)
+    const memberName = getMemberNameById(selectedMemberIds[0])
     
     // Create a new task with no title placeholder
     const newTask: Task = {
@@ -457,7 +458,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     const pendingDropData: PendingDrop = {
       type: 'task',
       item: newTask,
-      targetMemberId: selectedMemberId,
+      targetMemberId: selectedMemberIds[0],
       targetMemberName: memberName,
       targetDay: day
     }
@@ -539,14 +540,14 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       fromGroup: undefined
     })
     
-    // For multi-member tasks, initialize selectedMemberIds with all assignees
+    // For multi-member tasks, initialize taskAssignmentMemberIds with all assignees
     if (selectedTaskForEdit.task.member_count && selectedTaskForEdit.task.member_count > 1 && selectedTaskForEdit.task.assignees) {
       console.log('[TASK-EDIT] Multi-member task detected, initializing with all assignees:', selectedTaskForEdit.task.assignees.map(a => ({ id: a.id, name: a.name })))
       const assigneeIds = selectedTaskForEdit.task.assignees.map(assignee => assignee.id)
-      setSelectedMemberIds(assigneeIds)
+      setTaskAssignmentMemberIds(assigneeIds)
     } else {
       console.log('[TASK-EDIT] Single-member task, initializing with clicked member:', selectedTaskForEdit.memberId)
-      setSelectedMemberIds([selectedTaskForEdit.memberId])
+      setTaskAssignmentMemberIds([selectedTaskForEdit.memberId])
     }
     
     // Get frequency information from recurring template
@@ -914,12 +915,12 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       })
 
       // Use selected member IDs from the multi-member selector
-      let targetMemberIds: string[] = selectedMemberIds.length > 0 ? selectedMemberIds : [pendingDrop.targetMemberId]
+      let targetMemberIds: string[] = taskAssignmentMemberIds.length > 0 ? taskAssignmentMemberIds : [pendingDrop.targetMemberId]
       
-      console.log('[KIDOERS-ROUTINE] 🔍 Assignment Debug Info:')
-      console.log('[KIDOERS-ROUTINE] - selectedMemberIds:', selectedMemberIds)
-      console.log('[KIDOERS-ROUTINE] - targetMemberIds:', targetMemberIds)
-      console.log('[KIDOERS-ROUTINE] - pendingDrop.targetMemberId:', pendingDrop.targetMemberId)
+        console.log('[KIDOERS-ROUTINE] 🔍 Assignment Debug Info:')
+        console.log('[KIDOERS-ROUTINE] - taskAssignmentMemberIds:', taskAssignmentMemberIds)
+        console.log('[KIDOERS-ROUTINE] - targetMemberIds:', targetMemberIds)
+        console.log('[KIDOERS-ROUTINE] - pendingDrop.targetMemberId:', pendingDrop.targetMemberId)
 
       // Handle task creation with bulk API for better performance
       if (pendingDrop.type === 'task') {
@@ -1530,7 +1531,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       
       // Process individual tasks - Assign tasks to their correct members based on assignments
       console.log('[KIDOERS-ROUTINE] 🔍 Processing individual tasks for calendar population');
-      console.log('[KIDOERS-ROUTINE] 🔍 selectedMemberId:', selectedMemberId);
+      console.log('[KIDOERS-ROUTINE] 🔍 selectedMemberIds:', selectedMemberIds);
       console.log('[KIDOERS-ROUTINE] 🔍 enhancedMembers[0]?.id:', enhancedMembers[0]?.id);
       
       for (const task of individualTasks) {
@@ -1612,7 +1613,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       
       // Process group tasks
       for (const group of transformedGroups) {
-        const memberTaskIds = assignmentsByMember.get(selectedMemberId || enhancedMembers[0]?.id) || [];
+        const memberTaskIds = assignmentsByMember.get(selectedMemberIds[0] || enhancedMembers[0]?.id) || [];
         const memberGroupTasks = group.tasks.filter(task => memberTaskIds.includes(task.id));
         
         if (memberGroupTasks.length > 0) {
@@ -1739,8 +1740,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                       {/* Family Member Selector */}
                       <FamilyMemberSelector
                         enhancedFamilyMembers={enhancedFamilyMembers}
-                        selectedMemberId={selectedMemberId}
-                        setSelectedMemberId={setSelectedMemberId}
+                        selectedMemberIds={selectedMemberIds}
+                        setSelectedMemberIds={setSelectedMemberIds}
                         getMemberColors={getMemberColors}
                         viewMode={viewMode}
                         setViewMode={setViewMode}
@@ -1749,9 +1750,9 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                                       </div>
                   </div>
 
-                  {!selectedMemberId && (
+                  {selectedMemberIds.length === 0 && (
                     <p className="text-sm text-amber-600">
-                      Please select a family member to start building their routine
+                      Please select one or more family members to start building their routine
                     </p>
                   )}
                 </div>
@@ -1760,14 +1761,15 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
 
             {/* Calendar Grid */}
-            {selectedMemberId && (
+            {selectedMemberIds.length > 0 && (
               <CalendarGrid
                 calendarTasks={calendarTasks}
-                selectedMemberId={selectedMemberId}
+                selectedMemberIds={selectedMemberIds}
                 draggedTask={draggedTask}
                 dragOverPosition={dragOverPosition}
                 recurringTemplates={recurringTemplates}
                 familyMembers={familyMembers}
+                getMemberColors={getMemberColors}
                 onColumnClick={handleColumnClick}
                 onTaskDragStart={handleTaskDragStart}
                 onTaskDragEnd={handleTaskDragEnd}
@@ -1936,8 +1938,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                 </div>
                 <MultiMemberSelector
                   familyMembers={familyMembers}
-                  selectedMemberIds={selectedMemberIds}
-                  onSelectionChange={setSelectedMemberIds}
+                  selectedMemberIds={taskAssignmentMemberIds}
+                  onSelectionChange={setTaskAssignmentMemberIds}
                   defaultMemberId={pendingDrop?.targetMemberId}
                 />
               </div>

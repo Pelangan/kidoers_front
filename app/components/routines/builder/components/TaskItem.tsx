@@ -17,6 +17,7 @@ interface TaskItemProps {
     avatar_url?: string | null
     color: string
   }>
+  getMemberColors?: (color: string) => { border: string; bg: string; bgColor: string; borderColor: string }
   onDragStart: (e: React.DragEvent, task: Task, day: string, memberId: string) => void
   onDragEnd: () => void
   onClick: (e: React.MouseEvent, task: Task, day: string, memberId: string) => void
@@ -29,6 +30,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   isDragging,
   recurringTemplates,
   familyMembers = [],
+  getMemberColors,
   onDragStart,
   onDragEnd,
   onClick
@@ -56,15 +58,75 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
   const assignees = getAssignees()
 
+  // Get member color for task styling
+  const getTaskColor = () => {
+    if (task.from_group) {
+      // Group tasks use purple color
+      return {
+        bg: 'bg-purple-50',
+        border: 'border-l-4 border-purple-500',
+        text: 'text-purple-600'
+      }
+    }
+
+    // For multi-member tasks, use the color of the first assignee
+    if (task.assignees && task.assignees.length > 0) {
+      const firstAssignee = task.assignees[0]
+      const member = familyMembers.find(m => m.id === firstAssignee.id)
+      if (member && getMemberColors) {
+        const colors = getMemberColors(member.color)
+        console.log('[KIDOERS-ROUTINE] 🎨 Multi-member task color:', { 
+          taskName: task.name, 
+          memberName: member.name, 
+          memberColor: member.color, 
+          borderColor: colors.borderColor 
+        })
+        return {
+          bg: colors.bg,
+          border: `border-l-4`,
+          borderColor: colors.borderColor,
+          text: 'text-gray-900'
+        }
+      }
+    }
+
+    // For single-member tasks, use the member's color
+    const member = familyMembers.find(m => m.id === memberId)
+    if (member && getMemberColors) {
+      const colors = getMemberColors(member.color)
+      console.log('[KIDOERS-ROUTINE] 🎨 Single-member task color:', { 
+        taskName: task.name, 
+        memberName: member.name, 
+        memberColor: member.color, 
+        borderColor: colors.borderColor 
+      })
+      return {
+        bg: colors.bg,
+        border: `border-l-4`,
+        borderColor: colors.borderColor,
+        text: 'text-gray-900'
+      }
+    }
+
+    // Fallback to green if no color found
+    console.log('[KIDOERS-ROUTINE] 🎨 Fallback color used for task:', task.name)
+    return {
+      bg: 'bg-green-50',
+      border: 'border-l-4 border-green-500',
+      text: 'text-gray-900'
+    }
+  }
+
+  const taskColor = getTaskColor()
+
   return (
     <div 
-      className={`relative flex items-center space-x-1 p-2 rounded border border-gray-200 ${
-        task.from_group 
-          ? 'bg-purple-50 border-l-4 border-purple-500' 
-          : 'bg-green-50 border-l-4 border-green-500'
-      } cursor-pointer hover:shadow-sm transition-shadow ${
+      className={`relative flex items-center space-x-1 p-2 rounded border border-gray-200 ${taskColor.bg} ${taskColor.border} cursor-pointer hover:shadow-sm transition-shadow ${
         isDragging ? 'opacity-50 task-dragging' : ''
       }`}
+      style={{
+        borderLeftColor: taskColor.borderColor || undefined
+      }}
       draggable={true}
       onDragStart={(e) => onDragStart(e, task, day, memberId)}
       onDragEnd={onDragEnd}
@@ -75,7 +137,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     >
       <div className="flex-1">
         <div className="flex items-center justify-between">
-          <div className="text-xs font-medium text-gray-900">{task.name}</div>
+          <div className={`text-xs font-medium ${taskColor.text}`}>{task.name}</div>
           <MultiMemberBadge 
             memberCount={task.member_count || assignees.length || 1}
             assignees={assignees}

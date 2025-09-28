@@ -5,7 +5,7 @@ import type { Task, TaskGroup as TaskGroupType, RecurringTemplate } from '../typ
 
 interface CalendarGridProps {
   calendarTasks: Record<string, { groups: TaskGroupType[]; individualTasks: Task[] }>
-  selectedMemberId: string
+  selectedMemberIds: string[]
   draggedTask: { task: Task; day: string; memberId: string } | null
   dragOverPosition: { day: string; memberId: string; position: 'before' | 'after'; targetTaskId?: string } | null
   recurringTemplates: RecurringTemplate[]
@@ -16,6 +16,7 @@ interface CalendarGridProps {
     avatar_url?: string | null
     color: string
   }>
+  getMemberColors?: (color: string) => { border: string; bg: string; bgColor: string; borderColor: string }
   onColumnClick: (day: string) => void
   onTaskDragStart: (e: React.DragEvent, task: Task, day: string, memberId: string) => void
   onTaskDragEnd: () => void
@@ -31,11 +32,12 @@ interface CalendarGridProps {
 
 export const CalendarGrid: React.FC<CalendarGridProps> = ({
   calendarTasks,
-  selectedMemberId,
+  selectedMemberIds,
   draggedTask,
   dragOverPosition,
   recurringTemplates,
   familyMembers,
+  getMemberColors,
   onColumnClick,
   onTaskDragStart,
   onTaskDragEnd,
@@ -59,11 +61,12 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
               key={day}
               day={day}
               dayTasks={calendarTasks[day]}
-              selectedMemberId={selectedMemberId}
+              selectedMemberIds={selectedMemberIds}
               draggedTask={draggedTask}
               dragOverPosition={dragOverPosition}
               recurringTemplates={recurringTemplates}
               familyMembers={familyMembers}
+              getMemberColors={getMemberColors}
               onColumnClick={onColumnClick}
               onTaskDragStart={onTaskDragStart}
               onTaskDragEnd={onTaskDragEnd}
