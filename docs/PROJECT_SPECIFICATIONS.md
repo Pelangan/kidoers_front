@@ -486,6 +486,35 @@ interface TaskWithAssignees {
   - `this_member`: Remove task only for the current member
   - `all_members`: Remove task for all assigned members
 
+### Multi-Member Task Update System
+The system now supports updating existing multi-member tasks without creating new ones:
+
+#### Update Process
+1. **Task Identification**: System identifies existing multi-member tasks by `routine_task_id`
+2. **Assignment Comparison**: Compares current assignments with new member selection
+3. **Selective Updates**: Only modifies assignments that have changed (adds/removes members)
+4. **Instance Management**: Creates/deletes task instances only for changed assignments
+5. **UI Synchronization**: Updates the existing task in the UI instead of replacing it
+
+#### Update API Endpoint
+- **`PATCH /routines/{routine_id}/tasks/{task_id}/multi-member-update`**: Update existing multi-member task
+  - **Request Body**: `MultiMemberTaskCreate` with updated member_ids and optional task properties
+  - **Response**: `MultiMemberTaskResponse` with update statistics
+  - **Features**: 
+    - Updates task properties (name, description, points, duration, time_of_day)
+    - Adds/removes member assignments as needed
+    - Creates/deletes task instances for new assignments
+    - Returns proper response format matching `MultiMemberTaskResponse` schema
+    - Adds new member assignments and creates instances
+    - Removes old member assignments and deletes instances
+    - Preserves existing assignments that haven't changed
+
+#### Frontend Integration
+- **Edit Detection**: Automatically detects when editing existing multi-member tasks
+- **Member Selection**: Pre-populates multi-member selector with current assignees
+- **Update Flow**: Uses update API instead of delete/create pattern
+- **UI Updates**: Modifies existing task in calendar view instead of replacing it
+
 ### Implementation Benefits
 - **Efficiency**: Single API call creates multiple assignments and instances
 - **Consistency**: All members get identical task configuration
@@ -493,6 +522,7 @@ interface TaskWithAssignees {
 - **User Experience**: Clear visual indicators and intuitive selection interface
 - **Data Integrity**: Proper constraints prevent duplicate assignments
 - **Scalability**: Database view optimizes querying of multi-member tasks
+- **Edit Performance**: Updates existing tasks instead of creating new ones, preventing task duplication
 
 ### Implemented Functions
 
@@ -738,6 +768,7 @@ interface Reward {
 ### Multi-Member Task Assignment API Endpoints
 - **`POST /routines/{routine_id}/tasks/multi-member`**: Create a task and assign it to multiple members
 - **`GET /routines/{routine_id}/tasks/with-assignees`**: Get all tasks with assignee information
+- **`PATCH /routines/{routine_id}/tasks/{task_id}/multi-member-update`**: Update existing multi-member task assignments
 - **`POST /routines/{routine_id}/tasks/multi-member-delete`**: Delete task with scope options (time + member scope)
 
 ### Full Routine Data API Endpoints

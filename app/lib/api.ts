@@ -807,6 +807,35 @@ export async function deleteMultiMemberTask(routineId: string, payload: {
   });
 }
 
+// Update multi-member task assignments
+export async function updateMultiMemberTaskAssignments(routineId: string, taskId: string, payload: {
+  name?: string;
+  description?: string;
+  points?: number;
+  duration_mins?: number;
+  time_of_day?: "morning" | "afternoon" | "evening" | "night" | "any";
+  member_ids: string[];
+}) {
+  return apiService.makeRequest<{
+    routine_id: string;
+    task_id: string;
+    member_count: number;
+    assignments_created: number;
+    assignments_deleted: number;
+    instances_created: number;
+    instances_deleted: number;
+    updated_assignments: Array<{
+      id: string;
+      routine_task_id: string;
+      member_id: string;
+      order_index: number;
+    }>;
+  }>(`/routines/${routineId}/tasks/${taskId}/multi-member-update`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 // Groups & tasks within routine
 export async function addRoutineGroup(routineId: string, payload: { name?: string; time_of_day?: "morning"|"afternoon"|"evening"|"night"; from_group_template_id?: string; order_index?: number }) {
   return apiService.makeRequest<{

@@ -10,7 +10,7 @@ import { Badge } from "../../../../components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../../components/ui/dialog"
 import { ArrowLeft, Trash2, Save, GripVertical, User, Folder, Users, Baby, UserCheck, Check, Settings, Move, Plus, Loader2 } from 'lucide-react'
-import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, patchRoutineTask, updateOnboardingStep, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules, assignGroupTemplateToMembers, assignExistingGroupToMembers, getRoutineFullData, bulkUpdateDayOrders, bulkCreateIndividualTasks, bulkUpdateRecurringTasks, bulkDeleteTasks, createMultiMemberTask } from '../../../lib/api'
+import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, patchRoutineTask, updateOnboardingStep, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules, assignGroupTemplateToMembers, assignExistingGroupToMembers, getRoutineFullData, bulkUpdateDayOrders, bulkCreateIndividualTasks, bulkUpdateRecurringTasks, bulkDeleteTasks, createMultiMemberTask, updateMultiMemberTaskAssignments } from '../../../lib/api'
 import { generateAvatarUrl } from '../../ui/AvatarSelector'
 import RoutineDetailsModal from './RoutineDetailsModal'
 import type { 
@@ -408,6 +408,13 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   const handleTaskClick = (e: React.MouseEvent, task: Task, day: string, memberId: string) => {
     e.stopPropagation()
     console.log('[TASK-CLICK] Task clicked:', task.name, 'showTaskMiniPopup:', showTaskMiniPopup, 'isDeletingTask:', isDeletingTask)
+    console.log('[TASK-CLICK] Task details:', {
+      taskId: task.id,
+      routineTaskId: task.routine_task_id,
+      memberCount: task.member_count,
+      assignees: task.assignees?.length,
+      isMultiMember: task.member_count && task.member_count > 1
+    })
     
     // Prevent opening popup if it's already open or if we're deleting
     if (showTaskMiniPopup || isDeletingTask) {
@@ -468,10 +475,20 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
   // Handle edit task - opens the Apply Tasks To modal
   const handleEditTask = async () => {
-    if (!selectedTaskForEdit) return
+    if (!selectedTaskForEdit) {
+      console.log('[TASK-EDIT] ❌ No selectedTaskForEdit, cannot edit')
+      return
+    }
     
     console.log('[TASK-EDIT] ===== EDIT TASK DEBUG START =====')
     console.log('[TASK-EDIT] Opening edit modal for task:', selectedTaskForEdit.task.name)
+    console.log('[TASK-EDIT] Selected task for edit:', {
+      taskId: selectedTaskForEdit.task.id,
+      routineTaskId: selectedTaskForEdit.task.routine_task_id,
+      memberCount: selectedTaskForEdit.task.member_count,
+      assignees: selectedTaskForEdit.task.assignees?.length,
+      isMultiMember: selectedTaskForEdit.task.member_count && selectedTaskForEdit.task.member_count > 1
+    })
     console.log('[TASK-EDIT] Full task object:', selectedTaskForEdit.task)
     console.log('[TASK-EDIT] Task details:', {
       name: selectedTaskForEdit.task.name,
@@ -522,6 +539,16 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       fromGroup: undefined
     })
     
+    // For multi-member tasks, initialize selectedMemberIds with all assignees
+    if (selectedTaskForEdit.task.member_count && selectedTaskForEdit.task.member_count > 1 && selectedTaskForEdit.task.assignees) {
+      console.log('[TASK-EDIT] Multi-member task detected, initializing with all assignees:', selectedTaskForEdit.task.assignees.map(a => ({ id: a.id, name: a.name })))
+      const assigneeIds = selectedTaskForEdit.task.assignees.map(assignee => assignee.id)
+      setSelectedMemberIds(assigneeIds)
+    } else {
+      console.log('[TASK-EDIT] Single-member task, initializing with clicked member:', selectedTaskForEdit.memberId)
+      setSelectedMemberIds([selectedTaskForEdit.memberId])
+    }
+    
     // Get frequency information from recurring template
     console.log('[TASK-EDIT] 🔍 DEBUG: Available recurring templates:', recurringTemplates)
     console.log('[TASK-EDIT] 🔍 DEBUG: Task recurring_template_id:', selectedTaskForEdit.task.recurring_template_id)
@@ -561,14 +588,18 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     
     console.log('[TASK-EDIT] ===== EDIT TASK DEBUG END =====')
     
-    // Close mini popup and prepare for modal
-    closeTaskMiniPopup()
+    // Close mini popup but preserve selectedTaskForEdit for editing
+    setShowTaskMiniPopup(false)
+    setMiniPopupPosition(null)
+    // Don't call closeTaskMiniPopup() as it clears selectedTaskForEdit
+    
     setEditableTaskName(selectedTaskForEdit.task.name)
     setSelectedWhoOption('none')
     setSelectedRoutineGroup('none')
     
     // Use setTimeout to ensure state update happens before modal opens
     setTimeout(() => {
+      console.log('[TASK-EDIT] 🔍 Opening edit modal with selectedTaskForEdit preserved:', selectedTaskForEdit)
       setShowApplyToPopup(true)
     }, 0)
   }
@@ -978,7 +1009,99 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           return; // Exit early for recurring task updates
         }
 
-        console.log('[KIDOERS-ROUTINE] 🚀 Using multi-member API for task creation');
+        // Check if we're editing an existing multi-member task
+        // Also check if it's a multi-member task by member_count and assignees
+        const isMultiMemberTask = selectedTaskForEdit && (
+          selectedTaskForEdit.task.routine_task_id || 
+          (selectedTaskForEdit.task.member_count && selectedTaskForEdit.task.member_count > 1) ||
+          (selectedTaskForEdit.task.assignees && selectedTaskForEdit.task.assignees.length > 1)
+        );
+        
+        console.log('[KIDOERS-ROUTINE] 🔍 DEBUG: Checking if editing existing multi-member task:', {
+          hasSelectedTaskForEdit: !!selectedTaskForEdit,
+          taskRoutineTaskId: selectedTaskForEdit?.task.routine_task_id,
+          taskMemberCount: selectedTaskForEdit?.task.member_count,
+          taskAssignees: selectedTaskForEdit?.task.assignees?.length,
+          isMultiMemberTask: isMultiMemberTask,
+          fullTask: selectedTaskForEdit?.task
+        });
+        
+        if (isMultiMemberTask) {
+          const taskId = selectedTaskForEdit.task.routine_task_id || selectedTaskForEdit.task.id;
+          console.log('[KIDOERS-ROUTINE] 🔄 Updating existing multi-member task:', taskId);
+          
+          // Update the existing task with new assignees
+          const task = pendingDrop.item as Task;
+          
+          // Update the existing task instead of deleting and recreating
+          const updatePayload = {
+            name: editableTaskName || task.name,
+            description: task.description || undefined,
+            points: task.points,
+            duration_mins: task.estimatedMinutes,
+            time_of_day: task.time_of_day || undefined,
+            member_ids: targetMemberIds
+          };
+
+          console.log('[KIDOERS-ROUTINE] 📦 Multi-member update payload:', updatePayload);
+          const result = await updateMultiMemberTaskAssignments(routineData.id, taskId, updatePayload);
+          console.log('[KIDOERS-ROUTINE] ✅ Multi-member task update result:', result);
+
+          // Update UI by modifying the existing task
+          const newCalendarTasks = { ...calendarTasks };
+          
+          // Find and update the existing task in the UI
+          Object.keys(newCalendarTasks).forEach(day => {
+            const taskIndex = newCalendarTasks[day].individualTasks.findIndex(
+              t => t.routine_task_id === taskId || t.id === taskId
+            );
+            
+            if (taskIndex >= 0) {
+              // Update the existing task with new assignee information
+              const updatedTask = {
+                ...newCalendarTasks[day].individualTasks[taskIndex],
+                name: editableTaskName || task.name,
+                description: task.description || null,
+                points: task.points,
+                duration_mins: task.estimatedMinutes,
+                time_of_day: task.time_of_day || undefined,
+                member_count: targetMemberIds.length,
+                assignees: targetMemberIds.map(memberId => {
+                  const member = enhancedFamilyMembers.find(m => m.id === memberId);
+                  return {
+                    id: member!.id,
+                    name: member!.name,
+                    role: member!.type || 'member',
+                    avatar_url: member!.avatar_url,
+                    color: member!.color
+                  };
+                })
+              };
+              
+              newCalendarTasks[day].individualTasks[taskIndex] = updatedTask;
+              console.log(`[KIDOERS-ROUTINE] 🔄 Updated existing task in ${day}:`, updatedTask.name, 'routine_task_id:', updatedTask.routine_task_id, 'member_count:', updatedTask.member_count);
+            }
+          });
+
+          setCalendarTasks(newCalendarTasks);
+
+          // Close modal and reset state
+          setShowApplyToPopup(false);
+          setPendingDrop(null);
+          setDaySelection({ mode: 'single', selectedDays: [] });
+          setSelectedWhoOption('none');
+          setEditableTaskName('');
+          setSelectedTaskForEdit(null);
+
+          return; // Exit early for multi-member task updates
+        }
+
+        console.log('[KIDOERS-ROUTINE] 🚀 Using multi-member API for task creation (condition failed)');
+        console.log('[KIDOERS-ROUTINE] 🔍 DEBUG: Why condition failed:', {
+          selectedTaskForEdit: !!selectedTaskForEdit,
+          routineTaskId: selectedTaskForEdit?.task.routine_task_id,
+          condition: selectedTaskForEdit && selectedTaskForEdit.task.routine_task_id
+        });
 
         // Prepare multi-member task creation payload
         const task = pendingDrop.item as Task;
@@ -1064,44 +1187,43 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           newCalendarTasks[targetDay] = { individualTasks: [], groups: [] };
         }
         
-        for (const [memberId, instance] of Object.entries(instancesByMember)) {
-          const taskForUI = {
-            id: `${result.task_id}_${memberId}_${targetDay}`, // Unique ID for UI
-            routine_task_id: result.task_id,
-            memberId: memberId,
-            name: editableTaskName || task.name,
-            description: task.description || null,
-            points: task.points,
-            duration_mins: task.estimatedMinutes,
-            time_of_day: task.time_of_day || null,
-            frequency: frequency,
-            days_of_week: days_of_week || [],
-            is_saved: true,
-            template_id: task.is_system ? task.id : undefined,
-            recurring_template_id: undefined, // Will be set if recurring
-            from_group: undefined,
-            estimatedMinutes: task.estimatedMinutes || 5,
-            member_count: result.member_count,
-            assignees: targetMemberIds.map(id => {
-              const member = familyMembers.find(m => m.id === id)
-              return member ? { id, name: member.name, role: member.role, avatar_url: member.avatar_url || null, color: member.color } : null
-            }).filter((assignee): assignee is NonNullable<typeof assignee> => assignee !== null)
-          };
-          
-          // Check if task already exists in UI state to avoid duplicates
-          const existingTaskIndex = newCalendarTasks[targetDay].individualTasks.findIndex(
-            existingTask => existingTask.routine_task_id === result.task_id && existingTask.memberId === memberId
-          );
-          
-          if (existingTaskIndex >= 0) {
-            // Update existing task
-            newCalendarTasks[targetDay].individualTasks[existingTaskIndex] = taskForUI;
-            console.log(`[KIDOERS-ROUTINE] 🔄 Updated existing task in UI: ${taskForUI.name} for ${targetDay}`);
-          } else {
-            // Add new task
-            newCalendarTasks[targetDay].individualTasks.push(taskForUI);
-            console.log(`[KIDOERS-ROUTINE] ➕ Added new task to UI: ${taskForUI.name} for ${targetDay}`);
-          }
+        // Create a single multi-member task instance for the UI
+        const multiMemberTaskForUI = {
+          id: `${result.task_id}_${targetDay}`, // Single ID for the multi-member task
+          routine_task_id: result.task_id,
+          memberId: targetMemberIds[0], // Use first member as primary (for compatibility)
+          name: editableTaskName || task.name,
+          description: task.description || null,
+          points: task.points,
+          duration_mins: task.estimatedMinutes,
+          time_of_day: task.time_of_day || null,
+          frequency: frequency,
+          days_of_week: days_of_week || [],
+          is_saved: true,
+          template_id: task.is_system ? task.id : undefined,
+          recurring_template_id: undefined, // Will be set if recurring
+          from_group: undefined,
+          estimatedMinutes: task.estimatedMinutes || 5,
+          member_count: result.member_count,
+          assignees: targetMemberIds.map(id => {
+            const member = familyMembers.find(m => m.id === id)
+            return member ? { id, name: member.name, role: member.role, avatar_url: member.avatar_url || null, color: member.color } : null
+          }).filter((assignee): assignee is NonNullable<typeof assignee> => assignee !== null)
+        };
+        
+        // Check if task already exists in UI state to avoid duplicates
+        const existingTaskIndex = newCalendarTasks[targetDay].individualTasks.findIndex(
+          existingTask => existingTask.routine_task_id === result.task_id
+        );
+        
+        if (existingTaskIndex >= 0) {
+          // Update existing task
+          newCalendarTasks[targetDay].individualTasks[existingTaskIndex] = multiMemberTaskForUI;
+          console.log(`[KIDOERS-ROUTINE] 🔄 Updated existing multi-member task in UI: ${multiMemberTaskForUI.name} for ${targetDay}`);
+        } else {
+          // Add new task
+          newCalendarTasks[targetDay].individualTasks.push(multiMemberTaskForUI);
+          console.log(`[KIDOERS-ROUTINE] ➕ Added new multi-member task to UI: ${multiMemberTaskForUI.name} with ${result.member_count} members on ${targetDay}`);
         }
         
         setCalendarTasks(newCalendarTasks);
