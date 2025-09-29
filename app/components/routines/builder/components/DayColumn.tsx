@@ -168,7 +168,7 @@ export const DayColumn: React.FC<DayColumnProps> = ({
               return getTasksWithDayOrder(filteredTasks, day, selectedMemberIds[0]);
             })()
               .map((task: Task, taskIndex: number, taskArray: Task[]) => (
-                <div key={task.id}>
+                <div key={`${task.id}-${task.memberId || selectedMemberIds[0]}-${day}`}>
                   {/* Drop zone before this task */}
                   <div
                     className={`h-1 transition-colors ${

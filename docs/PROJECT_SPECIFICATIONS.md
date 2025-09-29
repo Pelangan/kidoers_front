@@ -565,6 +565,9 @@ The system now treats ALL weekly tasks (including single-day weekly tasks) as re
 - **Simplified Task Cards**: Removed recurrence text from task cards to show only task name and avatar for cleaner UI
 - **Complete Template Deletion**: When removing the last day from a recurring task, the entire template and all associated tasks are automatically deleted without errors
 - **This Event Deletion Fix**: "This event" deletion now properly deletes the individual task occurrence from the database instead of just modifying the template
+- **Multi-Member Task Card Styling Rollback**: Reverted multi-member task card styling changes to maintain original behavior
+- **React Key Duplication Fix**: Fixed duplicate React keys issue for multi-member tasks by including member ID and day in unique keys
+- **Multi-Member Task Display Fix**: Fixed issue where multi-member tasks were not showing multiple avatars and count badges. The problem was that recurring tasks were not including `assignees` data when being loaded into the calendar. Now both one-off and recurring tasks properly include `member_count` and `assignees` data for correct multi-member visualization.
 - **Frequency Labels**: 
   - 7 days → "Daily"
   - 1 day → "Every Monday" (or specific day)

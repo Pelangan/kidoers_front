@@ -1867,17 +1867,35 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
               // Get assignments from the original backend data
               const backendTask = fullData.individual_tasks.find(bt => bt.id === task.id);
               if (backendTask?.assignments) {
-                // Create a task instance for each assigned member
-                for (const assignment of backendTask.assignments) {
-                  const taskWithMemberId = {
-                ...task,
-                id: task.id, // Use real UUID from backend
-                    memberId: assignment.member_id, // Set the correct member ID from assignment
-                is_saved: true // Mark as saved
-                  };
-                  newCalendarTasks[day].individualTasks.push(taskWithMemberId);
-                  console.log('[KIDOERS-ROUTINE] ✅ Added recurring task to calendar:', task.name, 'on day:', day, 'for member:', assignment.member_id);
-                }
+                // Create a single task instance with all assignees for multi-member tasks
+                // This ensures the task appears for all members, not just individual instances
+                const taskWithAssignees = {
+                  ...task,
+                  id: `${task.id}_${day}`, // Single ID for the day
+                  memberId: backendTask.assignments[0].member_id, // Use first member as primary
+                  is_saved: true,
+                  routine_task_id: task.id,
+                  member_count: backendTask.assignments.length,
+                  assignees: backendTask.assignments.map(assignment => {
+                    const member = enhancedMembers.find(m => m.id === assignment.member_id);
+                    return member ? {
+                      id: assignment.member_id,
+                      name: member.name,
+                      role: member.role,
+                      avatar_url: member.avatar_url || null,
+                      color: member.color
+                    } : null;
+                  }).filter((assignee): assignee is NonNullable<typeof assignee> => assignee !== null)
+                };
+                
+                console.log('[KIDOERS-ROUTINE] 🔍 Final recurring task with assignees:', {
+                  taskName: task.name,
+                  assigneesCount: taskWithAssignees.assignees.length,
+                  assignees: taskWithAssignees.assignees.map(a => ({ id: a.id, name: a.name }))
+                });
+                
+                newCalendarTasks[day].individualTasks.push(taskWithAssignees);
+                console.log('[KIDOERS-ROUTINE] ✅ Added recurring multi-member task to calendar:', task.name, 'on day:', day, 'with', backendTask.assignments.length, 'assignees');
               }
             }
           }

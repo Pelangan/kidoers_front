@@ -48,7 +48,7 @@ export const TaskGroup: React.FC<TaskGroupProps> = ({
       
       {group.tasks.map((task: Task) => (
         <div 
-          key={task.id} 
+          key={`${task.id}-${memberId}-${day}`} 
           className={`ml-3 relative flex items-center space-x-1 p-2 bg-purple-50 rounded border-l-4 border-purple-500 border border-gray-200 cursor-pointer ${
             draggedTask?.task.id === task.id ? 'opacity-50 task-dragging' : ''
           }`}
