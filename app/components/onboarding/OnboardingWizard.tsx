@@ -94,8 +94,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
               Back
             </Button>
             <div className="text-center">
-              <h1 className="text-xl font-semibold text-balance">Create Your Own Routine</h1>
-              <p className="text-sm text-muted-foreground">Drag tasks from the library to build your custom routine.</p>
+              <h1 className="text-xl font-semibold text-balance">Create Your Planner</h1>
             </div>
             <div className="w-20" />
           </div>

@@ -570,6 +570,9 @@ The system now treats ALL weekly tasks (including single-day weekly tasks) as re
 - **Multi-Member Task Display Fix**: Fixed issue where multi-member tasks were not showing multiple avatars and count badges. The problem was that recurring tasks were not including `assignees` data when being loaded into the calendar. Now both one-off and recurring tasks properly include `member_count` and `assignees` data for correct multi-member visualization.
 - **Multi-Member Task Color Scheme**: Multi-member tasks now use a neutral gray color scheme (white background with gray left border) to distinguish them from individual member tasks, which use the member's assigned color.
 - **Mandatory Family Member Selection**: At least one family member must always be selected in the routine builder. Users cannot uncheck all members, and the first member is automatically selected by default when entering the routine builder.
+- **Updated Onboarding Header**: Changed the onboarding title from "Create Your Own Routine" to "Create Your Planner" and removed the instruction text "Drag tasks from the library to build your custom routine" for a cleaner header.
+- **Updated Field Labels**: Changed "Routine Name" to "Planner Name" and placeholder text from "My Family Routine" to "My Planner" throughout the routine builder interface. Also updated validation messages and save button text to use "planner" terminology.
+- **View Mode Button Layout**: Moved the "Calendar View" and "Group View" buttons to the right side of the family member selector interface for better visual balance.
 - **Frequency Labels**: 
   - 7 days → "Daily"
   - 1 day → "Every Monday" (or specific day)

@@ -2000,11 +2000,11 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                   <div className="flex items-end justify-between gap-4">
                     <div className="flex items-end gap-4">
                       <div className="flex-1 max-w-md">
-                        <Label htmlFor="routineName">Routine Name</Label>
+                        <Label htmlFor="routineName">Planner Name</Label>
                         <div className="relative">
                           <Input
                             id="routineName"
-                            placeholder="My Family Routine"
+                            placeholder="My Planner"
                             value={routineName}
                             onChange={(e) => {
                               const newName = e.target.value;
@@ -2023,7 +2023,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                         </div>
                         {!routineName.trim() && (
                           <p className="text-sm text-amber-600 mt-1">
-                            Routine name is required to save your routine
+                            Planner name is required to save your planner
                           </p>
                         )}
                       </div>
@@ -2091,7 +2091,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                 ) : (
                   <>
                     <Save className="w-4 h-4" />
-                    <span>💾 {onComplete ? 'Complete Onboarding' : 'Save My Routine'}</span>
+                    <span>💾 {onComplete ? 'Complete Onboarding' : 'Save My Planner'}</span>
                   </>
                 )}
               </Button>
@@ -2100,7 +2100,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
             {(totalTasks === 0 || !routineName.trim()) && (
               <p className="text-center text-sm text-amber-600">
                 {!routineName.trim() 
-                  ? "Please enter a routine name to continue"
+                  ? "Please enter a planner name to continue"
                   : "Click on a day to add tasks to your routine"
                 }
               </p>
