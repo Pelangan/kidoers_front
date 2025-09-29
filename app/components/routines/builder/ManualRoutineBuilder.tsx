@@ -519,7 +519,24 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       const newDays = currentDays.filter(day => day !== dayToRemove.toLowerCase())
       
       if (newDays.length === 0) {
-        setError('Cannot remove all days from a recurring task. Delete the task instead.')
+        // If no days remain, delete the entire template and all associated tasks
+        console.log('[REMOVE-DAY] No days remaining, deleting entire template and all tasks')
+        
+        const deleteResult = await bulkDeleteTasks(routineData.id, {
+          recurring_template_id: task.recurring_template_id,
+          delete_scope: 'all_days',
+          target_day: dayToRemove
+        }) as any
+        
+        console.log('[REMOVE-DAY] ✅ Template and all tasks deleted:', deleteResult)
+        
+        // Refresh the routine data to get updated templates
+        const fullData = await getRoutineFullData(routineData.id)
+        setRecurringTemplates(fullData.recurring_templates || [])
+        
+        // Refresh calendar tasks by triggering a re-fetch
+        await loadExistingRoutineData(routineData.id, familyMembers)
+        
         return
       }
       
@@ -816,9 +833,16 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           console.log('[TASK-DELETE] 🗑️ Handling recurring task deletion:', taskToDelete.task.name)
           
           if (scope === 'this_day' && taskToDelete.task.recurring_template_id) {
-            // For "this day only" on recurring tasks, remove the day from the template
-            console.log('[TASK-DELETE] 🔄 Removing day from recurring template')
-            await handleRemoveDayFromRecurringTask(taskToDelete.task, taskToDelete.day, taskToDelete.memberId)
+            // For "this day only" on recurring tasks, delete just this occurrence using bulk delete
+            console.log('[TASK-DELETE] 🔄 Deleting this occurrence of recurring task')
+            
+            const result = await bulkDeleteTasks(routineData.id, {
+              recurring_template_id: taskToDelete.task.recurring_template_id,
+              delete_scope: 'this_day',
+              target_day: taskToDelete.day,
+              member_id: taskToDelete.memberId
+            })
+            console.log('[TASK-DELETE] ✅ This occurrence deleted:', result)
           } else {
             // For "this and following" or "all days", use bulk delete
             console.log('[TASK-DELETE] 🔄 Using bulk delete for scope:', scope)

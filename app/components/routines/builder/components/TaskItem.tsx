@@ -143,7 +143,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
             assignees={assignees}
           />
         </div>
-        <div className="text-xs text-gray-500">{getTaskDisplayFrequency(task, recurringTemplates)}</div>
         {task.from_group && (
           <div className="text-xs flex items-center space-x-1 text-purple-600">
             <Folder className="w-3 h-3" />

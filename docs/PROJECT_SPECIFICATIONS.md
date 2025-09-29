@@ -562,6 +562,9 @@ The system now treats ALL weekly tasks (including single-day weekly tasks) as re
   - **API Response Handling**: Fixed frontend to handle new `updateTaskTemplate` API response format (single template object instead of array)
   - **Template-Task Sync**: `updateTaskTemplate` now updates both template and individual task records to keep them synchronized
 - **UI Refresh Fix**: After template updates, the frontend now reloads calendar tasks from the backend to ensure task names update immediately in the UI
+- **Simplified Task Cards**: Removed recurrence text from task cards to show only task name and avatar for cleaner UI
+- **Complete Template Deletion**: When removing the last day from a recurring task, the entire template and all associated tasks are automatically deleted without errors
+- **This Event Deletion Fix**: "This event" deletion now properly deletes the individual task occurrence from the database instead of just modifying the template
 - **Frequency Labels**: 
   - 7 days → "Daily"
   - 1 day → "Every Monday" (or specific day)

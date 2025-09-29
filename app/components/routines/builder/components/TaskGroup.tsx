@@ -58,7 +58,6 @@ export const TaskGroup: React.FC<TaskGroupProps> = ({
         >
           <div className="flex-1">
             <div className="text-xs font-medium text-gray-900">{task.name}</div>
-            <div className="text-xs text-gray-500">{getTaskDisplayFrequency(task, recurringTemplates)}</div>
             <div className="text-xs text-purple-600">from {group.name}</div>
           </div>
         </div>
