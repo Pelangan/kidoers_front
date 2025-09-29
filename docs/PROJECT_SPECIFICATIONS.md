@@ -573,6 +573,9 @@ The system now treats ALL weekly tasks (including single-day weekly tasks) as re
 - **Updated Onboarding Header**: Changed the onboarding title from "Create Your Own Routine" to "Create Your Planner" and removed the instruction text "Drag tasks from the library to build your custom routine" for a cleaner header.
 - **Updated Field Labels**: Changed "Routine Name" to "Planner Name" and placeholder text from "My Family Routine" to "My Planner" throughout the routine builder interface. Also updated validation messages and save button text to use "planner" terminology.
 - **View Mode Button Layout**: Moved the "Calendar View" and "Group View" buttons to the right side of the family member selector interface for better visual balance.
+- **Recurring Task Deletion Fix**: Fixed issue where deleting days from recurring tasks was not properly updating the `recurring_task_templates` table and remaining `routine_tasks` entries. The backend now correctly updates both the template and individual task records to maintain consistency.
+- **Edit Modal Data Freshness**: Fixed edit modal to fetch fresh template data from the API instead of using stale state data, ensuring that recurrence information is always current after deletion operations.
+- **This Event Deletion Fix**: Fixed "This event" deletion scope to properly update the `recurring_task_templates` table when removing individual days from recurring tasks. Previously, only individual `routine_tasks` were deleted but the template remained unchanged, causing the edit modal to show incorrect recurrence information.
 - **Frequency Labels**: 
   - 7 days → "Daily"
   - 1 day → "Every Monday" (or specific day)

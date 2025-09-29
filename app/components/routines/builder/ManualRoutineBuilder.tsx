@@ -640,23 +640,54 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       setTaskAssignmentMemberIds([selectedTaskForEdit.memberId])
     }
     
-    // Get frequency information from recurring template
-    console.log('[TASK-EDIT] 🔍 DEBUG: Available recurring templates:', recurringTemplates)
-    console.log('[TASK-EDIT] 🔍 DEBUG: Task recurring_template_id:', selectedTaskForEdit.task.recurring_template_id)
+    // Get fresh template data from API instead of stale state
+    console.log('[TASK-EDIT] 🔍 DEBUG: Getting fresh template data from API...')
     
-    const frequencyType = getTaskFrequencyType(selectedTaskForEdit.task, recurringTemplates)
-    const templateDaysOfWeek = getTaskDaysOfWeek(selectedTaskForEdit.task, recurringTemplates)
+    let templateDays: Weekday[] = []
+    let frequencyType = 'weekly'
+    let hasException = false
     
-    console.log('[TASK-EDIT] Frequency information:', {
-      frequencyType,
-      templateDaysOfWeek,
-      taskRecurringTemplateId: selectedTaskForEdit.task.recurring_template_id,
-      availableTemplates: recurringTemplates.length
-    })
-    
-    // Use template data as source of truth for recurrence
-    const templateDays = normalizeWeekdays(templateDaysOfWeek)
-    const hasException = false // TODO: Implement exception checking
+    if (selectedTaskForEdit.task.recurring_template_id) {
+      try {
+        // Get routine data first
+        const routineData = await ensureRoutineExists()
+        if (!routineData) {
+          setError('Failed to get routine information. Please try again.')
+          return
+        }
+        
+        // Get fresh template data from the API
+        const actualTaskId = extractTaskId(selectedTaskForEdit.task.id)
+        const templateData = await getTaskForEdit(routineData.id, actualTaskId) as any
+        
+        console.log('[TASK-EDIT] 🔍 Fresh template data from API:', templateData)
+        console.log('[TASK-EDIT] 🔍 Raw template_days_of_week:', templateData.template_days_of_week)
+        console.log('[TASK-EDIT] 🔍 Raw template_frequency_type:', templateData.template_frequency_type)
+        
+        // Use template data as source of truth
+        templateDays = normalizeWeekdays(templateData.template_days_of_week || [])
+        frequencyType = templateData.template_frequency_type || 'weekly'
+        hasException = templateData.has_exception_for_date || false
+        
+        console.log('[TASK-EDIT] ✅ Using fresh template data:', {
+          templateDays,
+          frequencyType,
+          hasException,
+          rawTemplateDays: templateData.template_days_of_week,
+          rawFrequencyType: templateData.template_frequency_type
+        })
+      } catch (error) {
+        console.warn('[TASK-EDIT] ⚠️ Failed to get fresh template data, falling back to state:', error)
+        // Fallback to stale state data
+        frequencyType = getTaskFrequencyType(selectedTaskForEdit.task, recurringTemplates)
+        const templateDaysOfWeek = getTaskDaysOfWeek(selectedTaskForEdit.task, recurringTemplates)
+        templateDays = normalizeWeekdays(templateDaysOfWeek)
+      }
+    } else {
+      // For non-recurring tasks, use task data directly
+      templateDays = normalizeWeekdays(selectedTaskForEdit.task.days_of_week || [])
+      frequencyType = selectedTaskForEdit.task.frequency || 'weekly'
+    }
     
     console.log('[TASK-EDIT] Template-based recurrence data:', {
       templateDays,
