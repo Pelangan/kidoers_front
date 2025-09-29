@@ -187,18 +187,38 @@ export const getTaskDisplayFrequency = (
   task: Task,
   recurringTemplates: RecurringTemplate[]
 ): string => {
-  // If task has a recurring template, use the template's frequency type
+  // If task has a recurring template, use the template's frequency type and days
   if (task.recurring_template_id) {
     const template = recurringTemplates.find(t => t.id === task.recurring_template_id)
     if (template) {
+      const days = template.days_of_week || []
+      
       switch (template.frequency_type) {
         case 'every_day':
           return 'Daily'
         case 'specific_days':
+          if (days.length === 1) {
+            const dayName = days[0].charAt(0).toUpperCase() + days[0].slice(1)
+            return `Every ${dayName}`
+          } else if (days.length === 7) {
+            return 'Daily'
+          } else if (days.length === 5 && 
+                     days.includes('monday') && days.includes('tuesday') && 
+                     days.includes('wednesday') && days.includes('thursday') && 
+                     days.includes('friday') && !days.includes('saturday') && !days.includes('sunday')) {
+            return 'Weekdays'
+          } else if (days.length === 2 && 
+                     days.includes('saturday') && days.includes('sunday') &&
+                     !days.includes('monday') && !days.includes('tuesday') && 
+                     !days.includes('wednesday') && !days.includes('thursday') && !days.includes('friday')) {
+            return 'Weekends'
+          } else {
+            return `Repeats on ${days.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ')}`
+          }
         case 'just_this_day':
-          return 'Specific Days'
+          return 'One-time'
         default:
-          return 'Specific Days'
+          return 'Weekly'
       }
     }
   }
@@ -206,9 +226,10 @@ export const getTaskDisplayFrequency = (
   // For non-recurring tasks, determine based on days_of_week
   const taskDays = task.days_of_week || []
   if (taskDays.length === 1) {
-    return 'Weekly'
+    const dayName = taskDays[0].charAt(0).toUpperCase() + taskDays[0].slice(1)
+    return `Every ${dayName}`
   } else if (taskDays.length > 1) {
-    return 'Specific Days'
+    return `Repeats on ${taskDays.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ')}`
   }
   
   // Default fallback

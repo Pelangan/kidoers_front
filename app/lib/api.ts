@@ -902,6 +902,39 @@ export async function patchRoutineTask(routineId: string, taskId: string, payloa
   });
 }
 
+// Get task data with template information for editing
+export async function getTaskForEdit(routineId: string, taskId: string) {
+  return apiService.makeRequest(`/routines/${routineId}/tasks/${taskId}/for-edit`, {
+    method: "GET",
+  });
+}
+
+// Update task template data
+export async function updateTaskTemplate(routineId: string, taskId: string, payload: {
+  name?: string;
+  description?: string;
+  points?: number;
+  duration_mins?: number;
+  time_of_day?: string;
+  frequency_type?: string;
+  days_of_week?: string[];
+}) {
+  return apiService.makeRequest(`/routines/${routineId}/tasks/${taskId}/template`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+// Update template days directly
+export async function updateTemplateDays(routineId: string, templateId: string, payload: {
+  days_of_week: string[];
+}) {
+  return apiService.makeRequest(`/routines/${routineId}/templates/${templateId}/days`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 // Onboarding step tracking (already exists; keep signature)
 export async function updateOnboardingStep(familyId: string, step: string) {
   return apiService.makeRequest<{

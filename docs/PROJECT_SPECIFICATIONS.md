@@ -515,8 +515,19 @@ The system now supports updating existing multi-member tasks without creating ne
 - **Update Flow**: Uses update API instead of delete/create pattern
 - **UI Updates**: Modifies existing task in calendar view instead of replacing it
 
-### Task Creation API Selection System
-The frontend now intelligently selects the correct API based on task requirements:
+### Unified Recurring Task System
+The system now treats ALL weekly tasks (including single-day weekly tasks) as recurring tasks that must have a `recurring_task_templates` row. Only true one-off tasks bypass templates.
+
+#### Core Principle
+- **Every weekly task** (including tasks that happen on only one day per week) → **MUST have a `recurring_task_templates` row**
+- **True one-off tasks** (single specific date with no weekly repetition) → **Can bypass templates**
+- **Source of truth** for weekly repetition is the template, not `routine_tasks.frequency/days_of_week`
+
+#### Template Creation Logic
+- **Daily Tasks**: Creates `recurring_task_templates` with `frequency_type = 'every_day'` and all 7 days of the week
+- **Weekly Single Day**: Creates templates with `frequency_type = 'specific_days'` and single day (e.g., `['monday']`)
+- **Weekly Multiple Days**: Creates templates with `frequency_type = 'specific_days'` and specified days
+- **Template Linking**: Updates the `routine_tasks` record(s) to reference the created template via `recurring_template_id`
 
 #### API Selection Logic
 - **Single-Member Tasks**: Uses `bulkCreateIndividualTasks` API (`/tasks/bulk-assign`)
@@ -530,16 +541,43 @@ The frontend now intelligently selects the correct API based on task requirement
   - Creates recurring task template and links the single row to it
   - Optimized for multi-member task management
 
-#### Template Creation Logic
-- **Daily Tasks**: Creates `recurring_task_templates` with `frequency_type = 'every_day'` and all 7 days of the week
-- **Specific Days**: Creates templates with `frequency_type = 'specific_days'` and the specified days
-- **Weekly Tasks**: Creates templates with `frequency_type = 'specific_days'` and the selected days
-- **Template Linking**: Updates the `routine_tasks` record(s) to reference the created template via `recurring_template_id`
-
 #### Database Schema Integration
 - **`recurring_task_templates`**: Stores the recurring task definition with frequency and days
 - **`routine_tasks.recurring_template_id`**: Links individual task instances to their template
 - **Consistency**: Ensures all recurring tasks have proper template references for future management
+
+#### Task Rendering & Editing Behavior
+- **Template as Source of Truth**: Task rendering uses `recurring_task_templates.days_of_week` instead of `routine_tasks.days_of_week`
+- **Enhanced Edit Modal**: 
+  - **Dropdown Options**: "Just this day", "Every day", "Select specific days"
+  - **Helper Labels**: Dynamic labels showing recurrence pattern ("Every day", "Every Monday", "Repeats: Mon, Wed, Fri")
+  - **Template-Based Logic**: Modal opens with correct option based on template data
+  - **Validation**: Requires ≥1 day when "Select specific days" is chosen
+  - **Template Updates**: Editing updates `recurring_task_templates` instead of individual task records
+  - **ID Handling**: Properly extracts clean UUIDs from task IDs that may contain day suffixes
+  - **Improved Helper Labels**: Days are sorted chronologically and use readable formats ("Mon, Wed, Fri" instead of random order)
+  - **Template State Sync**: Delete operations refresh recurring templates to ensure edit modal shows correct remaining days
+  - **Task Card Updates**: Task cards now properly update their recurrence text after delete operations by forcing React re-renders
+  - **Backend Template Updates**: Delete operations now properly update `recurring_task_templates` to reflect remaining days and correct `frequency_type`
+  - **API Response Handling**: Fixed frontend to handle new `updateTaskTemplate` API response format (single template object instead of array)
+  - **Template-Task Sync**: `updateTaskTemplate` now updates both template and individual task records to keep them synchronized
+- **UI Refresh Fix**: After template updates, the frontend now reloads calendar tasks from the backend to ensure task names update immediately in the UI
+- **Frequency Labels**: 
+  - 7 days → "Daily"
+  - 1 day → "Every Monday" (or specific day)
+  - 5 weekdays → "Weekdays"
+  - 2 weekend days → "Weekends"
+  - Custom days → "Repeats on Mon, Wed, Fri"
+- **Task Moving**: Moving tasks between days updates the template's `days_of_week` array
+- **Consistency**: All tasks with the same `recurring_template_id` share the same frequency and days
+
+#### Data Migration & Normalization
+- **Migration**: `20250101_normalize_weekly_tasks_to_templates.sql` ensures all existing weekly tasks have templates
+- **Backfill**: Creates `recurring_task_templates` rows for all `routine_tasks` with `frequency IN ('daily', 'weekly')`
+- **Normalization**: Converts `days_of_week` to lowercase and ensures proper array format
+- **Consistency Fix**: `20250101_fix_inconsistent_frequency_type.sql` corrects templates where `frequency_type` doesn't match actual `days_of_week` array
+- **Constraints**: Adds validation to ensure `days_of_week` contains valid weekday names
+- **Idempotent**: Migration can be run multiple times safely without creating duplicates
 
 #### Frontend UI Integration
 - **Immediate UI Updates**: Frontend now properly displays recurring tasks on all specified days immediately after creation
@@ -850,6 +888,11 @@ interface Reward {
 - **`GET /routines/{routine_id}/tasks/with-assignees`**: Get all tasks with assignee information
 - **`PATCH /routines/{routine_id}/tasks/{task_id}/multi-member-update`**: Update existing multi-member task assignments
 - **`POST /routines/{routine_id}/tasks/multi-member-delete`**: Delete task with scope options (time + member scope)
+
+### Enhanced Task Editing API Endpoints
+- **`GET /routines/{routine_id}/tasks/{task_id}/for-edit`**: Get task data with template information for editing modal
+- **`PATCH /routines/{routine_id}/tasks/{task_id}/template`**: Update task template data (recurring_task_templates)
+- **`PATCH /routines/{routine_id}/templates/{template_id}/days`**: Update template days_of_week and automatically adjust frequency_type
 
 ### Full Routine Data API Endpoints
 - **`GET /routines/{routine_id}/full-data`**: Get complete routine data with groups, tasks, assignments, and schedules

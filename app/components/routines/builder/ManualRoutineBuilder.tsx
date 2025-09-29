@@ -10,7 +10,7 @@ import { Badge } from "../../../../components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../../components/ui/dialog"
 import { ArrowLeft, Trash2, Save, GripVertical, User, Folder, Users, Baby, UserCheck, Check, Settings, Move, Plus, Loader2 } from 'lucide-react'
-import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, patchRoutineTask, updateOnboardingStep, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules, assignGroupTemplateToMembers, assignExistingGroupToMembers, getRoutineFullData, bulkUpdateDayOrders, bulkCreateIndividualTasks, bulkUpdateRecurringTasks, bulkDeleteTasks, createMultiMemberTask, updateMultiMemberTaskAssignments, deleteMultiMemberTask } from '../../../lib/api'
+import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, patchRoutineTask, updateOnboardingStep, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules, assignGroupTemplateToMembers, assignExistingGroupToMembers, getRoutineFullData, bulkUpdateDayOrders, bulkCreateIndividualTasks, bulkUpdateRecurringTasks, bulkDeleteTasks, createMultiMemberTask, updateMultiMemberTaskAssignments, deleteMultiMemberTask, getTaskForEdit, updateTaskTemplate, updateTemplateDays } from '../../../lib/api'
 import { useTaskOperations } from '../../../hooks/useTaskOperations'
 import { generateAvatarUrl } from '../../ui/AvatarSelector'
 import RoutineDetailsModal from './RoutineDetailsModal'
@@ -35,6 +35,7 @@ import {
   getTaskDaysOfWeek,
   getTaskDisplayFrequency
 } from './utils/taskUtils'
+import { optionFromTemplate, helperLabel, optionToDays, validateRecurrenceSelection, normalizeWeekdays, extractTaskId, type RecurrenceOption, type Weekday } from './utils/recurrence'
 import { useRoutineData } from './hooks/useRoutineData'
 import { useFamilyMembers } from './hooks/useFamilyMembers'
 import { useCalendarTasks } from './hooks/useCalendarTasks'
@@ -375,6 +376,10 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
       // Update task in backend to new day
       console.log('[MOVE-TASK] 🗑️ Updating task in backend to new day:', toDay)
+      
+      // TODO: For recurring tasks, we should update the template instead of individual task
+      // This would require a simpler API endpoint for updating just the template's days_of_week
+      // For now, we update the individual task and rely on the template system for consistency
       await patchRoutineTask(routineData.id, task.id, { days_of_week: [toDay] })
       console.log('[MOVE-TASK] ✅ Task updated in backend successfully')
 
@@ -481,6 +486,67 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     console.log('[KIDOERS-ROUTINE] 🎯 Pre-selected members for new task:', selectedMemberIds)
   }
 
+  // Handle removing a day from a recurring task (updates template)
+  const handleRemoveDayFromRecurringTask = async (task: Task, dayToRemove: string, memberId: string) => {
+    console.log('[REMOVE-DAY] Removing day from recurring task:', {
+      taskName: task.name,
+      dayToRemove,
+      memberId,
+      recurringTemplateId: task.recurring_template_id
+    })
+    
+    if (!task.recurring_template_id) {
+      console.log('[REMOVE-DAY] ❌ Task has no recurring_template_id, cannot remove day')
+      return
+    }
+    
+    try {
+      // Get routine data
+      const routineData = await ensureRoutineExists()
+      if (!routineData) {
+        setError('Failed to get routine information. Please try again.')
+        return
+      }
+      
+      // Get current template data - extract actual task ID if it contains day suffix
+      const actualTaskId = extractTaskId(task.id)
+      const templateData = await getTaskForEdit(routineData.id, actualTaskId) as any
+      const currentDays = normalizeWeekdays(templateData.template_days_of_week || [])
+      
+      console.log('[REMOVE-DAY] Current template days:', currentDays)
+      
+      // Remove the day from the template
+      const newDays = currentDays.filter(day => day !== dayToRemove.toLowerCase())
+      
+      if (newDays.length === 0) {
+        setError('Cannot remove all days from a recurring task. Delete the task instead.')
+        return
+      }
+      
+      console.log('[REMOVE-DAY] New template days:', newDays)
+      
+      // Update the template
+      const result = await updateTemplateDays(routineData.id, task.recurring_template_id, {
+        days_of_week: newDays
+      }) as any
+      
+      console.log('[REMOVE-DAY] ✅ Template updated:', result)
+      
+      // Refresh the routine data to get updated templates
+      const fullData = await getRoutineFullData(routineData.id)
+      setRecurringTemplates(fullData.recurring_templates || [])
+      
+      // Refresh calendar tasks by triggering a re-fetch
+      // We'll let the useEffect handle the refresh when recurringTemplates changes
+      
+      console.log('[REMOVE-DAY] ✅ Day removed successfully')
+      
+    } catch (error) {
+      console.error('[REMOVE-DAY] ❌ Error removing day:', error)
+      setError('Failed to remove day from recurring task. Please try again.')
+    }
+  }
+
   // Handle edit task - opens the Apply Tasks To modal
   const handleEditTask = async () => {
     if (!selectedTaskForEdit) {
@@ -571,27 +637,44 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       availableTemplates: recurringTemplates.length
     })
     
-    // Determine the correct day selection mode based on frequency type
+    // Use template data as source of truth for recurrence
+    const templateDays = normalizeWeekdays(templateDaysOfWeek)
+    const hasException = false // TODO: Implement exception checking
+    
+    console.log('[TASK-EDIT] Template-based recurrence data:', {
+      templateDays,
+      hasException,
+      templateFrequencyType: frequencyType
+    })
+    
+    // Determine recurrence option from template
+    const recurrenceOption = optionFromTemplate(templateDays, hasException)
+    
+    // Set day selection based on recurrence option
     let daySelectionMode: 'single' | 'everyday' | 'custom' = 'single'
     let selectedDays: string[] = [selectedTaskForEdit.day]
     
-    if (frequencyType === 'every_day') {
+    if (recurrenceOption === 'EVERY_DAY') {
       daySelectionMode = 'everyday'
-      selectedDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-    } else if (frequencyType === 'specific_days') {
+      selectedDays = DAYS_OF_WEEK
+    } else if (recurrenceOption === 'SPECIFIC_DAYS') {
       daySelectionMode = 'custom'
-      // Always use the template days of week for specific_days tasks, as they represent the current state
-      selectedDays = templateDaysOfWeek.length > 0 ? templateDaysOfWeek : taskAppearsOnDays
+      selectedDays = templateDays.length > 0 ? templateDays : taskAppearsOnDays
     } else {
-      // 'just_this_day' - single day task
+      // JUST_THIS_DAY - single day for exceptions
       daySelectionMode = 'single'
       selectedDays = [selectedTaskForEdit.day]
     }
     
-    console.log('[TASK-EDIT] Final day selection:', { mode: daySelectionMode, selectedDays })
+    console.log('[TASK-EDIT] Final day selection based on template:', { 
+      recurrenceOption, 
+      mode: daySelectionMode, 
+      selectedDays,
+      templateDays,
+      hasException
+    })
     
     // Initialize day selection with the correct mode based on template frequency
-    // This will be set immediately before opening the modal
     setDaySelection({ mode: daySelectionMode, selectedDays: selectedDays })
     
     console.log('[TASK-EDIT] ===== EDIT TASK DEBUG END =====')
@@ -612,7 +695,10 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     }, 0)
   }
 
-  // Handle delete task
+  // Handle delete scope change (no real-time preview)
+  const handleDeleteScopeChange = (newScope: 'this_day' | 'this_and_following' | 'all_days') => {
+    setDeleteScope(newScope)
+  }
   const handleDeleteTask = async () => {
     if (!selectedTaskForEdit) return
     
@@ -726,45 +812,45 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         })
         
         if (shouldUseBulkDelete) {
-          // Check if this is a multi-member task (new system) or legacy bulk task (old system)
-          const isMultiMemberTask = taskToDelete.task.routine_task_id && (taskToDelete.task.member_count || 0) > 1
+          // For recurring tasks, handle different scopes appropriately
+          console.log('[TASK-DELETE] 🗑️ Handling recurring task deletion:', taskToDelete.task.name)
           
-          console.log('[TASK-DELETE] 🗑️ Using delete for recurring task:', taskToDelete.task.name)
-          console.log('[TASK-DELETE] 🔍 Task details:', {
-            id: taskToDelete.task.id,
-            routine_task_id: taskToDelete.task.routine_task_id,
-            member_count: taskToDelete.task.member_count,
-            isMultiMemberTask,
-            recurring_template_id: taskToDelete.task.recurring_template_id,
-            template_id: taskToDelete.task.template_id,
-            is_system: taskToDelete.task.is_system
-          })
-          
-          if (isMultiMemberTask) {
-            // Use multi-member delete API for new multi-member tasks
-            console.log('[TASK-DELETE] 🔄 Using multi-member delete API')
-            
-            // Convert scope to multi-member API format
-            let deleteScope: "this_occurrence" | "this_and_following" | "all_occurrences"
-            if (scope === 'this_day') {
-              deleteScope = 'this_occurrence'
-            } else if (scope === 'this_and_following') {
-              deleteScope = 'this_and_following'
-            } else {
-              deleteScope = 'all_occurrences'
-            }
-            
-            const result = await deleteMultiMemberTask(routineData.id, {
-              routine_task_id: taskToDelete.task.routine_task_id!,
-              delete_scope: deleteScope,
-              member_scope: 'this_member',
-              target_member_id: taskToDelete.memberId,
-              target_date: scope === 'this_day' ? new Date().toISOString().split('T')[0] : undefined
-            })
-            console.log('[TASK-DELETE] ✅ Multi-member delete result:', result)
+          if (scope === 'this_day' && taskToDelete.task.recurring_template_id) {
+            // For "this day only" on recurring tasks, remove the day from the template
+            console.log('[TASK-DELETE] 🔄 Removing day from recurring template')
+            await handleRemoveDayFromRecurringTask(taskToDelete.task, taskToDelete.day, taskToDelete.memberId)
           } else {
-            // Use legacy bulk delete for old system tasks
-            console.log('[TASK-DELETE] 🔄 Using legacy bulk delete API')
+            // For "this and following" or "all days", use bulk delete
+            console.log('[TASK-DELETE] 🔄 Using bulk delete for scope:', scope)
+            
+            // Check if this is a multi-member task (new system) or legacy bulk task (old system)
+            const isMultiMemberTask = taskToDelete.task.routine_task_id && (taskToDelete.task.member_count || 0) > 1
+            
+            if (isMultiMemberTask) {
+              // Use multi-member delete API for new multi-member tasks
+              console.log('[TASK-DELETE] 🔄 Using multi-member delete API')
+              
+              // Convert scope to multi-member API format
+              let deleteScope: "this_occurrence" | "this_and_following" | "all_occurrences"
+              if (scope === 'this_day') {
+                deleteScope = 'this_occurrence'
+              } else if (scope === 'this_and_following') {
+                deleteScope = 'this_and_following'
+              } else {
+                deleteScope = 'all_occurrences'
+              }
+              
+              const result = await deleteMultiMemberTask(routineData.id, {
+                routine_task_id: taskToDelete.task.routine_task_id!,
+                delete_scope: deleteScope,
+                member_scope: 'this_member',
+                target_member_id: taskToDelete.memberId,
+                target_date: scope === 'this_day' ? new Date().toISOString().split('T')[0] : undefined
+              })
+              console.log('[TASK-DELETE] ✅ Multi-member delete result:', result)
+            } else {
+              // Use legacy bulk delete for old system tasks
+              console.log('[TASK-DELETE] 🔄 Using legacy bulk delete API')
             
             // For recurring tasks, we need to use the recurring_template_id, not the individual task id
             let taskTemplateId = taskToDelete.task.recurring_template_id || taskToDelete.task.template_id
@@ -797,6 +883,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
             // Log cleanup results
             if (result.cleaned_templates && result.cleaned_templates.length > 0) {
               console.log('[TASK-DELETE] 🧹 Cleaned up orphaned templates:', result.cleaned_templates)
+            }
             }
           }
         } else {
@@ -908,6 +995,22 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           }
         }
         
+        // Refresh recurring templates to get updated data from backend
+        if (currentRoutineId) {
+          console.log('[TASK-DELETE] 🔄 Refreshing recurring templates after deletion...')
+          try {
+            const fullData = await getRoutineFullData(currentRoutineId)
+            // Force a new array reference to ensure React re-renders
+            setRecurringTemplates([...(fullData.recurring_templates || [])])
+            console.log('[TASK-DELETE] ✅ Updated recurring templates:', fullData.recurring_templates)
+            
+            // Force a re-render of calendar tasks to ensure task cards update
+            setCalendarTasks(prev => ({ ...prev }))
+          } catch (error) {
+            console.warn('[TASK-DELETE] ⚠️ Failed to refresh recurring templates:', error)
+          }
+        }
+        
         const message = scope === 'this_day' ? 'Task deleted' : 
                        scope === 'this_and_following' ? 'Task deleted from this day onwards' : 
                        'All task instances deleted'
@@ -1001,71 +1104,58 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
         // Check if we're editing an existing recurring task
         if (isEditingRecurringTask && selectedTaskForEdit) {
-          console.log('[KIDOERS-ROUTINE] 🔄 Updating existing recurring task');
+          console.log('[KIDOERS-ROUTINE] 🔄 Updating existing recurring task with template-based approach');
           
           const task = pendingDrop.item as Task;
-          const updatePayload = {
-            recurring_template_id: selectedTaskForEdit.task.recurring_template_id!,
-            task_template: {
-              name: editableTaskName || task.name,
-              description: task.description || undefined,
-              points: task.points,
-              duration_mins: task.estimatedMinutes,
-              time_of_day: task.time_of_day || undefined,
-              from_task_template_id: task.is_system ? task.id : undefined
-            },
-            assignments: targetMemberIds.map(memberId => ({
-              member_id: memberId,
-              days_of_week: targetDays,
-              order_index: 0
-            })),
-            new_days_of_week: targetDays
+          
+          // Validate day selection
+          const validationError = validateRecurrenceSelection(
+            daySelection.mode === 'single' ? 'JUST_THIS_DAY' : 
+            daySelection.mode === 'everyday' ? 'EVERY_DAY' : 'SPECIFIC_DAYS',
+            normalizeWeekdays(targetDays)
+          )
+          
+          if (validationError) {
+            setError(validationError)
+            return
+          }
+          
+          // Update template data using new API
+          // The backend will automatically determine frequency_type based on days_of_week
+          const templateUpdatePayload = {
+            name: editableTaskName || task.name,
+            description: task.description || undefined,
+            points: task.points,
+            duration_mins: task.estimatedMinutes,
+            time_of_day: task.time_of_day || undefined,
+            days_of_week: normalizeWeekdays(targetDays)
           };
 
-          console.log('[KIDOERS-ROUTINE] 📦 Recurring update payload:', updatePayload);
+          console.log('[KIDOERS-ROUTINE] 📦 Template update payload:', templateUpdatePayload);
 
-          // Call the recurring task update API
-          const result = await bulkUpdateRecurringTasks(routineData.id, updatePayload);
-          console.log('[KIDOERS-ROUTINE] ✅ Recurring task update result:', result);
+          // Call the new template update API - extract actual task ID if it contains day suffix
+          const actualTaskId = extractTaskId(selectedTaskForEdit.task.id)
+          const result = await updateTaskTemplate(routineData.id, actualTaskId, templateUpdatePayload) as any;
+          console.log('[KIDOERS-ROUTINE] ✅ Template update result:', result);
 
-          // Update UI with the changes
-          // First, remove all existing tasks for this recurring template
-          const newCalendarTasks = { ...calendarTasks };
-          Object.keys(newCalendarTasks).forEach(day => {
-            newCalendarTasks[day] = {
-              ...newCalendarTasks[day],
-              individualTasks: newCalendarTasks[day].individualTasks.filter(task => 
-                task.recurring_template_id !== selectedTaskForEdit.task.recurring_template_id
-              )
-            };
-          });
-
-          // Add the updated tasks
-          for (const updatedTask of result.updated_tasks) {
-            const day = updatedTask.days_of_week[0]; // Each task is for one day
-            if (!newCalendarTasks[day]) {
-              newCalendarTasks[day] = { individualTasks: [], groups: [] };
-            }
-            
-            // Add task to UI for each assigned member
-            for (const assignment of updatedTask.assignments) {
-              const taskForUI = {
-                ...updatedTask,
-                memberId: assignment.member_id,
-                is_saved: true,
-                template_id: updatedTask.recurring_template_id || undefined,
-                recurring_template_id: updatedTask.recurring_template_id || undefined,
-                from_group: undefined,
-                estimatedMinutes: updatedTask.duration_mins || 5,
-                time_of_day: updatedTask.time_of_day as "morning" | "afternoon" | "evening" | "night" | undefined
-              };
-              
-              newCalendarTasks[day].individualTasks.push(taskForUI);
-            }
+          // Refresh recurring templates to get updated data
+          console.log('[KIDOERS-ROUTINE] 🔄 Refreshing recurring templates after update...')
+          try {
+            const fullData = await getRoutineFullData(routineData.id)
+            setRecurringTemplates([...(fullData.recurring_templates || [])])
+            console.log('[KIDOERS-ROUTINE] ✅ Updated recurring templates:', fullData.recurring_templates)
+          } catch (error) {
+            console.warn('[KIDOERS-ROUTINE] ⚠️ Failed to refresh recurring templates:', error)
           }
 
-          setCalendarTasks(newCalendarTasks);
-          console.log('[KIDOERS-ROUTINE] ✅ Updated calendar tasks for recurring task');
+          // Reload calendar tasks from backend to get updated task names
+          console.log('[KIDOERS-ROUTINE] 🔄 Reloading calendar tasks from backend...')
+          try {
+            await loadExistingRoutineData(routineData.id, familyMembers)
+            console.log('[KIDOERS-ROUTINE] ✅ Calendar tasks reloaded with updated names')
+          } catch (error) {
+            console.warn('[KIDOERS-ROUTINE] ⚠️ Failed to reload calendar tasks:', error)
+          }
 
           // Close modal and reset state
           setShowApplyToPopup(false);
@@ -1202,26 +1292,12 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         let days_of_week: string[] | undefined = undefined
         
         if (daySelection.mode === 'single') {
-          frequency = "one_off"
-          // For one-off tasks, set the days_of_week to the target day
+          // Single-day tasks are now treated as weekly recurring tasks (not one_off)
+          frequency = "weekly"
           days_of_week = [pendingDrop.targetDay]
           
-          // Convert day name to actual date for this week
-          const dayName = pendingDrop.targetDay
-          const today = new Date()
-          const currentDay = today.getDay() // 0 = Sunday, 1 = Monday, etc.
-          const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-          const targetDayIndex = dayNames.indexOf(dayName)
-          
-          if (targetDayIndex !== -1) {
-            const daysUntilTarget = (targetDayIndex - currentDay + 7) % 7
-            const targetDate = new Date(today)
-            targetDate.setDate(today.getDate() + daysUntilTarget)
-            date = targetDate.toISOString().split('T')[0] // Format as YYYY-MM-DD
-          } else {
-            // Fallback to today if day name not found
-            date = today.toISOString().split('T')[0]
-          }
+          // No need to set date for weekly recurring tasks
+          date = undefined
         } else if (daySelection.mode === 'everyday') {
           frequency = "daily"
           days_of_week = DAYS_OF_WEEK
@@ -2057,6 +2133,21 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                   </SelectContent>
                 </Select>
                 
+                {/* Helper Label */}
+                {(() => {
+                  const templateDays = normalizeWeekdays(daySelection.selectedDays)
+                  const hasException = false // TODO: Implement exception checking
+                  const helperText = helperLabel(templateDays, hasException)
+                  
+                  return (
+                    <div className="ml-6">
+                      <div className="text-sm text-gray-600 italic">
+                        {helperText}
+                      </div>
+                    </div>
+                  )
+                })()}
+                
                 {/* Custom Day Selection */}
                 {daySelection.mode === 'custom' && (
                   <div className="ml-6 space-y-2">
@@ -2097,6 +2188,13 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                         )
                       })}
                     </div>
+                    
+                    {/* Validation Error */}
+                    {daySelection.mode === 'custom' && daySelection.selectedDays.length === 0 && (
+                      <div className="text-sm text-red-600 mt-2">
+                        Select at least one day
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -2163,7 +2261,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
               <div className="flex justify-end pt-4 border-t border-gray-200">
                 <Button
                   onClick={() => handleApplyToSelection()}
-                  disabled={isCreatingTasks}
+                  disabled={isCreatingTasks || (daySelection.mode === 'custom' && daySelection.selectedDays.length === 0)}
                   className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isCreatingTasks ? (
@@ -2297,7 +2395,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                     name="delete-scope"
                     value="this_day"
                     checked={deleteScope === 'this_day'}
-                    onChange={(e) => setDeleteScope(e.target.value as 'this_day')}
+                    onChange={(e) => handleDeleteScopeChange(e.target.value as 'this_day')}
                     className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
                   />
                   <label htmlFor="this-event" className="text-sm font-medium text-gray-700 cursor-pointer">
@@ -2311,7 +2409,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                     name="delete-scope"
                     value="this_and_following"
                     checked={deleteScope === 'this_and_following'}
-                    onChange={(e) => setDeleteScope(e.target.value as 'this_and_following')}
+                    onChange={(e) => handleDeleteScopeChange(e.target.value as 'this_and_following')}
                     className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
                   />
                   <label htmlFor="this-and-following" className="text-sm font-medium text-gray-700 cursor-pointer">
@@ -2325,7 +2423,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                     name="delete-scope"
                     value="all_days"
                     checked={deleteScope === 'all_days'}
-                    onChange={(e) => setDeleteScope(e.target.value as 'all_days')}
+                    onChange={(e) => handleDeleteScopeChange(e.target.value as 'all_days')}
                     className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
                   />
                   <label htmlFor="all-events" className="text-sm font-medium text-gray-700 cursor-pointer">
