@@ -69,24 +69,17 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       }
     }
 
-    // For multi-member tasks, use the color of the first assignee
-    if (task.assignees && task.assignees.length > 0) {
-      const firstAssignee = task.assignees[0]
-      const member = familyMembers.find(m => m.id === firstAssignee.id)
-      if (member && getMemberColors) {
-        const colors = getMemberColors(member.color)
-        console.log('[KIDOERS-ROUTINE] 🎨 Multi-member task color:', { 
-          taskName: task.name, 
-          memberName: member.name, 
-          memberColor: member.color, 
-          borderColor: colors.borderColor 
-        })
-        return {
-          bg: colors.bg,
-          border: `border-l-4`,
-          borderColor: colors.borderColor,
-          text: 'text-gray-900'
-        }
+    // For multi-member tasks, use a neutral gray color scheme
+    if (task.assignees && task.assignees.length > 1) {
+      console.log('[KIDOERS-ROUTINE] 🎨 Multi-member task color:', { 
+        taskName: task.name, 
+        assigneesCount: task.assignees.length
+      })
+      return {
+        bg: 'bg-white',
+        border: `border-l-4`,
+        borderColor: '#6B7280', // Gray-500
+        text: 'text-gray-900'
       }
     }
 

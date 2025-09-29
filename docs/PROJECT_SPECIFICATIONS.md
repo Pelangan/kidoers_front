@@ -568,6 +568,7 @@ The system now treats ALL weekly tasks (including single-day weekly tasks) as re
 - **Multi-Member Task Card Styling Rollback**: Reverted multi-member task card styling changes to maintain original behavior
 - **React Key Duplication Fix**: Fixed duplicate React keys issue for multi-member tasks by including member ID and day in unique keys
 - **Multi-Member Task Display Fix**: Fixed issue where multi-member tasks were not showing multiple avatars and count badges. The problem was that recurring tasks were not including `assignees` data when being loaded into the calendar. Now both one-off and recurring tasks properly include `member_count` and `assignees` data for correct multi-member visualization.
+- **Multi-Member Task Color Scheme**: Multi-member tasks now use a neutral gray color scheme (white background with gray left border) to distinguish them from individual member tasks, which use the member's assigned color.
 - **Frequency Labels**: 
   - 7 days → "Daily"
   - 1 day → "Every Monday" (or specific day)
