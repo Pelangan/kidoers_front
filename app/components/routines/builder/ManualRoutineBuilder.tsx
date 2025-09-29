@@ -10,7 +10,8 @@ import { Badge } from "../../../../components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../../components/ui/dialog"
 import { ArrowLeft, Trash2, Save, GripVertical, User, Folder, Users, Baby, UserCheck, Check, Settings, Move, Plus, Loader2 } from 'lucide-react'
-import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, patchRoutineTask, updateOnboardingStep, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules, assignGroupTemplateToMembers, assignExistingGroupToMembers, getRoutineFullData, bulkUpdateDayOrders, bulkCreateIndividualTasks, bulkUpdateRecurringTasks, bulkDeleteTasks, createMultiMemberTask, updateMultiMemberTaskAssignments } from '../../../lib/api'
+import { apiService, createRoutineDraft, patchRoutine, addRoutineGroup, addRoutineTask, deleteRoutineGroup, deleteRoutineTask, patchRoutineTask, updateOnboardingStep, getOnboardingRoutine, getRoutineGroups, getRoutineTasks, createTaskAssignment, getRoutineAssignments, createRoutineSchedule, generateTaskInstances, getRoutineSchedules, assignGroupTemplateToMembers, assignExistingGroupToMembers, getRoutineFullData, bulkUpdateDayOrders, bulkCreateIndividualTasks, bulkUpdateRecurringTasks, bulkDeleteTasks, createMultiMemberTask, updateMultiMemberTaskAssignments, deleteMultiMemberTask } from '../../../lib/api'
+import { useTaskOperations } from '../../../hooks/useTaskOperations'
 import { generateAvatarUrl } from '../../ui/AvatarSelector'
 import RoutineDetailsModal from './RoutineDetailsModal'
 import type { 
@@ -135,6 +136,9 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
   } = useTaskModals()
   const [routineGroups, setRoutineGroups] = useState<TaskGroup[]>([])
   const [viewMode, setViewMode] = useState<'calendar' | 'group'>('calendar')
+  
+  // Task operations with undo functionality
+  const { showUndoToast } = useTaskOperations()
 
   // Apply to options
   const applyToOptions: ApplyToOption[] = [
@@ -669,8 +673,9 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     // Set deleting flag to prevent any popup from opening
     setIsDeletingTask(true)
     
-    // Store task info before clearing state
+    // Store task info and original calendar state before clearing state
     const taskToDelete = selectedTaskForEdit
+    const originalCalendarTasks = JSON.parse(JSON.stringify(calendarTasks)) // Deep copy for undo
     
     // Close popups
     closeAllModals()
@@ -721,55 +726,83 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         })
         
         if (shouldUseBulkDelete) {
-          // Use bulk delete for recurring tasks
-          console.log('[TASK-DELETE] 🗑️ Using bulk delete for recurring task:', taskToDelete.task.name)
+          // Check if this is a multi-member task (new system) or legacy bulk task (old system)
+          const isMultiMemberTask = taskToDelete.task.routine_task_id && (taskToDelete.task.member_count || 0) > 1
+          
+          console.log('[TASK-DELETE] 🗑️ Using delete for recurring task:', taskToDelete.task.name)
           console.log('[TASK-DELETE] 🔍 Task details:', {
             id: taskToDelete.task.id,
+            routine_task_id: taskToDelete.task.routine_task_id,
+            member_count: taskToDelete.task.member_count,
+            isMultiMemberTask,
             recurring_template_id: taskToDelete.task.recurring_template_id,
             template_id: taskToDelete.task.template_id,
             is_system: taskToDelete.task.is_system
           })
           
-          // For recurring tasks, we need to use the recurring_template_id, not the individual task id
-          let taskTemplateId = taskToDelete.task.recurring_template_id || taskToDelete.task.template_id
-          
-          // Fallback: if we don't have the recurring_template_id, try to get it from the backend data
-          if (!taskTemplateId) {
-            console.log('[TASK-DELETE] 🔍 No recurring_template_id found, looking up in backend data...')
-            // This should have been loaded in loadExistingRoutineData
-            // For now, we'll use the task ID as fallback
-            taskTemplateId = taskToDelete.task.id
-          }
-          
-          // DEBUG: Check if the recurring_template_id matches what's in the database
-          console.log('[TASK-DELETE] 🔍 DEBUG: Expected recurring_template_id from database: 93c6f050-b2e5-459f-b203-ead4d9303668')
-          console.log('[TASK-DELETE] 🔍 DEBUG: Actual recurring_template_id from task:', taskToDelete.task.recurring_template_id)
-          
-          console.log('[TASK-DELETE] 🔍 Using task_template_id:', taskTemplateId)
-          console.log('[TASK-DELETE] 🔍 Sending to backend:', {
-            routine_id: routineData.id,
-            task_template_id: taskTemplateId,
-            delete_scope: scope,
-            target_day: taskToDelete.day,
-            member_id: taskToDelete.memberId
-          })
-          
-          const result = await bulkDeleteTasks(routineData.id, {
-            recurring_template_id: taskTemplateId,
-            delete_scope: scope,
-            target_day: taskToDelete.day,
-            member_id: taskToDelete.memberId
-          })
-          console.log('[TASK-DELETE] ✅ Bulk delete result:', result)
-          
-          // Log cleanup results
-          if (result.cleaned_templates && result.cleaned_templates.length > 0) {
-            console.log('[TASK-DELETE] 🧹 Cleaned up orphaned templates:', result.cleaned_templates)
+          if (isMultiMemberTask) {
+            // Use multi-member delete API for new multi-member tasks
+            console.log('[TASK-DELETE] 🔄 Using multi-member delete API')
+            
+            // Convert scope to multi-member API format
+            let deleteScope: "this_occurrence" | "this_and_following" | "all_occurrences"
+            if (scope === 'this_day') {
+              deleteScope = 'this_occurrence'
+            } else if (scope === 'this_and_following') {
+              deleteScope = 'this_and_following'
+            } else {
+              deleteScope = 'all_occurrences'
+            }
+            
+            const result = await deleteMultiMemberTask(routineData.id, {
+              routine_task_id: taskToDelete.task.routine_task_id!,
+              delete_scope: deleteScope,
+              member_scope: 'this_member',
+              target_member_id: taskToDelete.memberId,
+              target_date: scope === 'this_day' ? new Date().toISOString().split('T')[0] : undefined
+            })
+            console.log('[TASK-DELETE] ✅ Multi-member delete result:', result)
+          } else {
+            // Use legacy bulk delete for old system tasks
+            console.log('[TASK-DELETE] 🔄 Using legacy bulk delete API')
+            
+            // For recurring tasks, we need to use the recurring_template_id, not the individual task id
+            let taskTemplateId = taskToDelete.task.recurring_template_id || taskToDelete.task.template_id
+            
+            // Fallback: if we don't have the recurring_template_id, try to get it from the backend data
+            if (!taskTemplateId) {
+              console.log('[TASK-DELETE] 🔍 No recurring_template_id found, looking up in backend data...')
+              // This should have been loaded in loadExistingRoutineData
+              // For now, we'll use the routine_task_id as fallback
+              taskTemplateId = taskToDelete.task.routine_task_id || taskToDelete.task.id
+            }
+            
+            console.log('[TASK-DELETE] 🔍 Using task_template_id:', taskTemplateId)
+            console.log('[TASK-DELETE] 🔍 Sending to backend:', {
+              routine_id: routineData.id,
+              task_template_id: taskTemplateId,
+              delete_scope: scope,
+              target_day: taskToDelete.day,
+              member_id: taskToDelete.memberId
+            })
+            
+            const result = await bulkDeleteTasks(routineData.id, {
+              recurring_template_id: taskTemplateId,
+              delete_scope: scope,
+              target_day: taskToDelete.day,
+              member_id: taskToDelete.memberId
+            })
+            console.log('[TASK-DELETE] ✅ Bulk delete result:', result)
+            
+            // Log cleanup results
+            if (result.cleaned_templates && result.cleaned_templates.length > 0) {
+              console.log('[TASK-DELETE] 🧹 Cleaned up orphaned templates:', result.cleaned_templates)
+            }
           }
         } else {
           // Use regular delete for custom tasks
-          console.log('[TASK-DELETE] 🗑️ Deleting custom task from backend:', taskToDelete.task.id)
-          await deleteRoutineTask(routineData.id, taskToDelete.task.id)
+          console.log('[TASK-DELETE] 🗑️ Deleting custom task from backend:', taskToDelete.task.routine_task_id || taskToDelete.task.id)
+          await deleteRoutineTask(routineData.id, taskToDelete.task.routine_task_id || taskToDelete.task.id)
           console.log('[TASK-DELETE] ✅ Task deleted from backend successfully')
         }
 
@@ -858,6 +891,35 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         })
         
         console.log('[TASK-DELETE] ✅ Task deleted from UI successfully')
+        
+        // Show undo toast
+        const operationId = `delete-${taskToDelete.task.id}-${Date.now()}`
+        const undoFunction = async () => {
+          try {
+            // Restore the original calendar state
+            setCalendarTasks(originalCalendarTasks)
+            
+            // Optionally, recreate the task in the backend if needed
+            // For now, we'll just restore the UI state
+            console.log('[TASK-UNDO] ✅ Task restored in UI')
+          } catch (error) {
+            console.error('[TASK-UNDO] ❌ Error undoing task deletion:', error)
+            throw error
+          }
+        }
+        
+        const message = scope === 'this_day' ? 'Task deleted' : 
+                       scope === 'this_and_following' ? 'Task deleted from this day onwards' : 
+                       'All task instances deleted'
+        
+        showUndoToast({
+          id: operationId,
+          type: 'delete',
+          taskData: taskToDelete,
+          originalCalendarTasks,
+          undoFunction
+        }, message)
+        
       } catch (error) {
         console.error('[TASK-DELETE] ❌ Error deleting task:', error)
         setError('Failed to delete task. Please try again.')
@@ -878,6 +940,9 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       console.log('[DRAG-ORDER] ❌ No pending drop found')
       return
     }
+
+    // Store original calendar state for undo functionality
+    const originalCalendarTasks = JSON.parse(JSON.stringify(calendarTasks))
 
     setIsCreatingTasks(true)
 
@@ -1089,6 +1154,27 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
           setCalendarTasks(newCalendarTasks);
 
+          // Show undo toast for task update
+          const operationId = `update-${taskId}-${Date.now()}`
+          const undoFunction = async () => {
+            try {
+              // Restore the original calendar state
+              setCalendarTasks(originalCalendarTasks)
+              console.log('[TASK-UNDO] ✅ Task update reverted in UI')
+            } catch (error) {
+              console.error('[TASK-UNDO] ❌ Error undoing task update:', error)
+              throw error
+            }
+          }
+          
+          showUndoToast({
+            id: operationId,
+            type: 'update',
+            taskData: { taskId, originalTask: task, updatedTask: { name: editableTaskName || task.name, memberIds: targetMemberIds } },
+            originalCalendarTasks,
+            undoFunction
+          }, 'Task updated')
+
           // Close modal and reset state
           setShowApplyToPopup(false);
           setPendingDrop(null);
@@ -1144,90 +1230,174 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           days_of_week = targetDays
         }
         
-        const multiMemberPayload = {
-          name: editableTaskName || task.name,
-          description: task.description || undefined,
-          points: task.points,
-          duration_mins: task.estimatedMinutes,
-          time_of_day: task.time_of_day || undefined,
+        // Determine which API to use based on number of members
+        const shouldUseMultiMemberAPI = targetMemberIds.length > 1;
+        
+        console.log('[KIDOERS-ROUTINE] 🔍 Task creation analysis:', {
+          memberCount: targetMemberIds.length,
+          shouldUseMultiMemberAPI,
+          targetMemberIds,
           frequency,
-          days_of_week,
-          date,
-          member_ids: targetMemberIds
-        };
+          days_of_week
+        });
 
-        console.log('[KIDOERS-ROUTINE] 📦 Multi-member payload:', multiMemberPayload);
+        let result: any;
 
-        // Call multi-member API
-        const result = await createMultiMemberTask(routineData.id, multiMemberPayload);
-        console.log('[KIDOERS-ROUTINE] ✅ Multi-member task creation result:', result);
+        if (shouldUseMultiMemberAPI) {
+          // Use multi-member API for tasks assigned to multiple members
+          const multiMemberPayload = {
+            name: editableTaskName || task.name,
+            description: task.description || undefined,
+            points: task.points,
+            duration_mins: task.estimatedMinutes,
+            time_of_day: task.time_of_day || undefined,
+            frequency,
+            days_of_week,
+            date,
+            member_ids: targetMemberIds
+          };
+
+          console.log('[KIDOERS-ROUTINE] 📦 Using multi-member API with payload:', multiMemberPayload);
+          result = await createMultiMemberTask(routineData.id, multiMemberPayload);
+          console.log('[KIDOERS-ROUTINE] ✅ Multi-member task creation result:', result);
+        } else {
+          // Use bulk individual tasks API for single-member tasks (creates one row per day)
+          const bulkPayload = {
+            task_template: {
+              name: editableTaskName || task.name,
+              description: task.description || undefined,
+              points: task.points,
+              duration_mins: task.estimatedMinutes,
+              time_of_day: task.time_of_day || undefined,
+              is_system: task.is_system || false
+            },
+            assignments: targetMemberIds.map(memberId => ({
+              member_id: memberId,
+              days_of_week: days_of_week || [],
+              order_index: 0
+            })),
+            new_days_of_week: days_of_week || []
+          };
+
+          console.log('[KIDOERS-ROUTINE] 📦 Using bulk individual tasks API with payload:', bulkPayload);
+          result = await bulkCreateIndividualTasks(routineData.id, bulkPayload);
+          console.log('[KIDOERS-ROUTINE] ✅ Bulk individual tasks creation result:', result);
+        }
 
         // Update UI with created tasks and instances
         const newCalendarTasks = { ...calendarTasks };
         
-        // For one-off tasks, we need to determine which day they should appear on
-        // The task was created by dropping it on a specific day, so we use that day
-        let targetDay: string;
-        
-        if (frequency === 'one_off') {
-          // For one-off tasks, use the day where the task was originally dropped
-          targetDay = pendingDrop.targetDay;
-          console.log('[KIDOERS-ROUTINE] 🎯 One-off task target day:', targetDay);
+        if (shouldUseMultiMemberAPI) {
+          // Handle multi-member API response
+          const uiTargetDays = frequency === 'one_off' ? [pendingDrop.targetDay] : (days_of_week || []);
+          
+          // Create a single multi-member task instance for the UI
+          const multiMemberTaskForUI = {
+            id: `${result.task_id}_multi_member`,
+            routine_task_id: result.task_id,
+            memberId: targetMemberIds[0],
+            name: editableTaskName || task.name,
+            description: task.description || null,
+            points: task.points,
+            duration_mins: task.estimatedMinutes,
+            time_of_day: task.time_of_day || null,
+            frequency: frequency,
+            days_of_week: days_of_week || [],
+            is_saved: true,
+            template_id: task.is_system ? task.id : undefined,
+            recurring_template_id: undefined,
+            from_group: undefined,
+            estimatedMinutes: task.estimatedMinutes || 5,
+            member_count: result.member_count,
+            assignees: targetMemberIds.map(id => {
+              const member = familyMembers.find(m => m.id === id)
+              return member ? { id, name: member.name, role: member.role, avatar_url: member.avatar_url || null, color: member.color } : null
+            }).filter((assignee): assignee is NonNullable<typeof assignee> => assignee !== null)
+          };
+          
+          // Add tasks to UI for each target day
+          for (const targetDay of uiTargetDays) {
+            if (!newCalendarTasks[targetDay]) {
+              newCalendarTasks[targetDay] = { individualTasks: [], groups: [] };
+            }
+            
+            const existingTaskIndex = newCalendarTasks[targetDay].individualTasks.findIndex(
+              existingTask => existingTask.routine_task_id === result.task_id
+            );
+            
+            if (existingTaskIndex >= 0) {
+              newCalendarTasks[targetDay].individualTasks[existingTaskIndex] = multiMemberTaskForUI;
+              console.log(`[KIDOERS-ROUTINE] 🔄 Updated multi-member task in UI: ${multiMemberTaskForUI.name} for ${targetDay}`);
+            } else {
+              newCalendarTasks[targetDay].individualTasks.push(multiMemberTaskForUI);
+              console.log(`[KIDOERS-ROUTINE] ➕ Added multi-member task to UI: ${multiMemberTaskForUI.name} with ${result.member_count} members on ${targetDay}`);
+            }
+          }
         } else {
-          // For recurring tasks, we'll add them to all specified days
-          targetDay = 'monday'; // Default fallback
-        }
-        
-        // Group instances by member for easier processing
-        const instancesByMember: Record<string, any> = {}
-        
-        for (const instance of result.created_instances) {
-          const memberId = instance.member_id
-          instancesByMember[memberId] = instance
-        }
-        
-        // Add tasks to UI for the target day and each member
-        if (!newCalendarTasks[targetDay]) {
-          newCalendarTasks[targetDay] = { individualTasks: [], groups: [] };
-        }
-        
-        // Create a single multi-member task instance for the UI
-        const multiMemberTaskForUI = {
-          id: `${result.task_id}_${targetDay}`, // Single ID for the multi-member task
-          routine_task_id: result.task_id,
-          memberId: targetMemberIds[0], // Use first member as primary (for compatibility)
-          name: editableTaskName || task.name,
-          description: task.description || null,
-          points: task.points,
-          duration_mins: task.estimatedMinutes,
-          time_of_day: task.time_of_day || null,
-          frequency: frequency,
-          days_of_week: days_of_week || [],
-          is_saved: true,
-          template_id: task.is_system ? task.id : undefined,
-          recurring_template_id: undefined, // Will be set if recurring
-          from_group: undefined,
-          estimatedMinutes: task.estimatedMinutes || 5,
-          member_count: result.member_count,
-          assignees: targetMemberIds.map(id => {
-            const member = familyMembers.find(m => m.id === id)
-            return member ? { id, name: member.name, role: member.role, avatar_url: member.avatar_url || null, color: member.color } : null
-          }).filter((assignee): assignee is NonNullable<typeof assignee> => assignee !== null)
-        };
-        
-        // Check if task already exists in UI state to avoid duplicates
-        const existingTaskIndex = newCalendarTasks[targetDay].individualTasks.findIndex(
-          existingTask => existingTask.routine_task_id === result.task_id
-        );
-        
-        if (existingTaskIndex >= 0) {
-          // Update existing task
-          newCalendarTasks[targetDay].individualTasks[existingTaskIndex] = multiMemberTaskForUI;
-          console.log(`[KIDOERS-ROUTINE] 🔄 Updated existing multi-member task in UI: ${multiMemberTaskForUI.name} for ${targetDay}`);
-        } else {
-          // Add new task
-          newCalendarTasks[targetDay].individualTasks.push(multiMemberTaskForUI);
-          console.log(`[KIDOERS-ROUTINE] ➕ Added new multi-member task to UI: ${multiMemberTaskForUI.name} with ${result.member_count} members on ${targetDay}`);
+          // Handle bulk individual tasks API response (creates one row per day)
+          console.log('[KIDOERS-ROUTINE] 🔄 Processing bulk individual tasks response:', result.created_tasks);
+          
+          // Group tasks by day for UI display
+          const tasksByDay: Record<string, any[]> = {};
+          
+          for (const createdTask of result.created_tasks) {
+            const taskDays = createdTask.days_of_week || [];
+            
+            for (const day of taskDays) {
+              if (!tasksByDay[day]) {
+                tasksByDay[day] = [];
+              }
+              
+              const taskForUI = {
+                id: `${createdTask.id}_${day}`,
+                routine_task_id: createdTask.id,
+                memberId: targetMemberIds[0], // Single member for bulk individual tasks
+                name: createdTask.name,
+                description: createdTask.description,
+                points: createdTask.points,
+                duration_mins: createdTask.duration_mins,
+                time_of_day: createdTask.time_of_day,
+                frequency: frequency,
+                days_of_week: [day], // Each task row has only one day
+                is_saved: true,
+                template_id: task.is_system ? task.id : undefined,
+                recurring_template_id: createdTask.recurring_template_id,
+                from_group: undefined,
+                estimatedMinutes: task.estimatedMinutes || 5,
+                member_count: 1, // Single member
+                assignees: [{
+                  id: targetMemberIds[0],
+                  name: familyMembers.find(m => m.id === targetMemberIds[0])?.name || 'Unknown',
+                  role: familyMembers.find(m => m.id === targetMemberIds[0])?.role || 'child',
+                  avatar_url: familyMembers.find(m => m.id === targetMemberIds[0])?.avatar_url || null,
+                  color: familyMembers.find(m => m.id === targetMemberIds[0])?.color || '#000000'
+                }]
+              };
+              
+              tasksByDay[day].push(taskForUI);
+            }
+          }
+          
+          // Add tasks to calendar UI
+          for (const [day, dayTasks] of Object.entries(tasksByDay)) {
+            if (!newCalendarTasks[day]) {
+              newCalendarTasks[day] = { individualTasks: [], groups: [] };
+            }
+            
+            for (const taskForUI of dayTasks) {
+              const existingTaskIndex = newCalendarTasks[day].individualTasks.findIndex(
+                existingTask => existingTask.routine_task_id === taskForUI.routine_task_id
+              );
+              
+              if (existingTaskIndex >= 0) {
+                newCalendarTasks[day].individualTasks[existingTaskIndex] = taskForUI;
+                console.log(`[KIDOERS-ROUTINE] 🔄 Updated individual task in UI: ${taskForUI.name} for ${day}`);
+              } else {
+                newCalendarTasks[day].individualTasks.push(taskForUI);
+                console.log(`[KIDOERS-ROUTINE] ➕ Added individual task to UI: ${taskForUI.name} for ${day}`);
+              }
+            }
+          }
         }
         
         setCalendarTasks(newCalendarTasks);

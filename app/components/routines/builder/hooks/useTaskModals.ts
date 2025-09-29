@@ -80,7 +80,7 @@ export const useTaskModals = () => {
     setEditableTaskName('')
     setSelectedWhoOption('none')
     setSelectedRoutineGroup('none')
-    setSelectedMemberIds([])
+    setTaskAssignmentMemberIds([])
     setDaySelection({ mode: 'single', selectedDays: [] })
   }
 

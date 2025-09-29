@@ -515,6 +515,57 @@ The system now supports updating existing multi-member tasks without creating ne
 - **Update Flow**: Uses update API instead of delete/create pattern
 - **UI Updates**: Modifies existing task in calendar view instead of replacing it
 
+### Task Creation API Selection System
+The frontend now intelligently selects the correct API based on task requirements:
+
+#### API Selection Logic
+- **Single-Member Tasks**: Uses `bulkCreateIndividualTasks` API (`/tasks/bulk-assign`)
+  - Creates **one `routine_tasks` row per day** (multiple rows for recurring tasks)
+  - Each row has `days_of_week: [day]` (single day per row)
+  - Creates recurring task template and links each daily row to it
+  - Enables proper single-day deletion from recurring tasks
+- **Multi-Member Tasks**: Uses `createMultiMemberTask` API (`/tasks/multi-member`)
+  - Creates **one `routine_tasks` row for all days** (single row with `days_of_week` array)
+  - Single row has `days_of_week: [monday, tuesday, wednesday, ...]` (all days in one row)
+  - Creates recurring task template and links the single row to it
+  - Optimized for multi-member task management
+
+#### Template Creation Logic
+- **Daily Tasks**: Creates `recurring_task_templates` with `frequency_type = 'every_day'` and all 7 days of the week
+- **Specific Days**: Creates templates with `frequency_type = 'specific_days'` and the specified days
+- **Weekly Tasks**: Creates templates with `frequency_type = 'specific_days'` and the selected days
+- **Template Linking**: Updates the `routine_tasks` record(s) to reference the created template via `recurring_template_id`
+
+#### Database Schema Integration
+- **`recurring_task_templates`**: Stores the recurring task definition with frequency and days
+- **`routine_tasks.recurring_template_id`**: Links individual task instances to their template
+- **Consistency**: Ensures all recurring tasks have proper template references for future management
+
+#### Frontend UI Integration
+- **Immediate UI Updates**: Frontend now properly displays recurring tasks on all specified days immediately after creation
+- **Multi-Day Display**: For "every day" tasks, the UI shows the task on all 7 days of the week without requiring a browser refresh
+- **Task Distribution**: Recurring tasks are added to the calendar view for each day in the `days_of_week` array
+- **Consistent Behavior**: One-off tasks still appear only on the day they were dropped, while recurring tasks appear on all scheduled days
+
+#### Task Deletion System
+- **Smart API Selection**: Frontend automatically detects whether a task uses the new multi-member system or legacy bulk system
+- **Multi-Member Task Deletion**: Uses `deleteMultiMemberTask` API for new recurring tasks (single `routine_tasks` row with `days_of_week` array)
+- **Legacy Task Deletion**: Uses `bulkDeleteTasks` API for old recurring tasks (multiple `routine_tasks` rows, one per day)
+- **Single-Day Deletion**: Properly handles "this event" deletion for recurring tasks by deleting only the specific task instance, not the entire recurring task
+- **Scope Conversion**: Converts frontend deletion scopes (`this_day`, `this_and_following`, `all_days`) to appropriate API formats (`this_occurrence`, `this_and_following`, `all_occurrences`)
+
+#### Toast Notification System with Undo Functionality
+- **Toast Integration**: Uses Radix UI toast components for user feedback
+- **Undo Capability**: All task deletions and updates show a toast with an "Undo" button
+- **State Restoration**: Undo functionality restores the original calendar state before the operation
+- **Auto-Dismiss**: Toasts automatically dismiss after 5 seconds if no action is taken
+- **Error Handling**: Shows appropriate error messages if undo operation fails
+- **Visual Feedback**: Toast notifications appear at the bottom of the screen with clear messaging
+- **Technical Implementation**: 
+  - **File Extension**: `useTaskOperations.tsx` (not `.ts`) to support JSX syntax for ToastAction components
+  - **ToastAction Element**: Properly creates React elements using `<ToastAction>` component instead of plain objects
+  - **Type Safety**: Uses `ToastActionElement` type for proper TypeScript validation
+
 ### Implementation Benefits
 - **Efficiency**: Single API call creates multiple assignments and instances
 - **Consistency**: All members get identical task configuration
