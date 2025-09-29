@@ -42,6 +42,10 @@ export const FamilyMemberSelector: React.FC<FamilyMemberSelectorProps> = ({
         
         const handleMemberClick = () => {
           if (isSelected) {
+            // Prevent unchecking if this is the last selected member
+            if (selectedMemberIds.length === 1) {
+              return // Don't allow unchecking the last member
+            }
             // Remove member from selection
             setSelectedMemberIds(selectedMemberIds.filter(id => id !== member.id))
           } else {
@@ -50,18 +54,31 @@ export const FamilyMemberSelector: React.FC<FamilyMemberSelectorProps> = ({
           }
         }
 
+        const isLastSelected = isSelected && selectedMemberIds.length === 1
+        
         return (
           <div
             key={member.id}
-            className="flex items-center gap-3 cursor-pointer group transition-all duration-300"
+            className={`flex items-center gap-3 transition-all duration-300 ${
+              isLastSelected 
+                ? 'cursor-not-allowed opacity-75' 
+                : 'cursor-pointer group'
+            }`}
             onClick={handleMemberClick}
+            title={isLastSelected ? 'At least one family member must be selected' : undefined}
           >
             <div className="relative">
               <div
-                className={`h-12 w-12 rounded-full overflow-hidden border-2 shadow-lg transition-all duration-300 group-hover:scale-105 ${
+                className={`h-12 w-12 rounded-full overflow-hidden border-2 shadow-lg transition-all duration-300 ${
+                  isLastSelected 
+                    ? '' 
+                    : 'group-hover:scale-105'
+                } ${
                   isSelected
                     ? `ring-2 ring-offset-2 scale-110`
-                    : `group-hover:ring-1 group-hover:ring-offset-1 group-hover:shadow-md`
+                    : isLastSelected 
+                      ? '' 
+                      : `group-hover:ring-1 group-hover:ring-offset-1 group-hover:shadow-md`
                 }`}
                 style={{
                   borderColor: isSelected ? memberColors.borderColor : '#ffffff',
@@ -70,13 +87,13 @@ export const FamilyMemberSelector: React.FC<FamilyMemberSelectorProps> = ({
                     : '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
                 }}
                 onMouseEnter={(e) => {
-                  if (!isSelected) {
+                  if (!isSelected && !isLastSelected) {
                     e.currentTarget.style.borderColor = memberColors.borderColor
                     e.currentTarget.style.boxShadow = `0 0 0 1px ${memberColors.borderColor}`
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (!isSelected) {
+                  if (!isSelected && !isLastSelected) {
                     e.currentTarget.style.borderColor = '#ffffff'
                     e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
                   }
@@ -106,7 +123,9 @@ export const FamilyMemberSelector: React.FC<FamilyMemberSelectorProps> = ({
                 className={`text-sm font-semibold transition-all duration-300 ${
                   isSelected
                     ? "text-gray-900 scale-105"
-                    : "text-gray-600 group-hover:text-gray-800"
+                    : isLastSelected
+                      ? "text-gray-600"
+                      : "text-gray-600 group-hover:text-gray-800"
                 }`}
               >
                 {member.name}

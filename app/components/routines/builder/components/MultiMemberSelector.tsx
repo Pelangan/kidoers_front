@@ -52,6 +52,10 @@ export function MultiMemberSelector({
 
   const handleMemberToggle = (memberId: string) => {
     if (selectedMemberIds.includes(memberId)) {
+      // Prevent unchecking if this is the last selected member
+      if (selectedMemberIds.length === 1) {
+        return // Don't allow unchecking the last member
+      }
       onSelectionChange(selectedMemberIds.filter(id => id !== memberId))
     } else {
       onSelectionChange([...selectedMemberIds, memberId])
