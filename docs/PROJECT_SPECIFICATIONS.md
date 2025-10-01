@@ -966,3 +966,51 @@ The application uses a hybrid approach combining backend API calls with localSto
 - **Routine Task Groups**: `getRoutineTaskGroups()`, `setRoutineTaskGroups()`
 - **Routine Tasks**: `getRoutineTasks()`, `setRoutineTasks()`
 - **Utility**: `clearAll()`, `checkOnboardingStatus()`
+
+## 🧪 Testing Infrastructure
+
+### Testing Strategy
+- **Test Pyramid Approach**: Unit tests (many) → Integration tests (medium) → E2E tests (few)
+- **Risk-Based Prioritization**: Critical data integrity bugs tested first
+- **Local Supabase**: All integration tests run against local database with RLS policies
+
+### Technology Stack
+- **Backend Unit Tests**: pytest + pytest-asyncio
+- **Frontend Unit Tests**: Vitest + React Testing Library  
+- **Integration Tests**: pytest + Local Supabase
+- **E2E Tests**: Playwright (planned)
+
+### Test Infrastructure Status
+- ✅ **pytest configured**: 10/10 smoke tests passing
+- ✅ **Vitest configured**: 4/4 component tests passing
+- ✅ **Local Supabase**: Full schema with all migrations
+- ✅ **Test Fixtures**: 50+ reusable fixtures for test data
+- ✅ **First Integration Test**: Multi-member task update ✅ PASSING
+
+### Test Coverage
+- **Total Test Scenarios**: 15 critical scenarios identified
+- **Implemented**: 3 integration tests
+- **Passing**: 1 verified working (Scenario 1.1 - Multi-member task update)
+- **Coverage Tracking**: `TEST_COVERAGE_MATRIX.md` and `TEST_SCENARIOS.md`
+
+### Running Tests
+
+```bash
+# Backend tests
+cd kidoers_backend
+source venv/bin/activate
+pytest tests/unit              # Unit tests (fast)
+pytest tests/integration       # Integration tests (with local Supabase)
+pytest --cov=app              # With coverage report
+
+# Frontend tests  
+cd kidoers_front
+pnpm test                     # Unit tests
+pnpm test:coverage            # With coverage
+```
+
+### Test Documentation
+- **TESTING_PLAN.md**: Complete 4-week implementation roadmap
+- **TEST_COVERAGE_MATRIX.md**: Functional coverage tracking
+- **TEST_SCENARIOS.md**: Detailed test scenarios in Given-When-Then format
+- **TESTING_CONVENTIONS.md**: Team coding standards and best practices
