@@ -475,7 +475,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     // Set up the popup state
     setPendingDrop(pendingDropData)
     setEditableTaskName('(No title)')
-    setDaySelection({ mode: 'single', selectedDays: [day] })
+    // Smart default: when creating from a day column, default to "Select specific days" with that day pre-checked
+    setDaySelection({ mode: 'custom', selectedDays: [day] })
     setSelectedWhoOption('none')
     setSelectedRoutineGroup('none')
     // Initialize task assignment with currently selected members from calendar
@@ -699,7 +700,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     const recurrenceOption = optionFromTemplate(templateDays, hasException)
     
     // Set day selection based on recurrence option
-    let daySelectionMode: 'single' | 'everyday' | 'custom' = 'single'
+    // Default to 'custom' mode (Select specific days)
+    let daySelectionMode: 'everyday' | 'custom' = 'custom'
     let selectedDays: string[] = [selectedTaskForEdit.day]
     
     if (recurrenceOption === 'EVERY_DAY') {
@@ -708,11 +710,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     } else if (recurrenceOption === 'SPECIFIC_DAYS') {
       daySelectionMode = 'custom'
       selectedDays = templateDays.length > 0 ? templateDays : taskAppearsOnDays
-    } else {
-      // JUST_THIS_DAY - single day for exceptions
-      daySelectionMode = 'single'
-      selectedDays = [selectedTaskForEdit.day]
     }
+    // Note: Removed "Just this day" option - now only "Every day" and "Select specific days"
     
     console.log('[TASK-EDIT] Final day selection based on template:', { 
       recurrenceOption, 
@@ -752,51 +751,57 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     
     console.log('[TASK-DELETE] Deleting task:', selectedTaskForEdit.task.name)
     
-    // Check if this recurring task exists on multiple days
+    // Check if this recurring task exists on multiple days with the SAME recurring_template_id
     const taskName = selectedTaskForEdit.task.name
     const memberId = selectedTaskForEdit.memberId
+    const recurringTemplateId = selectedTaskForEdit.task.recurring_template_id
     
-    // Count how many days this recurring task appears on
+    // Count how many days this recurring task appears on with the same template ID
     let taskAppearsOnDays = 0
     Object.keys(calendarTasks).forEach(day => {
       const dayTasks = calendarTasks[day].individualTasks || []
       const hasTaskOnDay = dayTasks.some(task => {
-        // For recurring tasks, we match by name and member ID
-        // This works even if tasks don't have recurring_template_id (legacy tasks)
-        return task.name === taskName && task.memberId === memberId
+        // Match by name, member ID, AND recurring_template_id
+        // This ensures we only count tasks that belong to the same recurring template
+        const nameMatches = task.name === taskName
+        const memberMatches = task.memberId === memberId
+        const templateMatches = task.recurring_template_id === recurringTemplateId
+        
+        return nameMatches && memberMatches && templateMatches
       })
       if (hasTaskOnDay) {
         taskAppearsOnDays++
       }
     })
     
-    console.log('[TASK-DELETE] Task appears on', taskAppearsOnDays, 'days')
+    console.log('[TASK-DELETE] Task appears on', taskAppearsOnDays, 'days with same template')
     console.log('[TASK-DELETE] Selected task:', selectedTaskForEdit.task)
     console.log('[TASK-DELETE] Task name:', taskName, 'Member ID:', memberId)
+    console.log('[TASK-DELETE] Recurring template ID:', recurringTemplateId)
     console.log('[TASK-DELETE] Should show modal?', taskAppearsOnDays > 1)
     
-    // Debug: Check if tasks have recurring_template_id
-    console.log('[TASK-DELETE] Selected task has recurring_template_id:', selectedTaskForEdit.task.recurring_template_id)
-    console.log('[TASK-DELETE] Selected task has template_id:', selectedTaskForEdit.task.template_id)
-    
-    // Debug: Check each day's tasks
+    // Debug: Check each day's tasks with same template
     Object.keys(calendarTasks).forEach(day => {
       const dayTasks = calendarTasks[day].individualTasks || []
       const matchingTasks = dayTasks.filter(task => 
-        task.name === taskName && task.memberId === memberId
+        task.name === taskName && 
+        task.memberId === memberId && 
+        task.recurring_template_id === recurringTemplateId
       )
       if (matchingTasks.length > 0) {
-        console.log(`[TASK-DELETE] Day ${day} has ${matchingTasks.length} matching tasks:`, matchingTasks.map(t => ({id: t.id, name: t.name, memberId: t.memberId})))
+        console.log(`[TASK-DELETE] Day ${day} has ${matchingTasks.length} matching tasks with same template:`, matchingTasks.map(t => ({id: t.id, name: t.name, memberId: t.memberId, templateId: t.recurring_template_id})))
       }
     })
     
     if (taskAppearsOnDays > 1) {
-      // Show confirmation modal for multi-day tasks
+      // Show confirmation modal only for tasks that belong to the same recurring template
+      console.log('[TASK-DELETE] Showing delete modal - task belongs to recurring template with multiple days')
       openDeleteConfirmModal()
       return
     }
     
-    // For single-day tasks, delete immediately
+    // For single-day tasks or tasks without recurring template, delete immediately
+    console.log('[TASK-DELETE] Deleting immediately - single day or different templates')
     await performTaskDeletion('this_day')
   }
 
@@ -1116,9 +1121,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       // Determine which days to add the task to based on day selection
       let targetDays: string[] = []
       
-      if (daySelection.mode === 'single') {
-        targetDays = [pendingDrop.targetDay]
-      } else if (daySelection.mode === 'everyday') {
+      if (daySelection.mode === 'everyday') {
         targetDays = DAYS_OF_WEEK
       } else if (daySelection.mode === 'custom') {
         targetDays = daySelection.selectedDays
@@ -1165,7 +1168,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           
           // Validate day selection
           const validationError = validateRecurrenceSelection(
-            daySelection.mode === 'single' ? 'JUST_THIS_DAY' : 
             daySelection.mode === 'everyday' ? 'EVERY_DAY' : 'SPECIFIC_DAYS',
             normalizeWeekdays(targetDays)
           )
@@ -1215,7 +1217,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           // Close modal and reset state
           setShowApplyToPopup(false);
           setPendingDrop(null);
-          setDaySelection({ mode: 'single', selectedDays: [] });
+          setDaySelection({ mode: 'everyday', selectedDays: [] });
           setSelectedWhoOption('none');
           setEditableTaskName('');
           setSelectedTaskForEdit(null);
@@ -1323,7 +1325,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           // Close modal and reset state
           setShowApplyToPopup(false);
           setPendingDrop(null);
-          setDaySelection({ mode: 'single', selectedDays: [] });
+          setDaySelection({ mode: 'everyday', selectedDays: [] });
           setSelectedWhoOption('none');
           setEditableTaskName('');
           setSelectedTaskForEdit(null);
@@ -1346,17 +1348,12 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         let date: string | undefined = undefined
         let days_of_week: string[] | undefined = undefined
         
-        if (daySelection.mode === 'single') {
-          // Single-day tasks are now treated as weekly recurring tasks (not one_off)
-          frequency = "weekly"
-          days_of_week = [pendingDrop.targetDay]
-          
-          // No need to set date for weekly recurring tasks
-          date = undefined
-        } else if (daySelection.mode === 'everyday') {
+        if (daySelection.mode === 'everyday') {
           frequency = "daily"
           days_of_week = DAYS_OF_WEEK
         } else if (daySelection.mode === 'custom') {
+          // Custom day selection: 1-6 days
+          // (Includes single-day recurring tasks, treated as specific_days not one_off)
           frequency = "specific_days"
           days_of_week = targetDays
         }
@@ -1563,7 +1560,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       // Close popup and reset
       setShowApplyToPopup(false)
       setPendingDrop(null)
-      setDaySelection({ mode: 'single', selectedDays: [] })
+      setDaySelection({ mode: 'everyday', selectedDays: [] })
       setSelectedWhoOption('none')
       setEditableTaskName('')
     } catch (error) {
@@ -2181,18 +2178,18 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                 </div>
                 <Select
                   value={(() => {
-                    const selectValue = daySelection.mode === 'single' ? 'just-this-day' : daySelection.mode === 'everyday' ? 'every-day' : 'custom-days'
+                    const selectValue = daySelection.mode === 'everyday' ? 'every-day' : 'custom-days'
                     console.log('[MODAL-SELECT] 🔍 DEBUG: daySelection.mode:', daySelection.mode, 'calculated selectValue:', selectValue)
                     return selectValue
                   })()}
                   onValueChange={(value) => {
                     console.log('[MODAL-SELECT] Day selection changed to:', value, 'Current daySelection:', daySelection)
-                    if (value === 'just-this-day') {
-                      setDaySelection({ mode: 'single', selectedDays: [pendingDrop?.targetDay || ''] })
-                    } else if (value === 'every-day') {
+                    if (value === 'every-day') {
                       setDaySelection({ mode: 'everyday', selectedDays: DAYS_OF_WEEK })
                     } else if (value === 'custom-days') {
-                      setDaySelection({ mode: 'custom', selectedDays: [pendingDrop?.targetDay || ''] })
+                      // Smart default: pre-check the day from context or current selection
+                      const defaultDay = pendingDrop?.targetDay || daySelection.selectedDays[0] || 'monday'
+                      setDaySelection({ mode: 'custom', selectedDays: [defaultDay] })
                     }
                   }}
                 >
@@ -2200,7 +2197,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                     <SelectValue placeholder="Select duration" />
                   </SelectTrigger>
                   <SelectContent className="bg-white">
-                    <SelectItem value="just-this-day" className="bg-white hover:bg-gray-50">Just this day</SelectItem>
                     <SelectItem value="every-day" className="bg-white hover:bg-gray-50">Every day</SelectItem>
                     <SelectItem value="custom-days" className="bg-white hover:bg-gray-50">Select specific days</SelectItem>
                   </SelectContent>
@@ -2221,55 +2217,61 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                   )
                 })()}
                 
-                {/* Custom Day Selection */}
-                {daySelection.mode === 'custom' && (
-                  <div className="ml-6 space-y-2">
-                    <div className="text-xs text-gray-600 mb-2">Select days:</div>
-                    <div className="grid grid-cols-7 gap-2">
-                      {DAYS_OF_WEEK.map((day) => {
-                        const dayIndex = DAYS_OF_WEEK.indexOf(day)
-                        const isSelected = daySelection.selectedDays.includes(day)
-                        
-                        return (
-                          <label
-                            key={day}
-                            className={`flex flex-col items-center p-2 rounded-lg border-2 cursor-pointer transition-all ${
-                              isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setDaySelection(prev => ({
-                                    ...prev,
-                                    selectedDays: [...prev.selectedDays, day]
-                                  }))
-                                } else {
-                                  setDaySelection(prev => ({
-                                    ...prev,
-                                    selectedDays: prev.selectedDays.filter(d => d !== day)
-                                  }))
-                                }
-                              }}
-                              className="sr-only"
-                            />
-                            <div className={`w-3 h-3 rounded-full ${isSelected ? 'bg-blue-500' : 'bg-gray-300'}`}></div>
-                            <span className="text-xs font-medium mt-1">{DAY_NAMES[dayIndex]}</span>
-                          </label>
-                        )
-                      })}
-                    </div>
-                    
-                    {/* Validation Error */}
-                    {daySelection.mode === 'custom' && daySelection.selectedDays.length === 0 && (
-                      <div className="text-sm text-red-600 mt-2">
-                        Select at least one day
+                {/* Day Chips - Always visible when "Select specific days" is active */}
+                {(() => {
+                  const showDayChips = daySelection.mode === 'custom'
+                  
+                  if (!showDayChips) return null
+                  
+                  return (
+                    <div className="ml-6 space-y-2">
+                      <div className="text-xs text-gray-600 mb-2">Select days:</div>
+                      <div className="grid grid-cols-7 gap-2">
+                        {DAYS_OF_WEEK.map((day) => {
+                          const dayIndex = DAYS_OF_WEEK.indexOf(day)
+                          const isSelected = daySelection.selectedDays.includes(day)
+                          
+                          return (
+                            <label
+                              key={day}
+                              className={`flex flex-col items-center p-2 rounded-lg border-2 cursor-pointer transition-all ${
+                                isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setDaySelection(prev => ({
+                                      ...prev,
+                                      selectedDays: [...prev.selectedDays, day]
+                                    }))
+                                  } else {
+                                    setDaySelection(prev => ({
+                                      ...prev,
+                                      selectedDays: prev.selectedDays.filter(d => d !== day)
+                                    }))
+                                  }
+                                }}
+                                className="sr-only"
+                              />
+                              <div className={`w-3 h-3 rounded-full ${isSelected ? 'bg-blue-500' : 'bg-gray-300'}`}></div>
+                              <span className="text-xs font-medium mt-1">{DAY_NAMES[dayIndex]}</span>
+                            </label>
+                          )
+                        })}
                       </div>
-                    )}
-                  </div>
-                )}
+                      
+                      {/* Validation Error */}
+                      {daySelection.selectedDays.length === 0 && (
+                        <div className="text-sm text-red-600 mt-2">
+                          Select at least one day
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
               
               {/* Task Assignee */}

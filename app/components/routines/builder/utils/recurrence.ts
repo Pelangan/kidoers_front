@@ -2,7 +2,7 @@
 // These functions handle the logic for determining dropdown options and helper labels
 // based on recurring_task_templates data
 
-export type RecurrenceOption = 'JUST_THIS_DAY' | 'EVERY_DAY' | 'SPECIFIC_DAYS';
+export type RecurrenceOption = 'EVERY_DAY' | 'SPECIFIC_DAYS';
 
 export const ALL_DAYS = [
   'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'
@@ -82,8 +82,6 @@ export function optionToDays(option: RecurrenceOption, selectedDays: Weekday[] =
       return [...ALL_DAYS];
     case 'SPECIFIC_DAYS':
       return selectedDays;
-    case 'JUST_THIS_DAY':
-      return []; // This will be handled by exceptions
     default:
       return selectedDays;
   }

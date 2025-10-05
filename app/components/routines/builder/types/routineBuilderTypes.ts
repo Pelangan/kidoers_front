@@ -77,7 +77,7 @@ export interface PendingDrop {
 
 // Day selection interface
 export interface DaySelection {
-  mode: 'single' | 'everyday' | 'custom'
+  mode: 'everyday' | 'custom'
   selectedDays: string[]
 }
 

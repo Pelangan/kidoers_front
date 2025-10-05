@@ -14,7 +14,7 @@ export const useTaskModals = () => {
   const [selectedTaskForEdit, setSelectedTaskForEdit] = useState<{ task: Task, day: string, memberId: string } | null>(null)
   const [miniPopupPosition, setMiniPopupPosition] = useState<{ x: number, y: number } | null>(null)
   const [deleteScope, setDeleteScope] = useState<'this_day' | 'this_and_following' | 'all_days'>('this_day')
-  const [daySelection, setDaySelection] = useState<DaySelection>({ mode: 'single', selectedDays: [] })
+  const [daySelection, setDaySelection] = useState<DaySelection>({ mode: 'everyday', selectedDays: [] })
   const [selectedWhoOption, setSelectedWhoOption] = useState<string>('none')
   const [selectedRoutineGroup, setSelectedRoutineGroup] = useState<string>('none')
   const [taskAssignmentMemberIds, setTaskAssignmentMemberIds] = useState<string[]>([])
@@ -81,7 +81,7 @@ export const useTaskModals = () => {
     setSelectedWhoOption('none')
     setSelectedRoutineGroup('none')
     setTaskAssignmentMemberIds([])
-    setDaySelection({ mode: 'single', selectedDays: [] })
+    setDaySelection({ mode: 'everyday', selectedDays: [] })
   }
 
   const closeAllModals = () => {
