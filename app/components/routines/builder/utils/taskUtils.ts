@@ -198,7 +198,7 @@ export const getTaskDisplayFrequency = (
           return 'Daily'
         case 'specific_days':
           if (days.length === 1) {
-            const dayName = days[0].charAt(0).toUpperCase() + days[0].slice(1)
+            const dayName = days[0].toLowerCase().charAt(0).toUpperCase() + days[0].toLowerCase().slice(1)
             return `Every ${dayName}`
           } else if (days.length === 7) {
             return 'Daily'
@@ -212,8 +212,13 @@ export const getTaskDisplayFrequency = (
                      !days.includes('monday') && !days.includes('tuesday') && 
                      !days.includes('wednesday') && !days.includes('thursday') && !days.includes('friday')) {
             return 'Weekends'
+          } else if (days.length === 0) {
+            return 'Weekly'
           } else {
-            return `Repeats on ${days.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ')}`
+            // Sort days in chronological order (Monday to Sunday)
+            const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+            const sortedDays = days.sort((a, b) => dayOrder.indexOf(a.toLowerCase()) - dayOrder.indexOf(b.toLowerCase()));
+            return `Repeats on ${sortedDays.map(d => d.toLowerCase().charAt(0).toUpperCase() + d.toLowerCase().slice(1)).join(', ')}`
           }
         case 'just_this_day':
           return 'One-time'
@@ -226,10 +231,15 @@ export const getTaskDisplayFrequency = (
   // For non-recurring tasks, determine based on days_of_week
   const taskDays = task.days_of_week || []
   if (taskDays.length === 1) {
-    const dayName = taskDays[0].charAt(0).toUpperCase() + taskDays[0].slice(1)
+    const dayName = taskDays[0].toLowerCase().charAt(0).toUpperCase() + taskDays[0].toLowerCase().slice(1)
     return `Every ${dayName}`
   } else if (taskDays.length > 1) {
-    return `Repeats on ${taskDays.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ')}`
+    // Sort days in chronological order (Monday to Sunday)
+    const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    const sortedDays = taskDays.sort((a, b) => dayOrder.indexOf(a.toLowerCase()) - dayOrder.indexOf(b.toLowerCase()));
+    return `Repeats on ${sortedDays.map(d => d.toLowerCase().charAt(0).toUpperCase() + d.toLowerCase().slice(1)).join(', ')}`
+  } else if (taskDays.length === 0) {
+    return 'Weekly'
   }
   
   // Default fallback
