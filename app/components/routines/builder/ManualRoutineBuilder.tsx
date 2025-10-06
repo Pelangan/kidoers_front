@@ -338,6 +338,72 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
 
 
+
+  // Save day-specific order to backend
+  const saveDaySpecificOrder = async (day: string, memberId: string, tasks: Task[]) => {
+    console.log('[DRAG-ORDER] 🚀 saveDaySpecificOrder called in ManualRoutineBuilder!', {
+      day,
+      memberId,
+      taskCount: tasks.length,
+      tasks: tasks.map(t => ({ id: t.id, name: t.name })),
+      currentRoutineId
+    })
+    
+    if (!currentRoutineId) {
+      console.log('[DRAG-ORDER] ❌ No routine ID for saving day-specific order')
+      return
+    }
+
+    try {
+      console.log('[DRAG-ORDER] 💾 Saving day-specific order for:', { day, memberId, tasks: tasks.map(t => t.name) })
+      
+      const taskOrders = tasks.map((task, index) => {
+        // Use routine_task_id if available, otherwise extract from id
+        const routineTaskId = task.routine_task_id || extractRoutineTaskIdFromId(task.id)
+        console.log('[DRAG-ORDER] 🔍 ID extraction:', {
+          originalId: task.id,
+          routine_task_id: task.routine_task_id,
+          extractedId: extractRoutineTaskIdFromId(task.id),
+          finalId: routineTaskId,
+          taskName: task.name
+        })
+        return {
+          routine_task_id: routineTaskId,
+          order_index: index
+        }
+      })
+
+      console.log('[DRAG-ORDER] 🔍 Task order mapping:', {
+        originalTaskIds: tasks.map(t => t.id),
+        extractedRoutineTaskIds: taskOrders.map(to => to.routine_task_id),
+        taskNames: tasks.map(t => t.name)
+      })
+
+      const bulkUpdate: BulkDayOrderUpdate = {
+        member_id: memberId,
+        day_of_week: day,
+        task_orders: taskOrders
+      }
+
+      const updatedOrders = await bulkUpdateDayOrders(currentRoutineId, bulkUpdate)
+      console.log('[DRAG-ORDER] ✅ Day-specific order saved:', updatedOrders)
+      
+      // Update local day orders state
+      setDayOrders(prev => {
+        // Remove existing orders for this member/day
+        const filtered = prev.filter(order => 
+          !(order.member_id === memberId && order.day_of_week === day)
+        )
+        // Add new orders
+        return [...filtered, ...updatedOrders]
+      })
+      
+    } catch (error) {
+      console.error('[DRAG-ORDER] ❌ Failed to save day-specific order:', error)
+      // TODO: Show user-friendly error message
+    }
+  }
+
   // Use task drag and drop hook
   const {
     draggedTask,
@@ -356,7 +422,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     moveTaskToPosition,
     getTasksWithDayOrder,
     loadDayOrders
-  } = useTaskDragAndDrop(updateCalendarTasks, extractRoutineTaskIdFromId, currentRoutineId, recurringTemplates)
+  } = useTaskDragAndDrop(calendarTasks, updateCalendarTasks, extractRoutineTaskIdFromId, currentRoutineId, saveDaySpecificOrder, recurringTemplates)
 
 
 
@@ -1601,51 +1667,6 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
 
 
-  // Save day-specific order to backend
-  const saveDaySpecificOrder = async (day: string, memberId: string, tasks: Task[]) => {
-    if (!currentRoutineId) {
-      console.log('[DRAG-ORDER] ❌ No routine ID for saving day-specific order')
-      return
-    }
-
-    try {
-      console.log('[DRAG-ORDER] 💾 Saving day-specific order for:', { day, memberId, tasks: tasks.map(t => t.name) })
-      
-      const taskOrders = tasks.map((task, index) => ({
-        routine_task_id: extractRoutineTaskIdFromId(task.id),
-        order_index: index
-      }))
-
-      console.log('[DRAG-ORDER] 🔍 Task order mapping:', {
-        originalTaskIds: tasks.map(t => t.id),
-        extractedRoutineTaskIds: taskOrders.map(to => to.routine_task_id),
-        taskNames: tasks.map(t => t.name)
-      })
-
-      const bulkUpdate: BulkDayOrderUpdate = {
-        member_id: memberId,
-        day_of_week: day,
-        task_orders: taskOrders
-      }
-
-      const updatedOrders = await bulkUpdateDayOrders(currentRoutineId, bulkUpdate)
-      console.log('[DRAG-ORDER] ✅ Day-specific order saved:', updatedOrders)
-      
-      // Update local day orders state
-      setDayOrders(prev => {
-        // Remove existing orders for this member/day
-        const filtered = prev.filter(order => 
-          !(order.member_id === memberId && order.day_of_week === day)
-        )
-        // Add new orders
-        return [...filtered, ...updatedOrders]
-      })
-      
-    } catch (error) {
-      console.error('[DRAG-ORDER] ❌ Failed to save day-specific order:', error)
-      // TODO: Show user-friendly error message
-    }
-  }
 
 
 
@@ -2105,7 +2126,25 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
 
             {/* Calendar Grid */}
-            {selectedMemberIds.length > 0 && (
+            {isLoadingData ? (
+              /* Loading Skeleton */
+              <div className="grid grid-cols-7 border border-gray-200 rounded-lg overflow-hidden animate-pulse">
+                {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
+                  <div key={day} className="border-r border-gray-200 last:border-r-0 min-h-[600px] flex flex-col">
+                    {/* Day Header Skeleton */}
+                    <div className="text-center p-3 bg-gray-100">
+                      <div className="h-4 bg-gray-300 rounded w-20 mx-auto"></div>
+                    </div>
+                    <div className="border-b border-gray-200"></div>
+                    {/* Task Placeholders */}
+                    <div className="flex-1 p-3 space-y-2">
+                      <div className="h-16 bg-gray-100 rounded"></div>
+                      <div className="h-16 bg-gray-100 rounded"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : selectedMemberIds.length > 0 && (
               <CalendarGrid
                 calendarTasks={calendarTasks}
                 selectedMemberIds={selectedMemberIds}

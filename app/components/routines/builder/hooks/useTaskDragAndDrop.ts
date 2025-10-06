@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react'
 import { bulkUpdateDayOrders, updateTemplateDays } from '../../../../lib/api'
 import type { Task, DaySpecificOrder, RecurringTemplate } from '../types/routineBuilderTypes'
 
+interface CalendarTasks {
+  groups: any[]
+  individualTasks: Task[]
+}
+
 interface DraggedTask {
   task: Task
   day: string
@@ -16,9 +21,11 @@ interface DragOverPosition {
 }
 
 export const useTaskDragAndDrop = (
+  calendarTasks: Record<string, CalendarTasks>,
   updateCalendarTasks: (updater: (prev: any) => any) => void,
   extractRoutineTaskIdFromId: (id: string) => string,
   currentRoutineId: string | null,
+  saveDaySpecificOrder: (day: string, memberId: string, tasks: Task[]) => Promise<void>,
   recurringTemplates: RecurringTemplate[] = []
 ) => {
   // Drag and drop state
@@ -72,6 +79,7 @@ export const useTaskDragAndDrop = (
         dragOverPosition.position !== newDragOverPosition.position ||
         dragOverPosition.targetTaskId !== newDragOverPosition.targetTaskId) {
       console.log('[DRAG-ORDER] 🎯 Drag over position:', newDragOverPosition)
+      console.log('[DRAG-ORDER] 🎯 Previous drag over position:', dragOverPosition)
     }
     
     setDragOverPosition(newDragOverPosition)
@@ -82,6 +90,8 @@ export const useTaskDragAndDrop = (
   }
 
   const handleTaskDrop = async (e: React.DragEvent, targetDay: string, targetMemberId: string) => {
+    console.log('[DRAG-ORDER] 🎯 DROP EVENT TRIGGERED!', { targetDay, targetMemberId, draggedTask: draggedTask?.task.name })
+    
     if (!draggedTask) {
       console.log('[DRAG-ORDER] ❌ No dragged task on drop')
       return
@@ -197,67 +207,119 @@ export const useTaskDragAndDrop = (
       return
     }
 
-    console.log('[DRAG-ORDER] 🔄 Moving task:', task.name, 'from', sourceDay, 'to', targetDay)
-    console.log('[DRAG-ORDER] 🎯 Drag over position:', dragOverPosition)
+    console.log('[DRAG-ORDER] 🚀 moveTaskToPosition called!', {
+      taskName: task.name,
+      sourceDay,
+      targetDay,
+      sourceMemberId,
+      targetMemberId,
+      dragOverPosition,
+      currentRoutineId
+    })
+    console.log('[DRAG-ORDER] 🔍 Source/Target comparison:', { 
+      sourceDay, 
+      targetDay, 
+      sourceMemberId, 
+      targetMemberId,
+      isSameDay: sourceDay === targetDay,
+      isSameMember: sourceMemberId === targetMemberId
+    })
 
     // If moving to a different day, update the recurring template's days_of_week
     if (sourceDay !== targetDay && task.recurring_template_id) {
       await updateTaskTemplateDays(task, targetDay)
     }
 
-    let finalTaskOrder: Task[] = []
-
-    updateCalendarTasks(prev => {
-      const newCalendarTasks = { ...prev }
+    // Calculate the new order BEFORE updating state
+    const sourceDayTasks = calendarTasks[sourceDay]
+    const targetDayTasks = calendarTasks[targetDay]
+    let calculatedTaskOrder: Task[] = []
+    
+    if (sourceDay === targetDay && sourceMemberId === targetMemberId) {
+      // Same day reordering
+      const filteredTasks = sourceDayTasks.individualTasks.filter((t: Task) => {
+        const taskMemberId = t.memberId || extractRoutineTaskIdFromId(t.id)
+        return !(t.id === task.id && taskMemberId === sourceMemberId)
+      })
       
-      // Remove task from source day
-      if (sourceDay === targetDay && sourceMemberId === targetMemberId) {
-        // Same day reordering - remove and reinsert
-        const sourceDayTasks = newCalendarTasks[sourceDay]
-        const filteredTasks = sourceDayTasks.individualTasks.filter((t: Task) => {
-          const taskMemberId = t.memberId || extractRoutineTaskIdFromId(t.id)
-          return !(t.id === task.id && taskMemberId === sourceMemberId)
-        })
-        
-        // Insert at new position
-        if (dragOverPosition?.targetTaskId) {
-          const targetIndex = filteredTasks.findIndex((t: Task) => t.id === dragOverPosition.targetTaskId)
-          if (targetIndex !== -1) {
-            const insertIndex = dragOverPosition.position === 'before' ? targetIndex : targetIndex + 1
-            filteredTasks.splice(insertIndex, 0, task)
-          } else {
-            filteredTasks.push(task)
-          }
+      // Insert at new position
+      if (dragOverPosition?.targetTaskId) {
+        const targetIndex = filteredTasks.findIndex((t: Task) => t.id === dragOverPosition.targetTaskId)
+        if (targetIndex !== -1) {
+          const insertIndex = dragOverPosition.position === 'before' ? targetIndex : targetIndex + 1
+          filteredTasks.splice(insertIndex, 0, task)
         } else {
           filteredTasks.push(task)
         }
-        
-        newCalendarTasks[sourceDay] = {
-          ...sourceDayTasks,
-          individualTasks: filteredTasks
-        }
-        
-        finalTaskOrder = filteredTasks.filter((t: Task) => {
-          const taskMemberId = t.memberId || extractRoutineTaskIdFromId(t.id)
-          return taskMemberId === targetMemberId
-        })
       } else {
-        // Different day reordering - remove from source, add to target
-        const sourceDayTasks = newCalendarTasks[sourceDay]
-        const targetDayTasks = newCalendarTasks[targetDay]
-        
-        // Remove from source
+        filteredTasks.push(task)
+      }
+      
+      calculatedTaskOrder = filteredTasks
+      
+      console.log('[DRAG-ORDER] 🔍 Same-day reorder - NEW order:', filteredTasks.map((t: Task) => ({ 
+        id: t.id, 
+        name: t.name, 
+        memberId: t.memberId 
+      })))
+      console.log('[DRAG-ORDER] 🔍 Target member ID:', targetMemberId)
+      console.log('[DRAG-ORDER] 🔍 Calculated task order length:', calculatedTaskOrder.length)
+    } else {
+      // Cross-day reordering
+      const updatedTask = { ...task, memberId: targetMemberId }
+      let newTargetTasks = [...targetDayTasks.individualTasks]
+      
+      if (dragOverPosition?.targetTaskId) {
+        const targetIndex = newTargetTasks.findIndex((t: Task) => t.id === dragOverPosition.targetTaskId)
+        if (targetIndex !== -1) {
+          const insertIndex = dragOverPosition.position === 'before' ? targetIndex : targetIndex + 1
+          newTargetTasks.splice(insertIndex, 0, updatedTask)
+        } else {
+          newTargetTasks.push(updatedTask)
+        }
+      } else {
+        newTargetTasks.push(updatedTask)
+      }
+      
+      calculatedTaskOrder = newTargetTasks.filter((t: Task) => {
+        const taskMemberId = t.memberId || extractRoutineTaskIdFromId(t.id)
+        return taskMemberId === targetMemberId
+      })
+      
+      console.log('[DRAG-ORDER] 🔍 Cross-day reorder - NEW order for', targetDay, ':', calculatedTaskOrder.map((t: Task) => ({ 
+        id: t.id, 
+        name: t.name, 
+        memberId: t.memberId 
+      })))
+    }
+    
+    console.log('[DRAG-ORDER] 📊 Calculated task order, length:', calculatedTaskOrder.length)
+    console.log('[DRAG-ORDER] 📊 Calculated task order contents:', calculatedTaskOrder.map((t: Task) => ({ id: t.id, name: t.name })))
+    
+    // Now update state
+    updateCalendarTasks(prev => {
+      const newCalendarTasks = { ...prev }
+      const sourceTasks = newCalendarTasks[sourceDay]
+      const targetTasks = newCalendarTasks[targetDay]
+      
+      if (sourceDay === targetDay && sourceMemberId === targetMemberId) {
+        // Same day - update with calculated order
         newCalendarTasks[sourceDay] = {
-          ...sourceDayTasks,
-          individualTasks: sourceDayTasks.individualTasks.filter((t: Task) => {
+          ...sourceTasks,
+          individualTasks: calculatedTaskOrder
+        }
+      } else {
+        // Cross-day - remove from source and add to target
+        newCalendarTasks[sourceDay] = {
+          ...sourceTasks,
+          individualTasks: sourceTasks.individualTasks.filter((t: Task) => {
             const taskMemberId = t.memberId || extractRoutineTaskIdFromId(t.id)
             return !(t.id === task.id && taskMemberId === sourceMemberId)
           })
         }
         
-        // Add to target
         const updatedTask = { ...task, memberId: targetMemberId }
-        let newTargetTasks = [...targetDayTasks.individualTasks]
+        let newTargetTasks = [...targetTasks.individualTasks]
         
         if (dragOverPosition?.targetTaskId) {
           const targetIndex = newTargetTasks.findIndex((t: Task) => t.id === dragOverPosition.targetTaskId)
@@ -272,62 +334,27 @@ export const useTaskDragAndDrop = (
         }
         
         newCalendarTasks[targetDay] = {
-          ...targetDayTasks,
+          ...targetTasks,
           individualTasks: newTargetTasks
         }
-        
-        finalTaskOrder = newTargetTasks.filter((t: Task) => {
-          const taskMemberId = t.memberId || extractRoutineTaskIdFromId(t.id)
-          return taskMemberId === targetMemberId
-        })
       }
       
       return newCalendarTasks
     })
 
     // Save the new order to backend
-    if (finalTaskOrder.length > 0) {
+    if (calculatedTaskOrder.length > 0) {
       try {
         console.log('[DRAG-ORDER] 💾 Saving new order to backend for day:', targetDay)
+        console.log('[DRAG-ORDER] 🔍 Final task order:', calculatedTaskOrder.map(t => ({ id: t.id, name: t.name, memberId: t.memberId })))
         
-        // Create day order entries for all tasks in the target day
-        const dayOrdersToSave: DaySpecificOrder[] = finalTaskOrder.map((t: Task, index: number) => ({
-          id: `temp-${Date.now()}-${Math.random()}`,
-          routine_id: currentRoutineId!,
-          routine_task_id: extractRoutineTaskIdFromId(t.id),
-          member_id: targetMemberId,
-          day_of_week: targetDay,
-          order_index: index,
-          created_at: new Date().toISOString()
-        }))
-
-        console.log('[DRAG-ORDER] 📋 Day orders to save:', dayOrdersToSave.map(o => ({ taskId: o.routine_task_id, order: o.order_index })))
-
-        await bulkUpdateDayOrders(currentRoutineId, {
-          member_id: targetMemberId,
-          day_of_week: targetDay,
-          task_orders: dayOrdersToSave.map(order => ({
-            routine_task_id: order.routine_task_id,
-            order_index: order.order_index
-          }))
+        // Use the passed saveDaySpecificOrder function
+        console.log('[DRAG-ORDER] 🎯 About to call saveDaySpecificOrder with:', {
+          day: targetDay,
+          memberId: targetMemberId,
+          tasks: calculatedTaskOrder.map(t => ({ id: t.id, name: t.name }))
         })
-
-        // Update local state to reflect the saved orders
-        setDayOrders(prev => {
-          const newDayOrders = [...prev]
-          
-          // Remove existing orders for this member/day
-          const filteredOrders = newDayOrders.filter(order => 
-            !(order.member_id === targetMemberId && order.day_of_week === targetDay)
-          )
-          
-          // Add the new orders
-          filteredOrders.push(...dayOrdersToSave);
-          
-          console.log('[DRAG-ORDER] 📊 Updated local day orders for', targetDay, ':', dayOrdersToSave.map(o => ({ taskId: o.routine_task_id, order: o.order_index })))
-          
-          return filteredOrders
-        })
+        await saveDaySpecificOrder(targetDay, targetMemberId, calculatedTaskOrder)
 
         console.log('[DRAG-ORDER] ✅ Day-specific order saved successfully')
       } catch (error) {
@@ -353,8 +380,18 @@ export const useTaskDragAndDrop = (
 
     // Sort tasks by their day-specific order
     return tasks.sort((a, b) => {
-      const orderA = memberDayOrders.find(order => order.routine_task_id === extractRoutineTaskIdFromId(a.id))
-      const orderB = memberDayOrders.find(order => order.routine_task_id === extractRoutineTaskIdFromId(b.id))
+      // Use routine_task_id if available, otherwise extract from id
+      const routineTaskIdA = a.routine_task_id || extractRoutineTaskIdFromId(a.id)
+      const routineTaskIdB = b.routine_task_id || extractRoutineTaskIdFromId(b.id)
+      
+      const orderA = memberDayOrders.find(order => order.routine_task_id === routineTaskIdA)
+      const orderB = memberDayOrders.find(order => order.routine_task_id === routineTaskIdB)
+      
+      console.log('[DRAG-ORDER] 🔍 getTasksWithDayOrder sorting:', {
+        taskA: { id: a.id, routine_task_id: a.routine_task_id, finalId: routineTaskIdA, order: orderA?.order_index },
+        taskB: { id: b.id, routine_task_id: b.routine_task_id, finalId: routineTaskIdB, order: orderB?.order_index },
+        dayOrders: memberDayOrders.map(o => ({ routine_task_id: o.routine_task_id, order_index: o.order_index }))
+      })
       
       if (!orderA && !orderB) return 0
       if (!orderA) return 1

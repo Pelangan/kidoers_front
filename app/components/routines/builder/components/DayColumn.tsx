@@ -95,7 +95,7 @@ export const DayColumn: React.FC<DayColumnProps> = ({
       <div className="border-b border-gray-200"></div>
 
       {/* Tasks Area */}
-      <div className="flex-1 p-3 bg-white space-y-2 relative">
+      <div className="flex-1 p-3 bg-white space-y-1 relative">
         {/* Empty Column Drop Zone */}
         {isColumnEmpty && draggedTask && (
           <div
@@ -205,7 +205,7 @@ export const DayColumn: React.FC<DayColumnProps> = ({
                 <div key={`${task.id}-${task.memberId || selectedMemberIds[0]}-${day}`}>
                   {/* Drop zone before this task */}
                   <div
-                    className={`h-6 rounded transition-all ${
+                    className={`h-2 rounded transition-all ${
                       dragOverPosition?.day === day && 
                         dragOverPosition?.memberId === (task.memberId || selectedMemberIds[0]) &&
                       dragOverPosition?.position === 'before' && 
@@ -234,7 +234,7 @@ export const DayColumn: React.FC<DayColumnProps> = ({
                   {/* Drop zone after this task */}
                   {taskIndex === taskArray.length - 1 && (
                     <div
-                      className={`h-6 rounded transition-all ${
+                      className={`h-2 rounded transition-all ${
                         dragOverPosition?.day === day && 
                         dragOverPosition?.memberId === task.memberId && 
                         dragOverPosition?.position === 'after' && 
@@ -255,7 +255,7 @@ export const DayColumn: React.FC<DayColumnProps> = ({
         {/* Bottom drop zone for non-empty columns - makes it easier to add tasks at the end */}
         {!isColumnEmpty && draggedTask && (
           <div
-            className={`mt-4 h-16 rounded transition-all ${
+            className={`mt-2 h-16 rounded transition-all ${
               isColumnDraggedOver && !dragOverPosition?.targetTaskId
                 ? 'bg-blue-100 border-2 border-dashed border-blue-400' 
                 : 'border-2 border-dashed border-gray-200 hover:bg-blue-50 hover:border-blue-300'
