@@ -72,10 +72,18 @@ export const DayColumn: React.FC<DayColumnProps> = ({
     individualTasksCount: dayTasks?.individualTasks?.length || 0 
   });
 
+  // Check if column is being dragged over
+  const isColumnDraggedOver = draggedTask && dragOverPosition?.day === day
+  const isColumnEmpty = totalDayTasks === 0
+
   return (
     <div
       key={day}
-      className="border-r border-gray-200 last:border-r-0 min-h-[900px] flex flex-col cursor-pointer hover:bg-gray-50 transition-colors"
+      className={`border-r border-gray-200 last:border-r-0 min-h-[900px] flex flex-col cursor-pointer transition-all ${
+        isColumnDraggedOver 
+          ? 'bg-blue-50 border-blue-300 border-2' 
+          : 'hover:bg-gray-50'
+      }`}
       onClick={() => onColumnClick(day)}
     >
       {/* Day Header */}
@@ -87,7 +95,33 @@ export const DayColumn: React.FC<DayColumnProps> = ({
       <div className="border-b border-gray-200"></div>
 
       {/* Tasks Area */}
-      <div className="flex-1 p-3 bg-white space-y-2">
+      <div className="flex-1 p-3 bg-white space-y-2 relative">
+        {/* Empty Column Drop Zone */}
+        {isColumnEmpty && draggedTask && (
+          <div
+            className={`absolute inset-0 transition-all ${
+              isColumnDraggedOver 
+                ? 'bg-blue-100 border-2 border-dashed border-blue-400' 
+                : 'bg-gray-50 border-2 border-dashed border-gray-300'
+            }`}
+            onDragOver={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onTaskDragOver(e, day, selectedMemberIds[0], 'after')
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onTaskDragLeave()
+            }}
+            onDrop={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onTaskDrop(e, day, selectedMemberIds[0])
+            }}
+          />
+        )}
+
         {totalDayTasks > 0 && (
           <>
             {/* Groups - Filtered by Selected Members */}
@@ -171,13 +205,13 @@ export const DayColumn: React.FC<DayColumnProps> = ({
                 <div key={`${task.id}-${task.memberId || selectedMemberIds[0]}-${day}`}>
                   {/* Drop zone before this task */}
                   <div
-                    className={`h-1 transition-colors ${
+                    className={`h-6 rounded transition-all ${
                       dragOverPosition?.day === day && 
                         dragOverPosition?.memberId === (task.memberId || selectedMemberIds[0]) &&
                       dragOverPosition?.position === 'before' && 
                       dragOverPosition?.targetTaskId === task.id
-                        ? 'bg-blue-500' 
-                        : 'hover:bg-blue-200'
+                        ? 'bg-blue-400 border-2 border-dashed border-blue-600' 
+                        : 'hover:bg-blue-100 hover:border-2 hover:border-dashed hover:border-blue-300'
                     }`}
                     onDragOver={(e) => onTaskDragOver(e, day, task.memberId || selectedMemberIds[0], 'before', task.id)}
                     onDragLeave={onTaskDragLeave}
@@ -200,13 +234,13 @@ export const DayColumn: React.FC<DayColumnProps> = ({
                   {/* Drop zone after this task */}
                   {taskIndex === taskArray.length - 1 && (
                     <div
-                      className={`h-1 transition-colors ${
+                      className={`h-6 rounded transition-all ${
                         dragOverPosition?.day === day && 
                         dragOverPosition?.memberId === task.memberId && 
                         dragOverPosition?.position === 'after' && 
                         dragOverPosition?.targetTaskId === task.id
-                          ? 'bg-blue-500' 
-                          : 'hover:bg-blue-200'
+                          ? 'bg-blue-400 border-2 border-dashed border-blue-600' 
+                          : 'hover:bg-blue-100 hover:border-2 hover:border-dashed hover:border-blue-300'
                       }`}
                       onDragOver={(e) => onTaskDragOver(e, day, task.memberId || selectedMemberIds[0], 'after', task.id)}
                       onDragLeave={onTaskDragLeave}
@@ -216,6 +250,32 @@ export const DayColumn: React.FC<DayColumnProps> = ({
                 </div>
               ))}
           </>
+        )}
+        
+        {/* Bottom drop zone for non-empty columns - makes it easier to add tasks at the end */}
+        {!isColumnEmpty && draggedTask && (
+          <div
+            className={`mt-4 h-16 rounded transition-all ${
+              isColumnDraggedOver && !dragOverPosition?.targetTaskId
+                ? 'bg-blue-100 border-2 border-dashed border-blue-400' 
+                : 'border-2 border-dashed border-gray-200 hover:bg-blue-50 hover:border-blue-300'
+            }`}
+            onDragOver={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onTaskDragOver(e, day, selectedMemberIds[0], 'after')
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onTaskDragLeave()
+            }}
+            onDrop={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onTaskDrop(e, day, selectedMemberIds[0])
+            }}
+          />
         )}
       </div>
     </div>

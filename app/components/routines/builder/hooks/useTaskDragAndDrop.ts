@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { bulkUpdateDayOrders } from '../../../../lib/api'
-import type { Task, DaySpecificOrder } from '../types/routineBuilderTypes'
+import { bulkUpdateDayOrders, updateTemplateDays } from '../../../../lib/api'
+import type { Task, DaySpecificOrder, RecurringTemplate } from '../types/routineBuilderTypes'
 
 interface DraggedTask {
   task: Task
@@ -18,7 +18,8 @@ interface DragOverPosition {
 export const useTaskDragAndDrop = (
   updateCalendarTasks: (updater: (prev: any) => any) => void,
   extractRoutineTaskIdFromId: (id: string) => string,
-  currentRoutineId: string | null
+  currentRoutineId: string | null,
+  recurringTemplates: RecurringTemplate[] = []
 ) => {
   // Drag and drop state
   const [draggedTask, setDraggedTask] = useState<DraggedTask | null>(null)
@@ -120,6 +121,69 @@ export const useTaskDragAndDrop = (
     setIsDragging(false)
   }
 
+  const updateTaskTemplateDays = async (task: Task, targetDay: string) => {
+    if (!currentRoutineId || !task.recurring_template_id) {
+      return
+    }
+
+    try {
+      console.log('[DRAG-ORDER] 📅 Updating template days for task:', task.name)
+      
+      // Find the recurring template for this task
+      const template = recurringTemplates.find(t => t.id === task.recurring_template_id)
+      
+      if (!template) {
+        console.warn('[DRAG-ORDER] ⚠️ Template not found for task:', task.name)
+        return
+      }
+
+      console.log('[DRAG-ORDER] 📋 Current template days:', template.days_of_week)
+      console.log('[DRAG-ORDER] 🎯 Target day:', targetDay)
+
+      // Determine new days_of_week based on frequency_type
+      let newDaysOfWeek: string[] = []
+
+      if (template.frequency_type === 'just_this_day') {
+        // For single-day tasks, replace with the new day
+        newDaysOfWeek = [targetDay]
+        console.log('[DRAG-ORDER] ✏️ Single-day task: replacing with', targetDay)
+      } else if (template.frequency_type === 'specific_days') {
+        const currentDays = template.days_of_week || []
+        
+        // If it's a single-day specific_days task being moved, REPLACE the day (don't add)
+        if (currentDays.length === 1) {
+          newDaysOfWeek = [targetDay]
+          console.log('[DRAG-ORDER] ✏️ Single-day specific task: replacing', currentDays[0], 'with', targetDay)
+        } 
+        // If it's a multi-day task, ADD the new day if not already present
+        else if (!currentDays.includes(targetDay)) {
+          newDaysOfWeek = [...currentDays, targetDay].sort()
+          console.log('[DRAG-ORDER] ➕ Multi-day task: adding', targetDay, 'to existing days')
+        } else {
+          // Already includes this day, no update needed
+          console.log('[DRAG-ORDER] ✅ Task already includes', targetDay)
+          return
+        }
+      } else if (template.frequency_type === 'every_day') {
+        // Every day tasks already have all days, no update needed
+        console.log('[DRAG-ORDER] ℹ️ Every-day task: no update needed')
+        return
+      }
+
+      console.log('[DRAG-ORDER] 💾 Updating template with new days:', newDaysOfWeek)
+
+      // Update the template days in the backend
+      await updateTemplateDays(currentRoutineId, template.id, {
+        days_of_week: newDaysOfWeek
+      })
+
+      console.log('[DRAG-ORDER] ✅ Template days updated successfully')
+    } catch (error) {
+      console.error('[DRAG-ORDER] ❌ Failed to update template days:', error)
+      throw error
+    }
+  }
+
   const moveTaskToPosition = async (
     task: Task, 
     sourceDay: string, 
@@ -135,6 +199,11 @@ export const useTaskDragAndDrop = (
 
     console.log('[DRAG-ORDER] 🔄 Moving task:', task.name, 'from', sourceDay, 'to', targetDay)
     console.log('[DRAG-ORDER] 🎯 Drag over position:', dragOverPosition)
+
+    // If moving to a different day, update the recurring template's days_of_week
+    if (sourceDay !== targetDay && task.recurring_template_id) {
+      await updateTaskTemplateDays(task, targetDay)
+    }
 
     let finalTaskOrder: Task[] = []
 
@@ -224,19 +293,21 @@ export const useTaskDragAndDrop = (
         // Create day order entries for all tasks in the target day
         const dayOrdersToSave: DaySpecificOrder[] = finalTaskOrder.map((t: Task, index: number) => ({
           id: `temp-${Date.now()}-${Math.random()}`,
+          routine_id: currentRoutineId!,
           routine_task_id: extractRoutineTaskIdFromId(t.id),
           member_id: targetMemberId,
           day_of_week: targetDay,
-          order_index: index
+          order_index: index,
+          created_at: new Date().toISOString()
         }))
 
         console.log('[DRAG-ORDER] 📋 Day orders to save:', dayOrdersToSave.map(o => ({ taskId: o.routine_task_id, order: o.order_index })))
 
         await bulkUpdateDayOrders(currentRoutineId, {
+          member_id: targetMemberId,
           day_of_week: targetDay,
           task_orders: dayOrdersToSave.map(order => ({
             routine_task_id: order.routine_task_id,
-            member_id: order.member_id,
             order_index: order.order_index
           }))
         })

@@ -35,7 +35,7 @@ export default defineConfig({
     
     // Test match patterns
     include: ['**/*.{test,spec}.{ts,tsx}'],
-    exclude: ['node_modules', '.next', 'public'],
+    exclude: ['node_modules', '.next', 'public', 'tests/e2e/**'],
     
     // Reporting
     reporters: ['verbose'],

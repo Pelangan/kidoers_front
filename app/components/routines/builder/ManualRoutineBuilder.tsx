@@ -356,7 +356,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     moveTaskToPosition,
     getTasksWithDayOrder,
     loadDayOrders
-  } = useTaskDragAndDrop(updateCalendarTasks, extractRoutineTaskIdFromId, currentRoutineId)
+  } = useTaskDragAndDrop(updateCalendarTasks, extractRoutineTaskIdFromId, currentRoutineId, recurringTemplates)
 
 
 
@@ -1845,7 +1845,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           // Get assignments from the original backend data
           const backendTask = fullData.individual_tasks.find(bt => bt.id === task.id);
           
-          if (backendTask?.assignments && task.days_of_week && task.days_of_week.length > 0) {
+          if (backendTask?.assignments && backendTask.assignments.length > 0 && task.days_of_week && task.days_of_week.length > 0) {
             // For one_off tasks, use the days_of_week from the task data
             for (const day of task.days_of_week) {
               if (newCalendarTasks[day]) {
@@ -1894,7 +1894,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
             if (newCalendarTasks[day]) {
               // Get assignments from the original backend data
               const backendTask = fullData.individual_tasks.find(bt => bt.id === task.id);
-              if (backendTask?.assignments) {
+              if (backendTask?.assignments && backendTask.assignments.length > 0) {
                 // Create a single task instance with all assignees for multi-member tasks
                 // This ensures the task appears for all members, not just individual instances
                 const taskWithAssignees = {
@@ -1924,6 +1924,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                 
                 newCalendarTasks[day].individualTasks.push(taskWithAssignees);
                 console.log('[KIDOERS-ROUTINE] ✅ Added recurring multi-member task to calendar:', task.name, 'on day:', day, 'with', backendTask.assignments.length, 'assignees');
+              } else {
+                console.warn('[KIDOERS-ROUTINE] ⚠️ Task has no assignments, skipping:', task.name, 'on day:', day);
               }
             }
           }
@@ -2361,13 +2363,45 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           >
             <div
               className="fixed z-50 bg-white rounded-xl shadow-2xl border border-gray-200 min-w-[320px] max-w-[400px]"
-              style={{
-                left: `${miniPopupPosition.x}px`,
-                top: `${miniPopupPosition.y}px`,
-                transform: 'translate(-50%, -100%)'
-              }}
+              style={(() => {
+                // Smart positioning to avoid popup getting cut off at screen edges
+                const popupWidth = 360 // Approximate width (320-400px)
+                const popupHeight = 300 // Approximate height
+                const padding = 10 // Padding from screen edge
+                
+                // Calculate horizontal position
+                let left = miniPopupPosition.x
+                let transformX = '-50%' // Default: center on click
+                
+                // Check if popup would go off left edge
+                if (miniPopupPosition.x - popupWidth / 2 < padding) {
+                  left = padding
+                  transformX = '0%' // Align left edge to position
+                }
+                // Check if popup would go off right edge
+                else if (miniPopupPosition.x + popupWidth / 2 > window.innerWidth - padding) {
+                  left = window.innerWidth - padding
+                  transformX = '-100%' // Align right edge to position
+                }
+                
+                // Calculate vertical position
+                let top = miniPopupPosition.y
+                let transformY = '-100%' // Default: above click
+                
+                // If not enough space above, show below
+                if (miniPopupPosition.y - popupHeight < padding) {
+                  transformY = '10px' // Small offset below click
+                }
+                
+                return {
+                  left: `${left}px`,
+                  top: `${top}px`,
+                  transform: `translate(${transformX}, ${transformY})`
+                }
+              })()}
               onClick={(e) => e.stopPropagation()}
             >
+
               {/* Header with actions */}
               <div className="flex items-center justify-between p-4 border-b border-gray-100">
                 <div className="flex items-center space-x-2">
@@ -2416,12 +2450,12 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
 
               {/* Content */}
               <div className="p-4 space-y-3">
-                {/* Date and Time */}
+                {/* Day */}
                 <div className="flex items-center space-x-2 text-sm text-gray-600">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
-                  <span className="capitalize">{selectedTaskForEdit.day} • {new Date().toLocaleDateString()}</span>
+                  <span className="capitalize">{selectedTaskForEdit.day}</span>
                 </div>
 
 

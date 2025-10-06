@@ -838,6 +838,27 @@ interface Reward {
 - **Dual Routine Loading**: First attempts to load onboarding routine, then falls back to active routine if not found
 - **Task Order Persistence**: Saves task order within columns using `routine_task_day_orders` table and bulk update API
 - **Drag & Drop Reordering**: Real-time task reordering with visual feedback and automatic order tracking
+- **Enhanced Drag & Drop UX** (Updated 2025-10-06):
+  - **Large Drop Zones**: Drop zones between tasks are 24px (h-6) height for easier targeting
+  - **Visual Feedback**: Drop zones highlight with blue background and dashed borders on hover
+  - **Empty Column Support**: Full-height drop zone appears in empty day columns when dragging
+  - **Clean Visual Design**: Drop zones use only color and border styling without text labels
+  - **Column Highlighting**: Entire column highlights with blue border when dragging over it
+  - **Bottom Drop Zone**: Additional 64px drop zone at the bottom of non-empty columns for easy task addition at the end
+  - **Smooth Transitions**: All drop zones use smooth CSS transitions for better visual feedback
+  - **Color Coding**: Active drop zones use blue-400 background, hover states use blue-100
+  - **Database Persistence**: Moving tasks between days automatically updates the recurring template's `days_of_week` field
+  - **Smart Day Updates**: 
+    - Single-day tasks (1 day): Replace the day when dragged to new column
+    - Multi-day tasks (2+ days): Add the new day to existing days
+    - Every-day tasks (7 days): No update needed
+  - **No Duplicates**: Tasks are moved, not copied - only appear in target column after drag
+  - **Assignment Preservation**: Task assignments are preserved when moving between days (fixed CASCADE delete issue)
+  - **Automatic Sync**: Task changes persist to database and survive browser refresh
+  - **Test Coverage**: Backend integration tests and E2E Playwright tests verify drag-drop behavior
+  - **Bug Fixes (2025-10-06)**: 
+    - Fixed critical bug where task assignments were deleted during drag-drop due to incorrect operation order
+    - Fixed duplicate task bug when deleting single day from multi-day task (routine_tasks now keep individual days)
 - **Visual Design**: Matches wireframe exactly with proper colors and layout
 
 ## 🔌 API Integration
