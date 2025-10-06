@@ -859,6 +859,7 @@ interface Reward {
   - **Bug Fixes (2025-10-06)**: 
     - Fixed critical bug where task assignments were deleted during drag-drop due to incorrect operation order
     - Fixed duplicate task bug when deleting single day from multi-day task (routine_tasks now keep individual days)
+    - Fixed undo functionality for task deletion - now properly restores tasks in backend database (not just UI state)
 - **Visual Design**: Matches wireframe exactly with proper colors and layout
 
 ## 🔌 API Integration

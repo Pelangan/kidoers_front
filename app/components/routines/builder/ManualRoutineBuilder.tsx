@@ -1041,14 +1041,37 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         
         // Show undo toast
         const operationId = `delete-${taskToDelete.task.id}-${Date.now()}`
+        
+        // Store task data needed for undo (before it's removed from state)
+        const taskDataForUndo = {
+          name: taskToDelete.task.name,
+          description: taskToDelete.task.description || undefined,
+          points: taskToDelete.task.points,
+          duration_mins: taskToDelete.task.estimatedMinutes,
+          time_of_day: taskToDelete.task.time_of_day || undefined,
+          frequency: (taskToDelete.task.frequency || 'specific_days') as 'one_off' | 'daily' | 'specific_days' | 'weekly',
+          days_of_week: taskToDelete.task.days_of_week || [taskToDelete.day],
+          member_ids: taskToDelete.task.assignees?.map(a => a.id) || [taskToDelete.memberId]
+        }
+        
         const undoFunction = async () => {
           try {
-            // Restore the original calendar state
-            setCalendarTasks(originalCalendarTasks)
+            console.log('[TASK-UNDO] 🔄 Restoring task in backend...', taskDataForUndo)
             
-            // Optionally, recreate the task in the backend if needed
-            // For now, we'll just restore the UI state
-            console.log('[TASK-UNDO] ✅ Task restored in UI')
+            // Recreate the task in the backend
+            if (currentRoutineId && enhancedFamilyMembers.length > 0) {
+              await createMultiMemberTask(currentRoutineId, taskDataForUndo)
+              console.log('[TASK-UNDO] ✅ Task recreated in backend')
+              
+              // Reload the entire routine data - this will rebuild calendar correctly
+              await loadExistingRoutineData(currentRoutineId, enhancedFamilyMembers)
+              
+              console.log('[TASK-UNDO] ✅ Task fully restored (UI + Backend)')
+            } else {
+              // Fallback: just restore UI state if no routine ID
+              setCalendarTasks(originalCalendarTasks)
+              console.log('[TASK-UNDO] ⚠️ Restored UI only (no routine ID)')
+            }
           } catch (error) {
             console.error('[TASK-UNDO] ❌ Error undoing task deletion:', error)
             throw error
