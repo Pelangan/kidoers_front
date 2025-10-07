@@ -55,6 +55,7 @@ export const DayColumn: React.FC<DayColumnProps> = ({
   // Debug: Log when selectedMemberIds changes
   console.log('[KIDOERS-ROUTINE] 🔄 DayColumn re-rendered:', { day, selectedMemberIds });
   console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - dayTasks received:', { day, dayTasks, individualTasksCount: dayTasks?.individualTasks?.length || 0 });
+  console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - individualTasks:', dayTasks?.individualTasks?.map(t => ({ id: t.id, name: t.name, routine_task_id: t.routine_task_id })) || []);
   
   const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
   const dayIndex = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].indexOf(day)

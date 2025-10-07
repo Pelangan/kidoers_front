@@ -34,6 +34,7 @@ export const useTaskDragAndDrop = (
   const [dragOverPosition, setDragOverPosition] = useState<DragOverPosition | null>(null)
   const [dayOrders, setDayOrders] = useState<DaySpecificOrder[]>([])
   const [isDragging, setIsDragging] = useState(false)
+  const [isOptimisticUpdate, setIsOptimisticUpdate] = useState(false)
 
   // Update body class when dragging
   useEffect(() => {
@@ -122,8 +123,8 @@ export const useTaskDragAndDrop = (
     console.log('[DRAG-ORDER] ✅ Proceeding with reorder - dragOverPosition:', dragOverPosition)
     await moveTaskToPosition(task, sourceDay, sourceMemberId, targetDay, targetMemberId, dragOverPosition)
     
-    setDraggedTask(null)
-    setDragOverPosition(null)
+    // Drag state is now cleared immediately after optimistic UI update in moveTaskToPosition
+    console.log('[DRAG-ORDER] ✅ moveTaskToPosition completed - drag state already cleared')
   }
 
   const handleTaskDragEnd = () => {
@@ -245,21 +246,108 @@ export const useTaskDragAndDrop = (
       isSameMember: sourceMemberId === targetMemberId
     })
 
-      // If moving to a different day, update the recurring template's days_of_week
+      // Google Calendar approach: Single optimistic UI update, then background sync
       let newTaskIdMapping: Record<string, string> | null = null
       if (sourceDay !== targetDay && task.recurring_template_id) {
-        console.log('[DRAG-ORDER] 🔄 Updating template before calculating order...')
-        newTaskIdMapping = await updateTaskTemplateDays(task, targetDay) || null
-        console.log('[DRAG-ORDER] ✅ Template updated, reloading routine data...')
+        console.log('[DRAG-ORDER] 🎯 Google Calendar approach: Single optimistic UI update')
         
-        // Reload routine data to get fresh task objects with correct IDs
-        if (reloadRoutineData) {
-          await reloadRoutineData()
-          console.log('[DRAG-ORDER] 🔄 Routine data reloaded, proceeding with order calculation...')
+        // Step 1: Calculate the final position immediately
+        const targetDayTasks = calendarTasks[targetDay]
+        const existingTasks = targetDayTasks.individualTasks.filter((t: Task) => {
+          const taskMemberId = t.memberId || extractRoutineTaskIdFromId(t.id)
+          return taskMemberId === targetMemberId
+        })
+        
+        // Create the moved task with updated properties
+        const movedTask = {
+          ...task,
+          id: `${task.routine_task_id}_${targetDay}`, // Temporary ID for UI
+          memberId: targetMemberId
+        }
+        
+        // Insert at correct position
+        if (dragOverPosition?.targetTaskId) {
+          const targetIndex = existingTasks.findIndex((t: Task) => t.id === dragOverPosition.targetTaskId)
+          if (targetIndex !== -1) {
+            const insertIndex = dragOverPosition.position === 'before' ? targetIndex : targetIndex + 1
+            existingTasks.splice(insertIndex, 0, movedTask)
+            console.log('[DRAG-ORDER] 🎯 Inserted at final position:', insertIndex)
+          } else {
+            existingTasks.push(movedTask)
+          }
+        } else {
+          existingTasks.push(movedTask)
+        }
+        
+        // Step 2: Immediate optimistic UI update - Google Calendar style
+        console.log('[DRAG-ORDER] 🎯 Immediate optimistic UI update - Google Calendar style')
+        console.log('[DRAG-ORDER] 🔍 BEFORE optimistic update - existingTasks:', existingTasks.map(t => ({ id: t.id, name: t.name, routine_task_id: t.routine_task_id })))
+        
+        // Set flag to prevent day order sorting during optimistic update
+        setIsOptimisticUpdate(true)
+        console.log('[DRAG-ORDER] 🔧 Set isOptimisticUpdate = true')
+        
+        // Single UI update - move task directly to final position immediately
+        updateCalendarTasks(prev => {
+          console.log('[DRAG-ORDER] 🔄 updateCalendarTasks called - optimistic update')
+          const newCalendarTasks = { ...prev }
+          
+          // Remove from source day
+          newCalendarTasks[sourceDay] = {
+            ...newCalendarTasks[sourceDay],
+            individualTasks: newCalendarTasks[sourceDay].individualTasks.filter((t: Task) => {
+              const taskMemberId = t.memberId || extractRoutineTaskIdFromId(t.id)
+              return !(taskMemberId === sourceMemberId && t.routine_task_id === task.routine_task_id)
+            })
+          }
+          
+          // Add to target day at correct position
+          newCalendarTasks[targetDay] = {
+            ...newCalendarTasks[targetDay],
+            individualTasks: existingTasks
+          }
+          
+          console.log('[DRAG-ORDER] 🔍 AFTER optimistic update - target day tasks:', newCalendarTasks[targetDay].individualTasks.map((t: Task) => ({ id: t.id, name: t.name, routine_task_id: t.routine_task_id })))
+          return newCalendarTasks
+        })
+        
+        console.log('[DRAG-ORDER] ✅ Immediate optimistic UI update completed - task moved to final position')
+        
+        // CRITICAL FIX: Clear drag state immediately after optimistic UI update to hide drop zones
+        console.log('[DRAG-ORDER] 🔧 Clearing drag state immediately to hide drop zones')
+        setDraggedTask(null)
+        setDragOverPosition(null)
+        setIsDragging(false)
+        
+        // Step 3: Background sync - update with correct routine_task_id silently
+        console.log('[DRAG-ORDER] 🔄 Starting background sync...')
+        
+        try {
+          // Update template in background
+          newTaskIdMapping = await updateTaskTemplateDays(task, targetDay) || null
+          console.log('[DRAG-ORDER] ✅ Background template update completed')
+          
+          // Store the correct routine_task_id for later use in backend call
+          if (newTaskIdMapping && newTaskIdMapping[targetDay]) {
+            console.log('[DRAG-ORDER] 🔧 Storing correct routine_task_id for backend call:', newTaskIdMapping[targetDay])
+            // Update the movedTask object for backend call
+            movedTask.routine_task_id = newTaskIdMapping[targetDay]
+            movedTask.id = `${newTaskIdMapping[targetDay]}_${targetDay}`
+            console.log('[DRAG-ORDER] ✅ Correct routine_task_id stored for backend call')
+          }
           
           // Small delay to ensure database transaction is fully committed
           await new Promise(resolve => setTimeout(resolve, 200))
-          console.log('[DRAG-ORDER] ⏱️ Delay completed after reload, proceeding...')
+          console.log('[DRAG-ORDER] ✅ Background sync completed')
+          
+          // Keep optimistic update flag true until backend order is saved
+          console.log('[DRAG-ORDER] 🔧 Keeping optimistic update flag true until backend order is saved')
+          
+        } catch (error) {
+          console.error('[DRAG-ORDER] ❌ Background sync failed:', error)
+          // Clear optimistic update flag even on error
+          setIsOptimisticUpdate(false)
+          // TODO: Revert optimistic update if needed
         }
       }
 
@@ -330,191 +418,82 @@ export const useTaskDragAndDrop = (
       console.log('[DRAG-ORDER] 🔍 After insertion, before filtering:', newTargetTasks.map(t => ({ id: t.id, name: t.name, memberId: t.memberId })))
       
       if (sourceDay !== targetDay) {
-        // For cross-day moves, the task is moved (not duplicated) so we need to handle positioning differently
-        console.log('[DRAG-ORDER] 🔍 Cross-day move: task moved from', sourceDay, 'to', targetDay)
-        console.log('[DRAG-ORDER] 🔍 Target day tasks after reload:', targetDayTasks.individualTasks.map(t => ({ 
+        // For cross-day moves, we've already done the optimistic UI update and background sync
+        // The UI now has the correct routine_task_id, so we can use it directly
+        console.log('[DRAG-ORDER] 🔍 Cross-day move: using updated UI state with correct routine_task_id')
+        
+        // Get the current UI state and update with correct routine_task_id for backend
+        calculatedTaskOrder = targetDayTasks.individualTasks.filter((t: Task) => {
+          const taskMemberId = t.memberId || extractRoutineTaskIdFromId(t.id)
+          return taskMemberId === targetMemberId
+        })
+        
+        // Update the moved task with correct routine_task_id for backend call
+        if (newTaskIdMapping && newTaskIdMapping[targetDay]) {
+          const movedTaskInOrder = calculatedTaskOrder.find(t => t.name === task.name)
+          if (movedTaskInOrder) {
+            movedTaskInOrder.routine_task_id = newTaskIdMapping[targetDay]
+            movedTaskInOrder.id = `${newTaskIdMapping[targetDay]}_${targetDay}`
+            console.log('[DRAG-ORDER] 🔧 Updated moved task in order with correct routine_task_id:', newTaskIdMapping[targetDay])
+          }
+        }
+        
+        console.log('[DRAG-ORDER] 🔍 Cross-day move: final order for backend:', calculatedTaskOrder.map(t => ({ 
           id: t.id, 
           name: t.name, 
           routine_task_id: t.routine_task_id,
-          recurring_template_id: t.recurring_template_id
+          memberId: t.memberId
         })))
         
-        // Find the moved task in the target day using multiple strategies
-        console.log('[DRAG-ORDER] 🔍 Looking for moved task:', {
-          originalTaskId: task.id,
-          originalRoutineTaskId: task.routine_task_id,
-          originalName: task.name,
-          originalRecurringTemplateId: task.recurring_template_id,
-          targetDayTasks: targetDayTasks.individualTasks.map(t => ({ 
-            id: t.id, 
-            name: t.name, 
-            routine_task_id: t.routine_task_id,
-            recurring_template_id: t.recurring_template_id
-          }))
-        })
-        
-        let movedTask = targetDayTasks.individualTasks.find((t: Task) => 
-          t.routine_task_id === task.routine_task_id
-        )
-        
-        // Fallback: try finding by recurring_template_id if routine_task_id match fails
-        if (!movedTask) {
-          console.log('[DRAG-ORDER] 🔍 Routine task ID match failed, trying recurring_template_id match')
-          movedTask = targetDayTasks.individualTasks.find((t: Task) => 
-            t.recurring_template_id === task.recurring_template_id
-          )
-        }
-        
-        // Fallback: try finding by name if recurring_template_id match fails
-        if (!movedTask) {
-          console.log('[DRAG-ORDER] 🔍 Recurring template ID match failed, trying name match')
-          movedTask = targetDayTasks.individualTasks.find((t: Task) => t.name === task.name)
-        }
-        
-        console.log('[DRAG-ORDER] 🔍 Task search result:', {
-          found: !!movedTask,
-          foundById: !!targetDayTasks.individualTasks.find((t: Task) => t.routine_task_id === task.routine_task_id),
-          foundByName: !!targetDayTasks.individualTasks.find((t: Task) => t.name === task.name)
-        })
-        
-        if (movedTask) {
-          console.log('[DRAG-ORDER] 🔍 Found moved task:', { id: movedTask.id, name: movedTask.name, routine_task_id: movedTask.routine_task_id })
-          
-          // Get existing tasks for this member (excluding the moved task)
-          const existingTasks = targetDayTasks.individualTasks.filter((t: Task) => {
-            const taskMemberId = t.memberId || extractRoutineTaskIdFromId(t.id)
-            return taskMemberId === targetMemberId && t.id !== movedTask.id
+        // DEBUG: Check if Task 5 has correct routine_task_id
+        const task5InOrder = calculatedTaskOrder.find(t => t.name === task.name)
+        if (task5InOrder) {
+          console.log('[DRAG-ORDER] 🔍 DEBUG Task 5 in final order:', {
+            name: task5InOrder.name,
+            routine_task_id: task5InOrder.routine_task_id,
+            id: task5InOrder.id,
+            hasCorrectId: !!task5InOrder.routine_task_id,
+            newTaskIdMapping: newTaskIdMapping,
+            targetDay: targetDay
           })
-          
-          // Insert the moved task at the correct position
-          if (dragOverPosition?.targetTaskId) {
-            const targetIndex = existingTasks.findIndex((t: Task) => t.id === dragOverPosition.targetTaskId)
-            if (targetIndex !== -1) {
-              const insertIndex = dragOverPosition.position === 'before' ? targetIndex : targetIndex + 1
-              existingTasks.splice(insertIndex, 0, movedTask)
-              console.log('[DRAG-ORDER] 🔍 Inserted moved task at index:', insertIndex, 'position:', dragOverPosition.position)
-            } else {
-              existingTasks.push(movedTask)
-              console.log('[DRAG-ORDER] 🔍 Target task not found, appending moved task to end')
-            }
-          } else {
-            existingTasks.push(movedTask)
-            console.log('[DRAG-ORDER] 🔍 No target task specified, appending moved task to end')
-          }
-          
-          calculatedTaskOrder = existingTasks
-          
-          // IMPORTANT: For cross-day moves, we need to also remove the day order entry from the source day
-          console.log('[DRAG-ORDER] 🔄 Cross-day move: need to remove day order from source day:', sourceDay)
-          
-          // Get tasks for source day (excluding the moved task)
-          const sourceDayTasks = calendarTasks[sourceDay]
-          const sourceDayFilteredTasks = sourceDayTasks.individualTasks.filter((t: Task) => {
-            const taskMemberId = t.memberId || extractRoutineTaskIdFromId(t.id)
-            return taskMemberId === sourceMemberId && t.id !== task.id
-          })
-          
-          // Save the updated source day order (without the moved task)
-          if (sourceDayFilteredTasks.length >= 0) {
-            console.log('[DRAG-ORDER] 🔄 Saving updated source day order:', sourceDay, 'tasks:', sourceDayFilteredTasks.map(t => t.name))
-            try {
-              await saveDaySpecificOrder(sourceDay, sourceMemberId, sourceDayFilteredTasks)
-              console.log('[DRAG-ORDER] ✅ Source day order updated successfully')
-            } catch (error) {
-              console.error('[DRAG-ORDER] ❌ Failed to update source day order:', error)
-            }
-          }
-          
         } else {
-          console.log('[DRAG-ORDER] ⚠️ Moved task not found after reload')
-          console.log('[DRAG-ORDER] 🔍 Task 5 was moved but not loaded by reloadRoutineData')
-          console.log('[DRAG-ORDER] 🔧 Creating placeholder for moved task to include in day orders')
+          console.log('[DRAG-ORDER] ❌ DEBUG Task 5 NOT FOUND in final order!')
           
-          // Get existing tasks for this member
-          const existingTasks = targetDayTasks.individualTasks.filter((t: Task) => {
-            const taskMemberId = t.memberId || extractRoutineTaskIdFromId(t.id)
-            return taskMemberId === targetMemberId
-          })
+          // CRITICAL FIX: Add Task 5 to the order if it's missing
+          console.log('[DRAG-ORDER] 🔧 Adding missing Task 5 to final order')
           
-          // CRITICAL FIX: Use the new task ID from the template update response
-          let correctRoutineTaskId = task.routine_task_id
-          
-          // First priority: Use the new task ID from the template update response
-          if (newTaskIdMapping && newTaskIdMapping[targetDay]) {
-            correctRoutineTaskId = newTaskIdMapping[targetDay]
-            console.log('[DRAG-ORDER] 🎯 Using new task ID from template update:', {
-              targetDay: targetDay,
-              newTaskId: correctRoutineTaskId,
-              originalTaskId: task.routine_task_id
-            })
-          } else {
-            // Fallback: Try to find a task with the same recurring_template_id on the target day
-            let matchingTask = targetDayTasks.individualTasks.find((t: Task) => 
-              t.recurring_template_id === task.recurring_template_id
-            )
+          const correctRoutineTaskId = newTaskIdMapping && newTaskIdMapping[targetDay] 
+            ? newTaskIdMapping[targetDay] 
+            : task.routine_task_id
             
-            // Fallback: try finding by name if recurring_template_id match fails
-            if (!matchingTask) {
-              matchingTask = targetDayTasks.individualTasks.find((t: Task) => 
-                t.name === task.name
-              )
-            }
-            
-            if (matchingTask) {
-              correctRoutineTaskId = matchingTask.routine_task_id || extractRoutineTaskIdFromId(matchingTask.id)
-              console.log('[DRAG-ORDER] 🔍 Found matching task for target day:', {
-                name: matchingTask.name,
-                id: matchingTask.id,
-                routine_task_id: correctRoutineTaskId,
-                originalRoutineTaskId: task.routine_task_id
-              })
-            } else {
-              console.log('[DRAG-ORDER] ⚠️ No matching task found for target day, using original routine_task_id')
-            }
-          }
-          
-          // Create a placeholder for the moved task using the correct routine_task_id
-          const movedTaskPlaceholder = {
+          const missingTask5 = {
             ...task,
             id: `${correctRoutineTaskId}_${targetDay}`,
             memberId: targetMemberId,
-            routine_task_id: correctRoutineTaskId // Use the correct ID for the target day
+            routine_task_id: correctRoutineTaskId
           }
           
-          console.log('[DRAG-ORDER] 🔧 Created placeholder:', {
-            id: movedTaskPlaceholder.id,
-            name: movedTaskPlaceholder.name,
-            routine_task_id: movedTaskPlaceholder.routine_task_id,
-            hasRoutineTaskId: !!movedTaskPlaceholder.routine_task_id,
-            originalTaskId: task.id,
-            originalRoutineTaskId: task.routine_task_id,
-            correctRoutineTaskId: correctRoutineTaskId
-          })
-          
-          // Insert the placeholder at the correct position
+          // Insert at correct position
           if (dragOverPosition?.targetTaskId) {
-            const targetIndex = existingTasks.findIndex((t: Task) => t.id === dragOverPosition.targetTaskId)
+            const targetIndex = calculatedTaskOrder.findIndex((t: Task) => t.id === dragOverPosition.targetTaskId)
             if (targetIndex !== -1) {
               const insertIndex = dragOverPosition.position === 'before' ? targetIndex : targetIndex + 1
-              existingTasks.splice(insertIndex, 0, movedTaskPlaceholder)
-              console.log('[DRAG-ORDER] 🔧 Inserted placeholder at index:', insertIndex, 'position:', dragOverPosition.position)
+              calculatedTaskOrder.splice(insertIndex, 0, missingTask5)
+              console.log('[DRAG-ORDER] 🔧 Inserted missing Task 5 at index:', insertIndex)
             } else {
-              existingTasks.push(movedTaskPlaceholder)
-              console.log('[DRAG-ORDER] 🔧 Appended placeholder to end (target not found)')
+              calculatedTaskOrder.push(missingTask5)
+              console.log('[DRAG-ORDER] 🔧 Appended missing Task 5 to end')
             }
           } else {
-            existingTasks.push(movedTaskPlaceholder)
-            console.log('[DRAG-ORDER] 🔧 Appended placeholder to end (no target specified)')
+            calculatedTaskOrder.push(missingTask5)
+            console.log('[DRAG-ORDER] 🔧 Appended missing Task 5 to end')
           }
           
-          calculatedTaskOrder = existingTasks
-          console.log('[DRAG-ORDER] 🔍 Final order with placeholder:', calculatedTaskOrder.map((t, idx) => ({ 
-            index: idx,
-            id: t.id, 
-            name: t.name, 
-            routine_task_id: t.routine_task_id,
-            memberId: t.memberId
-          })))
+          console.log('[DRAG-ORDER] ✅ Task 5 added to final order:', {
+            name: missingTask5.name,
+            routine_task_id: missingTask5.routine_task_id,
+            id: missingTask5.id
+          })
         }
       } else {
         // Same-day reordering
@@ -548,8 +527,8 @@ export const useTaskDragAndDrop = (
         return newCalendarTasks
       })
     } else {
-      // Cross-day moves: Don't update UI state since reloadRoutineData already handled it
-      console.log('[DRAG-ORDER] 🔄 Cross-day move: skipping UI state update (reloadRoutineData already handled it)')
+      // Cross-day moves: We already did the optimistic UI update, skip additional updates
+      console.log('[DRAG-ORDER] 🔄 Cross-day move: skipping additional UI updates (optimistic update already completed)')
     }
 
     // Save the new order to backend
@@ -567,14 +546,39 @@ export const useTaskDragAndDrop = (
         await saveDaySpecificOrder(targetDay, targetMemberId, calculatedTaskOrder)
 
         console.log('[DRAG-ORDER] ✅ Day-specific order saved successfully')
+        
+        // Clear optimistic update flag AFTER backend order is saved
+        console.log('[DRAG-ORDER] 🔧 Clearing optimistic update flag AFTER backend order saved')
+        setIsOptimisticUpdate(false)
+        console.log('[DRAG-ORDER] ✅ Optimistic update flag cleared - day order sorting re-enabled')
+        
       } catch (error) {
         console.error('[DRAG-ORDER] ❌ Failed to save day-specific order:', error)
+        // Clear optimistic update flag even on error
+        setIsOptimisticUpdate(false)
         // TODO: Show user-friendly error message
       }
     }
   }
 
   const getTasksWithDayOrder = (tasks: Task[], day: string, memberId: string): Task[] => {
+    console.log('[DRAG-ORDER] 🔍 getTasksWithDayOrder called:', {
+      day,
+      memberId,
+      taskCount: tasks.length,
+      isOptimisticUpdate,
+      isDragging,
+      draggedTaskDay: draggedTask?.day,
+      tasks: tasks.map(t => ({ id: t.id, name: t.name, routine_task_id: t.routine_task_id }))
+    })
+    
+    // CRITICAL FIX: Don't apply day order sorting during optimistic UI update
+    // This prevents the visual glitch where tasks appear in wrong position
+    if (isOptimisticUpdate) {
+      console.log('[DRAG-ORDER] 🔧 Skipping day order sorting during optimistic update to prevent visual glitch')
+      return tasks
+    }
+    
     if (!dayOrders.length) {
       return tasks
     }
