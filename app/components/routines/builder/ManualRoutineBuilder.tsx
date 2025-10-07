@@ -365,7 +365,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
           routine_task_id: task.routine_task_id,
           extractedId: extractRoutineTaskIdFromId(task.id),
           finalId: routineTaskId,
-          taskName: task.name
+          taskName: task.name,
+          hasRoutineTaskId: !!task.routine_task_id
         })
         return {
           routine_task_id: routineTaskId,
@@ -376,8 +377,26 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
       console.log('[DRAG-ORDER] 🔍 Task order mapping:', {
         originalTaskIds: tasks.map(t => t.id),
         extractedRoutineTaskIds: taskOrders.map(to => to.routine_task_id),
-        taskNames: tasks.map(t => t.name)
+        taskNames: tasks.map(t => t.name),
+        taskRoutineTaskIds: tasks.map(t => t.routine_task_id),
+        taskOrdersWithIndex: taskOrders.map((to, idx) => ({ 
+          routine_task_id: to.routine_task_id, 
+          order_index: to.order_index,
+          taskName: tasks[idx]?.name,
+          taskId: tasks[idx]?.id,
+          hasRoutineTaskId: !!tasks[idx]?.routine_task_id
+        }))
       })
+      
+      console.log('[DRAG-ORDER] 🔍 Detailed task analysis:', tasks.map((t, idx) => ({
+        index: idx,
+        taskId: t.id,
+        taskName: t.name,
+        routineTaskId: t.routine_task_id,
+        extractedId: extractRoutineTaskIdFromId(t.id),
+        finalRoutineTaskId: t.routine_task_id || extractRoutineTaskIdFromId(t.id),
+        memberId: t.memberId
+      })))
 
       const bulkUpdate: BulkDayOrderUpdate = {
         member_id: memberId,
@@ -385,8 +404,33 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
         task_orders: taskOrders
       }
 
+      console.log('[DRAG-ORDER] 🚀 Sending bulk update to backend:', {
+        routineId: currentRoutineId,
+        bulkUpdate: {
+          member_id: bulkUpdate.member_id,
+          day_of_week: bulkUpdate.day_of_week,
+          task_orders: bulkUpdate.task_orders.map(to => ({
+            routine_task_id: to.routine_task_id,
+            order_index: to.order_index
+          }))
+        }
+      })
+      
       const updatedOrders = await bulkUpdateDayOrders(currentRoutineId, bulkUpdate)
       console.log('[DRAG-ORDER] ✅ Day-specific order saved:', updatedOrders)
+      console.log('[DRAG-ORDER] 📊 Backend returned orders:', updatedOrders.map(o => ({
+        id: o.id,
+        routine_task_id: o.routine_task_id,
+        order_index: o.order_index,
+        day_of_week: o.day_of_week
+      })))
+      
+      console.log('[DRAG-ORDER] 🔍 Expected vs Actual orders:', {
+        expectedCount: taskOrders.length,
+        actualCount: updatedOrders.length,
+        expectedOrderIndexes: taskOrders.map(to => to.order_index),
+        actualOrderIndexes: updatedOrders.map(o => o.order_index)
+      })
       
       // Update local day orders state
       setDayOrders(prev => {
@@ -422,7 +466,7 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     moveTaskToPosition,
     getTasksWithDayOrder,
     loadDayOrders
-  } = useTaskDragAndDrop(calendarTasks, updateCalendarTasks, extractRoutineTaskIdFromId, currentRoutineId, saveDaySpecificOrder, recurringTemplates)
+  } = useTaskDragAndDrop(calendarTasks, updateCalendarTasks, extractRoutineTaskIdFromId, currentRoutineId, saveDaySpecificOrder, recurringTemplates, () => loadExistingRoutineData(currentRoutineId!, enhancedFamilyMembers))
 
 
 

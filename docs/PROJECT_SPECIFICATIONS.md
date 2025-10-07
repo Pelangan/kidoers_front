@@ -838,6 +838,7 @@ interface Reward {
 - **Dual Routine Loading**: First attempts to load onboarding routine, then falls back to active routine if not found
 - **Task Order Persistence**: Saves task order within columns using `routine_task_day_orders` table and bulk update API
 - **Drag & Drop Reordering**: Real-time task reordering with visual feedback and automatic order tracking
+- **Cross-Column Drag Fix**: Fixed issue where tasks moved between columns weren't properly creating day order entries due to missing `routine_task_id` in placeholder tasks
 - **Enhanced Drag & Drop UX** (Updated 2025-10-06):
   - **Large Drop Zones**: Drop zones between tasks are 24px (h-6) height for easier targeting
   - **Visual Feedback**: Drop zones highlight with blue background and dashed borders on hover
