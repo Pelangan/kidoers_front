@@ -87,14 +87,6 @@ export const DayColumn: React.FC<DayColumnProps> = ({
       }`}
       onClick={() => onColumnClick(day)}
     >
-      {/* Day Header */}
-      <div className="text-center p-3 bg-gray-50">
-        <div className="font-medium text-gray-700">{dayNames[dayIndex]}</div>
-      </div>
-
-      {/* Separator Line */}
-      <div className="border-b border-gray-200"></div>
-
       {/* Tasks Area */}
       <div className="flex-1 p-3 bg-white space-y-1 relative">
         {/* Empty Column Drop Zone */}
