@@ -89,7 +89,7 @@ export const DayColumn: React.FC<DayColumnProps> = ({
     >
       {/* Day Header */}
       <div className="text-center p-3 bg-gray-50">
-        <div className="text-sm font-semibold text-gray-700">{dayNames[dayIndex]}</div>
+        <div className="font-medium text-gray-700">{dayNames[dayIndex]}</div>
       </div>
 
       {/* Separator Line */}

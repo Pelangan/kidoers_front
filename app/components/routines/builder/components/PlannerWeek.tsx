@@ -104,15 +104,27 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
 
   const allBuckets = getAllBuckets()
 
+  // Calculate the maximum number of tasks for each bucket across all days
+  const getMaxTasksForBucket = (bucketType: TaskBucketType, bucketMemberId: string | undefined) => {
+    let maxTasks = 0
+    days.forEach(day => {
+      const tasks = getTasksForBucketAndDay(bucketType, bucketMemberId, day)
+      maxTasks = Math.max(maxTasks, tasks.length)
+    })
+    return maxTasks
+  }
+
   return (
-    <Card className="bg-white border border-gray-200">
+    <Card className="bg-white border-t border-r border-b border-gray-200">
       <CardContent className="p-0">
         {/* Day Headers */}
-        <div className="grid grid-cols-7 gap-0 border-b border-gray-200">
+        <div className="flex border-b border-gray-200">
+          {/* Empty cell for avatars */}
+          <div className="p-2 bg-gray-50 border-r border-gray-200 w-16 flex-shrink-0"></div>
           {days.map((day) => (
             <div 
               key={day}
-              className="p-3 bg-gray-50 border-r border-gray-200 last:border-r-0 text-center font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
+              className="p-3 bg-gray-50 border-r border-gray-200 last:border-r-0 text-center font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors flex-1"
               onClick={() => onColumnClick(day, undefined, undefined)}
             >
               {formatDayName(day)}
@@ -121,93 +133,90 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
         </div>
 
         {/* Bucket Rows */}
-        {allBuckets.map((bucket, bucketIndex) => (
-          <div key={`${bucket.bucket_type}-${bucket.bucket_member_id || 'shared'}`} className="border-b border-gray-200 last:border-b-0">
-            {/* Single Bucket Header spanning the entire row */}
-            <div className="p-3 bg-gray-50 border-b border-gray-200 flex items-center gap-2">
-              {bucket.bucket_type === 'shared' ? (
-                <>
-                  <div className="w-6 h-6 rounded-full bg-yellow-400 flex items-center justify-center">
-                    <span className="text-yellow-800 text-xs font-bold">S</span>
-                  </div>
-                  <span className="text-sm font-medium text-yellow-800">Shared</span>
-                </>
-              ) : (
-                <>
-                  <div className="w-6 h-6 rounded-full overflow-hidden">
-                    {(() => {
-                      const member = familyMembers.find(m => m.id === bucket.bucket_member_id)
-                      if (member?.avatar_url) {
-                        return (
-                          <img 
-                            src={member.avatar_url} 
-                            alt={member.name}
-                            className="w-full h-full object-cover"
-                          />
-                        )
-                      } else {
-                        return (
-                          <div 
-                            className="w-full h-full flex items-center justify-center text-white text-xs font-bold"
-                            style={{ backgroundColor: member?.color || '#6b7280' }}
-                          >
-                            {member?.name?.charAt(0).toUpperCase() || '?'}
-                          </div>
-                        )
-                      }
-                    })()}
-                  </div>
-                  <span className="text-sm font-medium text-gray-700">{bucket.bucket_member_name}</span>
-                </>
-              )}
-            </div>
-
-            {/* Task Content Row */}
-            <div className="grid grid-cols-7 gap-0 min-h-[120px]">
-              {days.map((day) => {
-                const tasks = getTasksForBucketAndDay(bucket.bucket_type, bucket.bucket_member_id, day)
-                const orderedTasks = getTasksWithDayOrder(tasks, day, bucket.bucket_member_id || '')
-                
-                return (
-                  <div 
-                    key={day} 
-                    className="p-2 border-r border-gray-200 last:border-r-0 cursor-pointer hover:bg-gray-50 transition-colors"
-                    onClick={(e) => {
-                      console.log('[PLANNER-WEEK] Day cell clicked:', day, 'bucket:', bucket.bucket_type, bucket.bucket_member_name)
-                      onColumnClick(day, bucket.bucket_type, bucket.bucket_member_id)
-                    }}
-                  >
-                    <div className="space-y-2">
-                      {orderedTasks.map((task) => {
-                        const memberId = extractMemberIdFromId(task.id, bucket.bucket_member_id || '')
-                        const isDragged = draggedTask?.task.id === task.id
-
-                        return (
-                          <div key={task.id}>
-                            <TaskItem
-                              task={task}
-                              day={day}
-                              memberId={memberId}
-                              isDragging={isDragged}
-                              recurringTemplates={recurringTemplates}
-                              familyMembers={familyMembers}
-                              getMemberColors={getMemberColors}
-                              onDragStart={onTaskDragStart}
-                              onDragEnd={onTaskDragEnd}
-                              onClick={onTaskClick}
-                            />
-                          </div>
-                        )
-                      })}
-                      
+        {allBuckets.map((bucket, bucketIndex) => {
+          const maxTasks = getMaxTasksForBucket(bucket.bucket_type, bucket.bucket_member_id)
+          const minHeight = Math.max(60, maxTasks * 50 + 20) // Dynamic height based on task count
+          
+          return (
+            <div key={`${bucket.bucket_type}-${bucket.bucket_member_id || 'shared'}`} className="border-b border-gray-200 last:border-b-0">
+              <div className="flex" style={{ minHeight: `${minHeight}px` }}>
+                {/* Avatar Column */}
+                <div className="p-2 border-r border-gray-200 flex items-center justify-center w-16 flex-shrink-0">
+                  {bucket.bucket_type === 'shared' ? (
+                    <div className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center">
+                      <span className="text-yellow-800 text-sm font-bold">S</span>
                     </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        ))}
+                  ) : (
+                    <div className="w-8 h-8 rounded-full overflow-hidden">
+                      {(() => {
+                        const member = familyMembers.find(m => m.id === bucket.bucket_member_id)
+                        if (member?.avatar_url) {
+                          return (
+                            <img 
+                              src={member.avatar_url} 
+                              alt={member.name}
+                              className="w-full h-full object-cover"
+                            />
+                          )
+                        } else {
+                          return (
+                            <div 
+                              className="w-full h-full flex items-center justify-center text-white text-sm font-bold"
+                              style={{ backgroundColor: member?.color || '#6b7280' }}
+                            >
+                              {member?.name?.charAt(0).toUpperCase() || '?'}
+                            </div>
+                          )
+                        }
+                      })()}
+                    </div>
+                  )}
+                </div>
 
+                {/* Task Content Columns */}
+                {days.map((day) => {
+                  const tasks = getTasksForBucketAndDay(bucket.bucket_type, bucket.bucket_member_id, day)
+                  const orderedTasks = getTasksWithDayOrder(tasks, day, bucket.bucket_member_id || '')
+                  
+                  return (
+                    <div 
+                      key={day} 
+                      className="p-2 border-r border-gray-200 last:border-r-0 cursor-pointer hover:bg-gray-50 transition-colors flex-1"
+                      onClick={(e) => {
+                        console.log('[PLANNER-WEEK] Day cell clicked:', day, 'bucket:', bucket.bucket_type, bucket.bucket_member_name)
+                        onColumnClick(day, bucket.bucket_type, bucket.bucket_member_id)
+                      }}
+                    >
+                      <div className="space-y-2">
+                        {orderedTasks.map((task) => {
+                          const memberId = extractMemberIdFromId(task.id, bucket.bucket_member_id || '')
+                          const isDragged = draggedTask?.task.id === task.id
+
+                          return (
+                            <div key={task.id}>
+                              <TaskItem
+                                task={task}
+                                day={day}
+                                memberId={memberId}
+                                isDragging={isDragged}
+                                recurringTemplates={recurringTemplates}
+                                familyMembers={familyMembers}
+                                getMemberColors={getMemberColors}
+                                onDragStart={onTaskDragStart}
+                                onDragEnd={onTaskDragEnd}
+                                onClick={onTaskClick}
+                              />
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
       </CardContent>
     </Card>
   )
