@@ -145,7 +145,10 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                 <div className="p-2 border-r border-gray-200 flex items-center justify-center w-16 flex-shrink-0">
                   {bucket.bucket_type === 'shared' ? (
                     <div className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center">
-                      <span className="text-yellow-800 text-sm font-bold">S</span>
+                      <div className="text-center leading-tight">
+                        <div className="text-yellow-800 text-xs font-bold">Shared</div>
+                        <div className="text-yellow-800 text-xs font-bold">Tasks</div>
+                      </div>
                     </div>
                   ) : (
                     <div className="w-8 h-8 rounded-full overflow-hidden">

@@ -114,7 +114,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
   return (
     <div 
-      className={`relative flex items-center space-x-1 p-2 rounded border border-gray-200 ${taskColor.bg} ${taskColor.border} cursor-pointer hover:shadow-sm transition-shadow ${
+      className={`relative flex items-center space-x-1 p-3 rounded border border-gray-200 ${taskColor.bg} ${taskColor.border} cursor-pointer hover:shadow-sm transition-shadow ${
         isDragging ? 'opacity-50 task-dragging' : ''
       }`}
       style={{
@@ -130,11 +130,14 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     >
       <div className="flex-1">
         <div className="flex items-center justify-between">
-          <div className={`text-xs font-medium ${taskColor.text}`}>{task.name}</div>
-          <MultiMemberBadge 
-            memberCount={task.member_count || assignees.length || 1}
-            assignees={assignees}
-          />
+          <div className={`text-sm font-medium ${taskColor.text}`}>{task.name}</div>
+          {/* Only show avatar badge for multi-member tasks */}
+          {(task.member_count && task.member_count > 1) && (
+            <MultiMemberBadge 
+              memberCount={task.member_count || assignees.length || 1}
+              assignees={assignees}
+            />
+          )}
         </div>
         {task.from_group && (
           <div className="text-xs flex items-center space-x-1 text-purple-600">
