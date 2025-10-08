@@ -1245,3 +1245,87 @@ export async function bulkUpdateRecurringTasks(routineId: string, update: {
     body: JSON.stringify(update),
   });
 }
+
+// --- Bucket-Based Planner API Functions ---
+
+export interface TaskBucketType {
+  bucket_type: 'shared' | 'member'
+  bucket_member_id?: string
+  bucket_member_name?: string
+  tasks: TaskWithAssignees[]
+}
+
+export interface DayBucketData {
+  day_of_week: string
+  buckets: TaskBucketType[]
+}
+
+export interface PlannerWeekResponse {
+  routine_id: string
+  days: DayBucketData[]
+}
+
+export interface BucketTaskOrder {
+  routine_task_id: string
+  order_index: number
+  bucket_type: 'shared' | 'member'
+  bucket_member_id?: string
+}
+
+export interface BucketDayOrderUpdate {
+  member_id: string
+  day_of_week: string
+  bucket_orders: BucketTaskOrder[]
+}
+
+export interface CrossBucketMoveRequest {
+  routine_task_id: string
+  day_of_week: string
+  target_bucket_type: 'shared' | 'member'
+  target_bucket_member_id?: string
+  new_order_index: number
+}
+
+/**
+ * Get planner week data with buckets for selected members
+ */
+export async function getPlannerWeekData(
+  routineId: string,
+  selectedMemberIds: string[]
+): Promise<PlannerWeekResponse> {
+  const memberIdsParam = selectedMemberIds.join(',')
+  return apiService.makeRequest(`/routines/${routineId}/planner/week?selected_member_ids=${memberIdsParam}`)
+}
+
+/**
+ * Update day orders with bucket information
+ */
+export async function updateBucketOrders(
+  routineId: string,
+  update: BucketDayOrderUpdate
+): Promise<DaySpecificOrder[]> {
+  return apiService.makeRequest(`/routines/${routineId}/planner/bucket-orders`, {
+    method: "POST",
+    body: JSON.stringify(update),
+  })
+}
+
+/**
+ * Move a task from one bucket to another
+ */
+export async function moveTaskCrossBucket(
+  routineId: string,
+  move: CrossBucketMoveRequest
+): Promise<{
+  success: boolean
+  message: string
+  routine_task_id: string
+  target_bucket_type: string
+  target_bucket_member_id?: string
+  new_order_index: number
+}> {
+  return apiService.makeRequest(`/routines/${routineId}/planner/cross-bucket-move`, {
+    method: "POST",
+    body: JSON.stringify(move),
+  })
+}

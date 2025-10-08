@@ -43,12 +43,143 @@ import { useTaskModals } from './hooks/useTaskModals'
 import { useTaskDragAndDrop } from './hooks/useTaskDragAndDrop'
 import { FamilyMemberSelector } from './components/FamilyMemberSelector'
 import { CalendarGrid } from './components/CalendarGrid'
+import { PlannerWeek } from './components/PlannerWeek'
 import { MultiMemberSelector } from './components/MultiMemberSelector'
 
 // Day constants - Sunday moved to last position
 const DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
+// Transform calendarTasks to weekData format for bucket system
+const transformCalendarTasksToWeekData = (
+  calendarTasks: Record<string, { groups: any[]; individualTasks: Task[] }>,
+  selectedMemberIds: string[],
+  familyMembers: Array<{ id: string; name: string; role: string; avatar_url?: string | null; color: string }>
+) => {
+  console.log('[BUCKET-TRANSFORM] 🚀 Transforming calendarTasks to weekData:', {
+    calendarTasksKeys: Object.keys(calendarTasks),
+    selectedMemberIds,
+    familyMembersCount: familyMembers.length
+  })
+  
+  const weekData = DAYS_OF_WEEK.map(day => {
+    const dayTasks = calendarTasks[day]?.individualTasks || []
+    console.log(`[BUCKET-TRANSFORM] 📅 Processing ${day}:`, {
+      taskCount: dayTasks.length,
+      tasks: dayTasks.map(t => ({ id: t.id, name: t.name, memberId: t.memberId, assignees: t.assignees?.length || 0 }))
+    })
+    
+    // Group tasks by bucket type
+    const sharedTasks: Task[] = []
+    const memberBuckets: Record<string, Task[]> = {}
+    
+    // Initialize member buckets for selected members
+    selectedMemberIds.forEach(memberId => {
+      memberBuckets[memberId] = []
+    })
+    
+    // Categorize tasks into buckets
+    dayTasks.forEach(task => {
+      // For now, we'll use a simple heuristic:
+      // If task has multiple assignments or is assigned to multiple selected members, it's shared
+      // Otherwise, it goes to the member's bucket
+      const assignedMembers = task.assignees?.map(a => a.id) || (task.memberId ? [task.memberId] : [])
+      const assignedSelectedMembers = assignedMembers.filter((id: string) => selectedMemberIds.includes(id))
+      
+      console.log(`[BUCKET-TRANSFORM] 🎯 Task "${task.name}":`, {
+        assignedMembers,
+        assignedSelectedMembers,
+        willBeShared: assignedSelectedMembers.length > 1
+      })
+      
+      if (assignedSelectedMembers.length > 1) {
+        sharedTasks.push(task)
+      } else if (assignedSelectedMembers.length === 1) {
+        const memberId = assignedSelectedMembers[0]
+        memberBuckets[memberId].push(task)
+      }
+    })
+    
+    // Build buckets array - always include all buckets for consistent matrix layout
+    const buckets = []
+    
+    // Always add shared bucket (even if empty)
+    buckets.push({
+      bucket_type: 'shared' as const,
+      bucket_member_id: undefined,
+      bucket_member_name: undefined,
+      tasks: sharedTasks
+    })
+    
+    // Always add member buckets for selected members (even if empty)
+    // Use the order from selectedMemberIds to match the selector order
+    selectedMemberIds.forEach(memberId => {
+      const member = familyMembers.find(m => m.id === memberId)
+      if (member) {
+        buckets.push({
+          bucket_type: 'member' as const,
+          bucket_member_id: member.id,
+          bucket_member_name: member.name,
+          tasks: memberBuckets[member.id] || []
+        })
+      }
+    })
+    
+    console.log(`[BUCKET-TRANSFORM] ✅ ${day} buckets:`, {
+      bucketCount: buckets.length,
+      buckets: buckets.map(b => ({ type: b.bucket_type, memberName: b.bucket_member_name, taskCount: b.tasks.length }))
+    })
+    
+    return {
+      day_of_week: day,
+      buckets
+    }
+  })
+  
+  console.log('[BUCKET-TRANSFORM] 🎉 Final weekData:', weekData)
+  return weekData
+}
+
+// Helper function to determine if we should show buckets or simple calendar
+const shouldShowBuckets = (
+  selectedMemberIds: string[],
+  calendarTasks: Record<string, { groups: any[]; individualTasks: Task[] }>
+) => {
+  // Always show buckets if multiple members are selected
+  if (selectedMemberIds.length > 1) {
+    console.log('[BUCKET-DECISION] 📊 Multiple members selected, showing buckets')
+    return true
+  }
+  
+  // If only one member selected, check for shared tasks affecting that member
+  if (selectedMemberIds.length === 1) {
+    const selectedMemberId = selectedMemberIds[0]
+    
+    // Check all days for tasks assigned to multiple members including the selected one
+    const hasSharedTasks = DAYS_OF_WEEK.some(day => {
+      const dayTasks = calendarTasks[day]?.individualTasks || []
+      return dayTasks.some(task => {
+        const assignedMembers = task.assignees?.map(a => a.id) || (task.memberId ? [task.memberId] : [])
+        const assignedSelectedMembers = assignedMembers.filter((id: string) => selectedMemberIds.includes(id))
+        
+        // Task is shared if it's assigned to multiple members and includes our selected member
+        return assignedSelectedMembers.length > 0 && assignedMembers.length > 1
+      })
+    })
+    
+    if (hasSharedTasks) {
+      console.log('[BUCKET-DECISION] 📊 Shared tasks found affecting selected member, showing buckets')
+      return true
+    } else {
+      console.log('[BUCKET-DECISION] 📊 No shared tasks, showing simple calendar')
+      return false
+    }
+  }
+  
+  // No members selected - show simple calendar
+  console.log('[BUCKET-DECISION] 📊 No members selected, showing simple calendar')
+  return false
+}
 
 export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplete, isEditMode = false, onBack }: ManualRoutineBuilderProps = {}) {
   console.log('[KIDOERS-ROUTINE] 🚀 ManualRoutineBuilder: Component mounted with props:', { propFamilyId, isEditMode, hasOnComplete: !!onComplete, hasOnBack: !!onBack });
@@ -553,14 +684,37 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     }, 50)
   }
 
+  // Handle column click to create new task (wrapper for both CalendarGrid and PlannerWeek)
+  const handleColumnClickWrapper = async (day: string, bucketType?: string, bucketMemberId?: string) => {
+    await handleColumnClick(day, bucketType, bucketMemberId)
+  }
+
   // Handle column click to create new task
-  const handleColumnClick = async (day: string) => {
+  const handleColumnClick = async (day: string, bucketType?: string, bucketMemberId?: string) => {
     if (selectedMemberIds.length === 0) return
     
-    console.log('[KIDOERS-ROUTINE] Column clicked for day:', day)
+    console.log('[KIDOERS-ROUTINE] Column clicked for day:', day, 'bucketType:', bucketType, 'bucketMemberId:', bucketMemberId)
     
-    // Get the selected member name
-    const memberName = getMemberNameById(selectedMemberIds[0])
+    // Determine which member(s) to assign the task to based on the bucket clicked
+    let targetMemberIds: string[] = []
+    let targetMemberName = ''
+    
+    if (bucketType === 'member' && bucketMemberId) {
+      // Clicked on a specific member's bucket - assign only to that member
+      targetMemberIds = [bucketMemberId]
+      targetMemberName = getMemberNameById(bucketMemberId)
+      console.log('[KIDOERS-ROUTINE] 🎯 Assigning to specific member:', targetMemberName)
+    } else if (bucketType === 'shared') {
+      // Clicked on shared bucket - assign to all currently selected members
+      targetMemberIds = selectedMemberIds
+      targetMemberName = 'All Selected Members'
+      console.log('[KIDOERS-ROUTINE] 🎯 Assigning to all selected members:', selectedMemberIds)
+    } else {
+      // Clicked on day header or no bucket specified - use first selected member as fallback
+      targetMemberIds = [selectedMemberIds[0]]
+      targetMemberName = getMemberNameById(selectedMemberIds[0])
+      console.log('[KIDOERS-ROUTINE] 🎯 Fallback: assigning to first selected member:', targetMemberName)
+    }
     
     // Create a new task with no title placeholder
     const newTask: Task = {
@@ -577,8 +731,8 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     const pendingDropData: PendingDrop = {
       type: 'task',
       item: newTask,
-      targetMemberId: selectedMemberIds[0],
-      targetMemberName: memberName,
+      targetMemberId: targetMemberIds[0], // Use first target member for compatibility
+      targetMemberName: targetMemberName,
       targetDay: day
     }
     
@@ -589,12 +743,12 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
     setDaySelection({ mode: 'custom', selectedDays: [day] })
     setSelectedWhoOption('none')
     setSelectedRoutineGroup('none')
-    // Initialize task assignment with currently selected members from calendar
-    setTaskAssignmentMemberIds(selectedMemberIds)
+    // Initialize task assignment with the target members based on bucket clicked
+    setTaskAssignmentMemberIds(targetMemberIds)
     setShowApplyToPopup(true)
     
     console.log('[KIDOERS-ROUTINE] Apply To Popup opened for new task creation')
-    console.log('[KIDOERS-ROUTINE] 🎯 Pre-selected members for new task:', selectedMemberIds)
+    console.log('[KIDOERS-ROUTINE] 🎯 Pre-selected members for new task:', targetMemberIds)
   }
 
   // Handle removing a day from a recurring task (updates template)
@@ -2189,26 +2343,48 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                 ))}
               </div>
             ) : selectedMemberIds.length > 0 && (
-              <CalendarGrid
-                calendarTasks={calendarTasks}
-                selectedMemberIds={selectedMemberIds}
-                draggedTask={draggedTask}
-                dragOverPosition={dragOverPosition}
-                recurringTemplates={recurringTemplates}
-                familyMembers={familyMembers}
-                getMemberColors={getMemberColors}
-                onColumnClick={handleColumnClick}
-                onTaskDragStart={handleTaskDragStart}
-                onTaskDragEnd={handleTaskDragEnd}
-                onTaskDragOver={handleTaskDragOver}
-                onTaskDragLeave={handleTaskDragLeave}
-                onTaskDrop={handleTaskDrop}
-                onTaskClick={handleTaskClick}
-                onRemoveGroup={removeGroupFromCalendar}
-                getTasksWithDayOrder={getTasksWithDayOrder}
-                extractMemberIdFromId={extractMemberIdFromId}
-                getTotalTasksForDay={getTotalTasksForDay}
-              />
+              shouldShowBuckets(selectedMemberIds, calendarTasks) ? (
+                <PlannerWeek
+                  weekData={transformCalendarTasksToWeekData(calendarTasks, selectedMemberIds, familyMembers)}
+                  selectedMemberIds={selectedMemberIds}
+                  draggedTask={draggedTask}
+                  dragOverPosition={dragOverPosition}
+                  recurringTemplates={recurringTemplates}
+                  familyMembers={familyMembers}
+                  getMemberColors={getMemberColors}
+                  onColumnClick={handleColumnClickWrapper}
+                  onTaskDragStart={handleTaskDragStart}
+                  onTaskDragEnd={handleTaskDragEnd}
+                  onTaskDragOver={handleTaskDragOver}
+                  onTaskDragLeave={handleTaskDragLeave}
+                  onTaskDrop={handleTaskDrop}
+                  onTaskClick={handleTaskClick}
+                  onRemoveGroup={removeGroupFromCalendar}
+                  getTasksWithDayOrder={getTasksWithDayOrder}
+                  extractMemberIdFromId={extractMemberIdFromId}
+                />
+              ) : (
+                <CalendarGrid
+                  calendarTasks={calendarTasks}
+                  selectedMemberIds={selectedMemberIds}
+                  draggedTask={draggedTask}
+                  dragOverPosition={dragOverPosition}
+                  recurringTemplates={recurringTemplates}
+                  familyMembers={familyMembers}
+                  getMemberColors={getMemberColors}
+                  onColumnClick={handleColumnClickWrapper}
+                  onTaskDragStart={handleTaskDragStart}
+                  onTaskDragEnd={handleTaskDragEnd}
+                  onTaskDragOver={handleTaskDragOver}
+                  onTaskDragLeave={handleTaskDragLeave}
+                  onTaskDrop={handleTaskDrop}
+                  onTaskClick={handleTaskClick}
+                  onRemoveGroup={removeGroupFromCalendar}
+                  getTasksWithDayOrder={getTasksWithDayOrder}
+                  extractMemberIdFromId={extractMemberIdFromId}
+                  getTotalTasksForDay={getTotalTasksForDay}
+                />
+              )
             )}
 
             {/* Save Button */}

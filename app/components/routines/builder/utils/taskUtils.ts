@@ -2,24 +2,33 @@ import type { Task, TaskGroup, RecurringTemplate } from '../types/routineBuilder
 
 // Helper function to extract member ID from task/group ID
 export const extractMemberIdFromId = (id: string, selectedMemberId?: string | null): string => {
+  console.log('[EXTRACT-MEMBER-ID] 🔍 Extracting member ID from:', { id, selectedMemberId })
+  
   // ID format: templateId-memberId-day-timestamp
   // Since UUIDs contain dashes, we need to find the member ID by looking for the pattern
   // The member ID is the second UUID in the string (after the template UUID)
   const parts = id.split('-')
   
+  console.log('[EXTRACT-MEMBER-ID] 📊 ID parts:', parts)
+  
   // If we have at least 9 parts (template UUID has 5 parts, member UUID has 5 parts)
   if (parts.length >= 9) {
     // Template UUID: parts[0-4], Member UUID: parts[5-9]
-    return `${parts[5]}-${parts[6]}-${parts[7]}-${parts[8]}-${parts[9]}`
+    const extractedMemberId = `${parts[5]}-${parts[6]}-${parts[7]}-${parts[8]}-${parts[9]}`
+    console.log('[EXTRACT-MEMBER-ID] ✅ Extracted member ID:', extractedMemberId)
+    return extractedMemberId
   }
   
   // Fallback: try to find member ID by looking for the selected member ID in the string
   if (selectedMemberId && id.includes(selectedMemberId)) {
+    console.log('[EXTRACT-MEMBER-ID] ✅ Found selected member ID in string:', selectedMemberId)
     return selectedMemberId
   }
   
-  // Last resort: return empty string
-  return ''
+  // Last resort: return the selected member ID as fallback, or 'unknown' if not available
+  const fallback = selectedMemberId || 'unknown'
+  console.log('[EXTRACT-MEMBER-ID] ⚠️ Could not extract member ID, using fallback:', fallback)
+  return fallback
 }
 
 export const extractRoutineTaskIdFromId = (id: string): string => {
