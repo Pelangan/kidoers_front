@@ -133,12 +133,13 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
         </div>
 
         {/* Bucket Rows */}
+        <div className="min-h-[900px]">
         {allBuckets.map((bucket, bucketIndex) => {
           const maxTasks = getMaxTasksForBucket(bucket.bucket_type, bucket.bucket_member_id)
           const minHeight = Math.max(60, maxTasks * 50 + 20) // Dynamic height based on task count
           
           return (
-            <div key={`${bucket.bucket_type}-${bucket.bucket_member_id || 'shared'}`} className="border-b border-gray-200 last:border-b-0">
+            <div key={`${bucket.bucket_type}-${bucket.bucket_member_id || 'shared'}`} className="border-b border-gray-200 transition-all duration-200 ease-in-out">
               <div className="flex" style={{ minHeight: `${minHeight}px` }}>
                 {/* Avatar Column */}
                 <div className="p-2 border-r border-gray-200 flex items-center justify-center w-16 flex-shrink-0">
@@ -217,6 +218,7 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
             </div>
           )
         })}
+        </div>
       </CardContent>
     </Card>
   )

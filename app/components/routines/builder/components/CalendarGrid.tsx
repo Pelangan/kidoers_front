@@ -72,7 +72,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
         {/* Avatar and Day Columns Row */}
         <div className="flex min-h-[900px]">
           {/* Avatar Column */}
-          <div className="w-16 flex-shrink-0 border-r border-gray-200">
+          <div className="w-16 flex-shrink-0 border-r border-gray-200 transition-all duration-200 ease-in-out">
             <div className="p-2 flex items-center justify-center">
               {(() => {
                 const member = familyMembers.find(m => m.id === selectedMemberIds[0])
@@ -99,7 +99,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
           </div>
 
           {/* Day Columns */}
-          <div className="flex-1 grid grid-cols-7 gap-0">
+          <div className="flex-1 grid grid-cols-7 gap-0 transition-all duration-200 ease-in-out">
             {days.map((day) => (
               <DayColumn
                 key={day}
