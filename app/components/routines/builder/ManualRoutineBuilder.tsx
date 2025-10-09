@@ -86,15 +86,21 @@ const transformCalendarTasksToWeekData = (
       const assignedMembers = task.assignees?.map(a => a.id) || (task.memberId ? [task.memberId] : [])
       const assignedSelectedMembers = assignedMembers.filter((id: string) => selectedMemberIds.includes(id))
       
+      // Check if this is a multi-member task (shared task)
+      const isMultiMemberTask = assignedMembers.length > 1
+      
       console.log(`[BUCKET-TRANSFORM] 🎯 Task "${task.name}":`, {
         assignedMembers,
         assignedSelectedMembers,
-        willBeShared: assignedSelectedMembers.length > 1
+        isMultiMemberTask,
+        willBeShared: isMultiMemberTask && assignedSelectedMembers.length > 0
       })
       
-      if (assignedSelectedMembers.length > 1) {
+      if (isMultiMemberTask && assignedSelectedMembers.length > 0) {
+        // Multi-member task should go to shared bucket if any assigned member is selected
         sharedTasks.push(task)
       } else if (assignedSelectedMembers.length === 1) {
+        // Single-member task goes to member's bucket
         const memberId = assignedSelectedMembers[0]
         memberBuckets[memberId].push(task)
       }
@@ -2746,7 +2752,26 @@ export default function ManualRoutineBuilder({ familyId: propFamilyId, onComplet
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
-                  <span>Assigned to {enhancedFamilyMembers.find(m => m.id === selectedTaskForEdit.memberId)?.name || 'Unknown'}</span>
+                  <span>
+                    {(() => {
+                      const task = selectedTaskForEdit.task
+                      
+                      // For multi-member tasks, display all assignees
+                      if (task.assignees && task.assignees.length > 1) {
+                        const assigneeNames = task.assignees.map(assignee => assignee.name).join(', ')
+                        return `Assigned to ${assigneeNames}`
+                      }
+                      
+                      // For single-member tasks, try to find the member
+                      if (task.assignees && task.assignees.length === 1) {
+                        return `Assigned to ${task.assignees[0].name}`
+                      }
+                      
+                      // Fallback: try to find member by memberId
+                      const member = enhancedFamilyMembers.find(m => m.id === selectedTaskForEdit.memberId)
+                      return `Assigned to ${member?.name || 'Unknown'}`
+                    })()}
+                  </span>
                 </div>
 
                 {/* Frequency */}
