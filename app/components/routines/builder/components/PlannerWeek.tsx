@@ -195,9 +195,10 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                         {orderedTasks.map((task) => {
                           const memberId = extractMemberIdFromId(task.id, bucket.bucket_member_id || '')
                           const isDragged = draggedTask?.task.id === task.id
+                          
 
                           return (
-                            <div key={task.id}>
+                            <div key={`${task.id}-${day}-${bucket.bucket_type || 'unknown'}-${bucket.bucket_member_id || 'shared'}`}>
                               <TaskItem
                                 task={task}
                                 day={day}

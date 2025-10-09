@@ -123,7 +123,7 @@ export const BucketSection: React.FC<BucketSectionProps> = ({
       const isDragged = draggedTask?.task.id === task.id
 
       return (
-        <div key={task.id}>
+        <div key={`${task.id}-${day}-${bucketMemberId || 'shared'}`}>
           <TaskItem
             task={task}
             day={day}

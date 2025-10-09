@@ -78,8 +78,21 @@ const transformCalendarTasksToWeekData = (
       memberBuckets[memberId] = []
     })
     
+    // Deduplicate tasks by ID to prevent duplicate keys
+    const seenTaskIds = new Set<string>()
+    const uniqueTasks = dayTasks.filter(task => {
+      if (seenTaskIds.has(task.id)) {
+        console.log(`[BUCKET-TRANSFORM] ⚠️ Duplicate task filtered out: ${task.id} - ${task.name}`)
+        return false
+      }
+      seenTaskIds.add(task.id)
+      return true
+    })
+    
+    console.log(`[BUCKET-TRANSFORM] 📊 After deduplication: ${uniqueTasks.length} unique tasks (was ${dayTasks.length})`)
+    
     // Categorize tasks into buckets
-    dayTasks.forEach(task => {
+    uniqueTasks.forEach(task => {
       // For now, we'll use a simple heuristic:
       // If task has multiple assignments or is assigned to multiple selected members, it's shared
       // Otherwise, it goes to the member's bucket
@@ -133,7 +146,13 @@ const transformCalendarTasksToWeekData = (
     
     console.log(`[BUCKET-TRANSFORM] ✅ ${day} buckets:`, {
       bucketCount: buckets.length,
-      buckets: buckets.map(b => ({ type: b.bucket_type, memberName: b.bucket_member_name, taskCount: b.tasks.length }))
+      buckets: buckets.map(b => ({ 
+        type: b.bucket_type, 
+        memberId: b.bucket_member_id,
+        memberName: b.bucket_member_name, 
+        taskCount: b.tasks.length,
+        taskIds: b.tasks.map(t => t.id)
+      }))
     })
     
     return {
