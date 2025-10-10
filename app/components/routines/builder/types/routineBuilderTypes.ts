@@ -41,6 +41,7 @@ export interface Task {
     color: string
   }>
   routine_task_id?: string // Backend routine task ID for multi-member tasks
+  series_id?: string // UUID to group cloned tasks for batch operations
 }
 
 // Task group interface

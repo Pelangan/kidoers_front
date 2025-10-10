@@ -1233,3 +1233,121 @@ export async function moveTaskCrossBucket(
     body: JSON.stringify(move),
   })
 }
+
+// --- Clone Task API Functions ---
+
+export interface CloneTaskRequest {
+  routine_id: string
+  name: string
+  description?: string
+  points: number
+  duration_mins?: number
+  time_of_day?: string
+  days_of_week: string[]
+  members: string[]
+  group_id?: string
+  start_date?: string
+  end_date?: string
+}
+
+export interface CloneTaskResponse {
+  series_id: string
+  tasks: Array<{
+    task: {
+      id: string
+      member_id: string
+      series_id: string
+      recurring_template_id: string
+    }
+    template: {
+      id: string
+      days_of_week: string[]
+    }
+    member_name: string
+  }>
+  total_tasks_created: number
+  total_members_assigned: number
+  message: string
+}
+
+export interface SeriesUpdateRequest {
+  series_id: string
+  name?: string
+  description?: string
+  points?: number
+  duration_mins?: number
+  time_of_day?: string
+  days_of_week?: string[]
+}
+
+export interface SeriesUpdateResponse {
+  series_id: string
+  tasks_updated: number
+  templates_updated: number
+  message: string
+}
+
+export interface SeriesDeleteRequest {
+  series_id: string
+  delete_scope: string
+  target_day?: string
+}
+
+export interface SeriesDeleteResponse {
+  series_id: string
+  tasks_deleted: number
+  assignments_deleted: number
+  templates_deleted: number
+  message: string
+}
+
+/**
+ * Create cloned tasks for multiple members
+ */
+export async function createCloneTasks(
+  request: CloneTaskRequest
+): Promise<CloneTaskResponse> {
+  return apiService.makeRequest('/api/planner/clone-tasks', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  })
+}
+
+/**
+ * Get all tasks in a series
+ */
+export async function getSeriesTasks(seriesId: string): Promise<Array<{
+  task_id: string
+  member_id: string
+  member_name: string
+  recurring_template_id: string
+  series_id: string
+}>> {
+  return apiService.makeRequest(`/api/planner/series/${seriesId}/tasks`)
+}
+
+/**
+ * Update all tasks in a series
+ */
+export async function updateSeries(
+  seriesId: string,
+  request: SeriesUpdateRequest
+): Promise<SeriesUpdateResponse> {
+  return apiService.makeRequest(`/api/planner/series/${seriesId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(request),
+  })
+}
+
+/**
+ * Delete all tasks in a series
+ */
+export async function deleteSeries(
+  seriesId: string,
+  request: SeriesDeleteRequest
+): Promise<SeriesDeleteResponse> {
+  return apiService.makeRequest(`/api/planner/series/${seriesId}`, {
+    method: 'DELETE',
+    body: JSON.stringify(request),
+  })
+}

@@ -38,6 +38,7 @@ interface PlannerWeekProps {
   onRemoveGroup: (day: string, groupId: string) => void
   getTasksWithDayOrder: (tasks: Task[], day: string, memberId: string) => Task[]
   extractMemberIdFromId: (id: string, selectedMemberId: string) => string
+  onSeriesBadgeClick?: (seriesId: string, day: string) => void // Handler for series badge click
 }
 
 export const PlannerWeek: React.FC<PlannerWeekProps> = ({
@@ -57,7 +58,8 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
   onTaskClick,
   onRemoveGroup,
   getTasksWithDayOrder,
-  extractMemberIdFromId
+  extractMemberIdFromId,
+  onSeriesBadgeClick,
 }) => {
   const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
   
@@ -210,6 +212,8 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                                 onDragStart={onTaskDragStart}
                                 onDragEnd={onTaskDragEnd}
                                 onClick={onTaskClick}
+                                allDayTasks={tasks}
+                                onSeriesBadgeClick={onSeriesBadgeClick}
                               />
                             </div>
                           )

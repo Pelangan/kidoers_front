@@ -69,6 +69,8 @@ import {
   getTaskForEdit,
   updateTaskTemplate,
   updateTemplateDays,
+  createCloneTasks,
+  deleteSeries,
 } from "../../../lib/api";
 import { useTaskOperations } from "../../../hooks/useTaskOperations";
 import { generateAvatarUrl } from "../../ui/AvatarSelector";
@@ -213,7 +215,12 @@ const transformCalendarTasksToWeekData = (
     });
 
     // Build buckets array - only member buckets
-    const buckets = [];
+    const buckets: Array<{
+      bucket_type: 'member';
+      bucket_member_id: string;
+      bucket_member_name: string;
+      tasks: Task[];
+    }> = [];
 
     // Always add member buckets for selected members (even if empty)
     // Use the order from selectedMemberIds to match the selector order
@@ -958,6 +965,88 @@ export default function ManualRoutineBuilder({
     await handleColumnClick(day, bucketType, bucketMemberId);
   };
 
+  // Handle series badge click - show popover with other tasks in the same series
+  const handleSeriesBadgeClick = (seriesId: string, day: string) => {
+    console.log('[KIDOERS-ROUTINE] 🏷️ Series badge clicked:', { seriesId, day });
+    
+    // Get all tasks in this series for this day
+    const dayTasks = calendarTasks[day]?.individualTasks || [];
+    const seriesTasks = dayTasks.filter(task => task.series_id === seriesId);
+    
+    console.log('[KIDOERS-ROUTINE] 🔍 Series tasks found:', seriesTasks);
+    
+    // TODO: Implement popover/modal to show other tasks in series
+    // For now, just log the information
+    alert(`Series ${seriesId} has ${seriesTasks.length} tasks on ${day}: ${seriesTasks.map(t => t.name).join(', ')}`);
+  };
+
+  // Handle edit all tasks in series
+  const handleEditSeriesTasks = async () => {
+    if (!selectedTaskForEdit?.task.series_id) {
+      console.error('[KIDOERS-ROUTINE] ❌ No series_id found for task');
+      return;
+    }
+
+    console.log('[KIDOERS-ROUTINE] 🔄 Editing series tasks:', selectedTaskForEdit.task.series_id);
+    
+    // Close mini popup
+    setShowTaskMiniPopup(false);
+    
+    // TODO: Implement series edit modal
+    // For now, show an alert with the series information
+    const seriesId = selectedTaskForEdit.task.series_id;
+    const allTasks = Object.values(calendarTasks)
+      .flatMap(dayData => dayData.individualTasks)
+      .filter(task => task.series_id === seriesId);
+    
+    alert(`Edit series "${selectedTaskForEdit.task.name}" (${seriesId}):\n${allTasks.length} tasks found:\n${allTasks.map(t => `- ${t.name} (${t.memberId})`).join('\n')}`);
+  };
+
+  // Handle delete all tasks in series
+  const handleDeleteSeriesTasks = async () => {
+    if (!selectedTaskForEdit?.task.series_id) {
+      console.error('[KIDOERS-ROUTINE] ❌ No series_id found for task');
+      return;
+    }
+
+    console.log('[KIDOERS-ROUTINE] 🗑️ Deleting series tasks:', selectedTaskForEdit.task.series_id);
+    
+    const seriesId = selectedTaskForEdit.task.series_id;
+    const allTasks = Object.values(calendarTasks)
+      .flatMap(dayData => dayData.individualTasks)
+      .filter(task => task.series_id === seriesId);
+    
+    const confirmMessage = `Delete entire series "${selectedTaskForEdit.task.name}"?\n\nThis will delete ${allTasks.length} tasks:\n${allTasks.map(t => `- ${t.name} (${t.memberId})`).join('\n')}\n\nThis action cannot be undone.`;
+    
+    if (confirm(confirmMessage)) {
+      try {
+        // Close mini popup first
+        setShowTaskMiniPopup(false);
+        
+        // Call the delete series API
+        const response = await deleteSeries(seriesId, {
+          series_id: seriesId,
+          delete_scope: 'all_days'
+        });
+        
+        console.log('[KIDOERS-ROUTINE] ✅ Series deleted:', response);
+        
+        // Refresh the calendar data
+        const routineData = await ensureRoutineExists();
+        if (routineData) {
+          await loadExistingRoutineData(routineData.id, familyMembers);
+        }
+        
+        // Show success message
+        alert(`Successfully deleted series "${selectedTaskForEdit.task.name}" (${response.tasks_deleted} tasks)`);
+        
+      } catch (error) {
+        console.error('[KIDOERS-ROUTINE] ❌ Error deleting series:', error);
+        alert('Failed to delete series. Please try again.');
+      }
+    }
+  };
+
   // Handle column click to create new task
   const handleColumnClick = async (
     day: string,
@@ -1572,22 +1661,9 @@ export default function ManualRoutineBuilder({
               // Use multi-member delete API for new multi-member tasks
               console.log("[TASK-DELETE] 🔄 Using multi-member delete API");
 
-              // Convert scope to multi-member API format
-              let deleteScope:
-                | "this_occurrence"
-                | "this_and_following"
-                | "all_occurrences";
-              if (scope === "this_day") {
-                deleteScope = "this_occurrence";
-              } else if (scope === "this_and_following") {
-                deleteScope = "this_and_following";
-              } else {
-                deleteScope = "all_occurrences";
-              }
-
               const result = await bulkDeleteTasks(routineData.id, {
                 task_template_id: taskToDelete.task.routine_task_id!,
-                delete_scope: deleteScope,
+                delete_scope: scope,
                 target_day: taskToDelete.task.days_of_week?.[0],
                 member_id: taskToDelete.task.memberId,
               });
@@ -2132,12 +2208,20 @@ export default function ManualRoutineBuilder({
 
           // Update the existing task instead of deleting and recreating
           const updatePayload = {
-            name: editableTaskName || task.name,
-            description: task.description || undefined,
-            points: task.points,
-            duration_mins: task.estimatedMinutes,
-            time_of_day: task.time_of_day || undefined,
-            member_ids: targetMemberIds,
+            recurring_template_id: selectedTaskForEdit.task.recurring_template_id || taskId,
+            task_template: {
+              name: editableTaskName || task.name,
+              description: task.description || undefined,
+              points: task.points,
+              duration_mins: task.estimatedMinutes,
+              time_of_day: task.time_of_day || undefined,
+            },
+            assignments: targetMemberIds.map(memberId => ({
+              member_id: memberId,
+              days_of_week: targetDays,
+              order_index: 0,
+            })),
+            new_days_of_week: targetDays,
           };
 
           console.log(
@@ -2268,36 +2352,128 @@ export default function ManualRoutineBuilder({
           days_of_week = targetDays;
         }
 
-        // Use bulk individual tasks API for all tasks (single-member only)
-        const bulkPayload = {
-          task_template: {
+        // Use clone tasks API for multi-member tasks or bulk individual for single member
+        if (targetMemberIds.length > 1) {
+          // Use clone tasks API for multiple members
+          const clonePayload = {
+            routine_id: routineData.id,
             name: editableTaskName || task.name,
             description: task.description || undefined,
             points: task.points,
             duration_mins: task.estimatedMinutes,
-            time_of_day: task.time_of_day || undefined,
-            is_system: task.is_system || false,
-          },
-          assignments: targetMemberIds.map((memberId) => ({
-            member_id: memberId,
+            time_of_day: task.time_of_day || "any",
             days_of_week: days_of_week || [],
-            order_index: 0,
-          })),
-          new_days_of_week: days_of_week || [],
-        };
+            members: targetMemberIds,
+            group_id: undefined,
+          };
 
-        console.log(
-          "[KIDOERS-ROUTINE] 📦 Using bulk individual tasks API with payload:",
-          bulkPayload,
-        );
-        const result = await bulkCreateIndividualTasks(
-          routineData.id,
-          bulkPayload,
-        );
-        console.log(
-          "[KIDOERS-ROUTINE] ✅ Bulk individual tasks creation result:",
-          result,
-        );
+          console.log(
+            "[KIDOERS-ROUTINE] 📦 Using clone tasks API with payload:",
+            clonePayload,
+          );
+          const result = await createCloneTasks(clonePayload);
+          console.log(
+            "[KIDOERS-ROUTINE] ✅ Clone tasks creation result:",
+            result,
+          );
+
+          // Update UI with cloned tasks
+          const newCalendarTasks = { ...calendarTasks };
+
+          // Process clone tasks response
+          console.log(
+            "[KIDOERS-ROUTINE] 🔄 Processing clone tasks response:",
+            result.tasks,
+          );
+
+          // Group tasks by day for UI display
+          const tasksByDay: Record<string, any[]> = {};
+
+          for (const createdTask of result.tasks) {
+            const taskDays = createdTask.template.days_of_week || [];
+
+            for (const day of taskDays) {
+              if (!tasksByDay[day]) {
+                tasksByDay[day] = [];
+              }
+
+              const taskForUI = {
+                id: `${createdTask.task.id}_${day}`,
+                routine_task_id: createdTask.task.id,
+                memberId: createdTask.task.member_id,
+                name: editableTaskName || task.name,
+                description: task.description,
+                points: task.points,
+                duration_mins: task.estimatedMinutes,
+                time_of_day: task.time_of_day || "any",
+                frequency: frequency,
+                days_of_week: [day],
+                is_saved: true,
+                template_id: task.is_system ? task.id : undefined,
+                recurring_template_id: createdTask.task.recurring_template_id,
+                from_group: undefined,
+                estimatedMinutes: task.estimatedMinutes || 5,
+                member_count: 1, // Each clone is for one member
+                assignees: [
+                  {
+                    id: createdTask.task.member_id,
+                    name: createdTask.member_name,
+                    role: "member",
+                  },
+                ],
+                series_id: createdTask.task.series_id, // Add series_id for clone tasks
+              };
+
+              tasksByDay[day].push(taskForUI);
+            }
+          }
+
+          // Add tasks to calendar
+          for (const [day, dayTasks] of Object.entries(tasksByDay)) {
+            if (newCalendarTasks[day]) {
+              newCalendarTasks[day].individualTasks.push(...dayTasks);
+            }
+          }
+
+          setCalendarTasks(newCalendarTasks);
+
+          // Show success message
+          console.log(
+            "[KIDOERS-ROUTINE] ✅ Clone tasks created successfully:",
+            result.message,
+          );
+
+        } else {
+          // Use bulk individual tasks API for single member
+          const bulkPayload = {
+            task_template: {
+              name: editableTaskName || task.name,
+              description: task.description || undefined,
+              points: task.points,
+              duration_mins: task.estimatedMinutes,
+              time_of_day: task.time_of_day || undefined,
+              is_system: task.is_system || false,
+            },
+            assignments: targetMemberIds.map((memberId) => ({
+              member_id: memberId,
+              days_of_week: days_of_week || [],
+              order_index: 0,
+            })),
+            new_days_of_week: days_of_week || [],
+          };
+
+          console.log(
+            "[KIDOERS-ROUTINE] 📦 Using bulk individual tasks API with payload:",
+            bulkPayload,
+          );
+          const result = await bulkCreateIndividualTasks(
+            routineData.id,
+            bulkPayload,
+          );
+          console.log(
+            "[KIDOERS-ROUTINE] ✅ Bulk individual tasks creation result:",
+            result,
+          );
 
         // Update UI with created tasks and instances
         const newCalendarTasks = { ...calendarTasks };
@@ -2332,7 +2508,7 @@ export default function ManualRoutineBuilder({
               days_of_week: [day], // Each task row has only one day
               is_saved: true,
               template_id: task.is_system ? task.id : undefined,
-              recurring_template_id: createdTask.recurring_template_id,
+              recurring_template_id: (createdTask as any).recurring_template_id || undefined,
               from_group: undefined,
               estimatedMinutes: task.estimatedMinutes || 5,
               member_count: 1, // Single member
@@ -2415,6 +2591,7 @@ export default function ManualRoutineBuilder({
             );
           }
         }
+        } // end: else (bulk individual tasks)
       } else if (pendingDrop.type === "group") {
         // Helper function to reduce nesting complexity
         const applyGroupToDaysAndMembers = (
@@ -2448,7 +2625,7 @@ export default function ManualRoutineBuilder({
           targetMemberIds,
           selectedApplyToId,
         );
-      }
+      } // end: pendingDrop.type === "group"
 
       // Close popup and reset
       setShowApplyToPopup(false);
@@ -3137,6 +3314,7 @@ export default function ManualRoutineBuilder({
                   onRemoveGroup={removeGroupFromCalendar}
                   getTasksWithDayOrder={getTasksWithDayOrder}
                   extractMemberIdFromId={extractMemberIdFromId}
+                  onSeriesBadgeClick={handleSeriesBadgeClick}
                 />
               ) : (
                 <CalendarGrid
@@ -3158,6 +3336,7 @@ export default function ManualRoutineBuilder({
                   getTasksWithDayOrder={getTasksWithDayOrder}
                   extractMemberIdFromId={extractMemberIdFromId}
                   getTotalTasksForDay={getTotalTasksForDay}
+                  onSeriesBadgeClick={handleSeriesBadgeClick}
                 />
               ))
             )}
@@ -3423,29 +3602,216 @@ export default function ManualRoutineBuilder({
                     Who should do this task?
                   </Label>
                 </div>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {familyMembers.map((member) => {
-                    const isSelected = taskAssignmentMemberIds.includes(member.id);
-                    return (
+
+                {/* Quick Selection */}
+                <div className="space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    {(() => {
+                      const allFamilyCount = familyMembers.length;
+                      const allKidsCount = familyMembers.filter(m => m.role === 'child').length;
+                      const allParentsCount = familyMembers.filter(m => m.role === 'parent').length;
+                      
+                      const isAllFamilySelected = taskAssignmentMemberIds.length === allFamilyCount && allFamilyCount > 0;
+                      const isAllKidsSelected = taskAssignmentMemberIds.length === allKidsCount && allKidsCount > 0 && 
+                        familyMembers.filter(m => m.role === 'child').every(m => taskAssignmentMemberIds.includes(m.id));
+                      const isAllParentsSelected = taskAssignmentMemberIds.length === allParentsCount && allParentsCount > 0 &&
+                        familyMembers.filter(m => m.role === 'parent').every(m => taskAssignmentMemberIds.includes(m.id));
+
+                      return (
+                        <>
+                          <button
+                            onClick={() => {
+                              if (isAllFamilySelected) {
+                                setTaskAssignmentMemberIds([]);
+                              } else {
+                                setTaskAssignmentMemberIds(familyMembers.map(m => m.id));
+                              }
+                            }}
+                            className={`px-3 py-2 rounded-lg border-2 transition-all text-sm font-medium ${
+                              isAllFamilySelected
+                                ? 'border-green-500 bg-green-50 text-green-700'
+                                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                            }`}
+                          >
+                            All Family ({allFamilyCount})
+                          </button>
+                          
+                          {allKidsCount > 0 && (
+                            <button
+                              onClick={() => {
+                                const kids = familyMembers.filter(m => m.role === 'child');
+                                if (isAllKidsSelected) {
+                                  setTaskAssignmentMemberIds(taskAssignmentMemberIds.filter(id => 
+                                    !kids.some(k => k.id === id)
+                                  ));
+                                } else {
+                                  const nonKids = taskAssignmentMemberIds.filter(id => 
+                                    !kids.some(k => k.id === id)
+                                  );
+                                  setTaskAssignmentMemberIds([...nonKids, ...kids.map(k => k.id)]);
+                                }
+                              }}
+                              className={`px-3 py-2 rounded-lg border-2 transition-all text-sm font-medium ${
+                                isAllKidsSelected
+                                  ? 'border-green-500 bg-green-50 text-green-700'
+                                  : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                              }`}
+                            >
+                              All Kids ({allKidsCount})
+                            </button>
+                          )}
+                          
+                          {allParentsCount > 0 && (
+                            <button
+                              onClick={() => {
+                                const parents = familyMembers.filter(m => m.role === 'parent');
+                                if (isAllParentsSelected) {
+                                  setTaskAssignmentMemberIds(taskAssignmentMemberIds.filter(id => 
+                                    !parents.some(p => p.id === id)
+                                  ));
+                                } else {
+                                  const nonParents = taskAssignmentMemberIds.filter(id => 
+                                    !parents.some(p => p.id === id)
+                                  );
+                                  setTaskAssignmentMemberIds([...nonParents, ...parents.map(p => p.id)]);
+                                }
+                              }}
+                              className={`px-3 py-2 rounded-lg border-2 transition-all text-sm font-medium ${
+                                isAllParentsSelected
+                                  ? 'border-green-500 bg-green-50 text-green-700'
+                                  : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                              }`}
+                            >
+                              All Parents ({allParentsCount})
+                            </button>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Individual Selection */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-700">Individual Selection</span>
                       <button
-                        key={member.id}
                         onClick={() => {
-                          if (isSelected) {
-                            setTaskAssignmentMemberIds(taskAssignmentMemberIds.filter(id => id !== member.id));
+                          // Toggle all members
+                          if (taskAssignmentMemberIds.length === familyMembers.length) {
+                            setTaskAssignmentMemberIds([]);
                           } else {
-                            setTaskAssignmentMemberIds([...taskAssignmentMemberIds, member.id]);
+                            setTaskAssignmentMemberIds(familyMembers.map(m => m.id));
                           }
                         }}
-                        className={`px-3 py-2 rounded-lg border-2 transition-all ${
-                          isSelected 
-                            ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' 
-                            : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                        }`}
+                        className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
                       >
-                        {member.name}
+                        Show All Members
                       </button>
-                    );
-                  })}
+                    </div>
+                    
+                    {/* Selected Members */}
+                    {taskAssignmentMemberIds.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-xs text-gray-600">
+                          Selected Members ({taskAssignmentMemberIds.length}):
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {taskAssignmentMemberIds.map((memberId) => {
+                            const member = familyMembers.find(m => m.id === memberId);
+                            if (!member) return null;
+                            
+                            return (
+                              <div
+                                key={memberId}
+                                className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg"
+                              >
+                                <img
+                                  src={member.avatar_url || generateAvatarUrl(member.avatar_seed || member.id, member.avatar_style || 'bottts', member.avatar_options || {})}
+                                  alt={member.name}
+                                  className="w-5 h-5 rounded-full"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.style.display = 'none';
+                                    const fallback = target.nextElementSibling as HTMLElement;
+                                    if (fallback) fallback.style.display = 'flex';
+                                  }}
+                                />
+                                <div
+                                  className="w-5 h-5 rounded-full bg-gray-500 text-white text-xs font-medium items-center justify-center hidden"
+                                  style={{ display: 'none' }}
+                                >
+                                  {member.name.charAt(0).toUpperCase()}
+                                </div>
+                                <span className="text-sm font-medium text-green-700">
+                                  {member.name}
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    setTaskAssignmentMemberIds(taskAssignmentMemberIds.filter(id => id !== memberId));
+                                  }}
+                                  className="text-green-500 hover:text-green-700 ml-1"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* All Members as Badges */}
+                    <div className="flex flex-wrap gap-2">
+                      {familyMembers.map((member) => {
+                        const isSelected = taskAssignmentMemberIds.includes(member.id);
+                        return (
+                          <button
+                            key={member.id}
+                            onClick={() => {
+                              if (isSelected) {
+                                setTaskAssignmentMemberIds(taskAssignmentMemberIds.filter(id => id !== member.id));
+                              } else {
+                                setTaskAssignmentMemberIds([...taskAssignmentMemberIds, member.id]);
+                              }
+                            }}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+                              isSelected 
+                                ? 'border-green-500 bg-green-50 text-green-700' 
+                                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                            }`}
+                          >
+                            <img
+                              src={member.avatar_url || generateAvatarUrl(member.avatar_seed || member.id, member.avatar_style || 'bottts', member.avatar_options || {})}
+                              alt={member.name}
+                              className="w-5 h-5 rounded-full"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                const fallback = target.nextElementSibling as HTMLElement;
+                                if (fallback) fallback.style.display = 'flex';
+                              }}
+                            />
+                            <div
+                              className="w-5 h-5 rounded-full bg-gray-500 text-white text-xs font-medium items-center justify-center hidden"
+                              style={{ display: 'none' }}
+                            >
+                              {member.name.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-sm font-medium">
+                              {member.name}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Helper Text */}
+                  <div className="text-xs text-gray-500 italic">
+                    We will create one task per selected member.
+                  </div>
                 </div>
               </div>
 
@@ -3634,6 +4000,55 @@ export default function ManualRoutineBuilder({
                       />
                     </svg>
                   </button>
+                  {/* Series batch actions - only show if task has series_id */}
+                  {selectedTaskForEdit.task.series_id && (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditSeriesTasks();
+                        }}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                        title="Edit all tasks in series"
+                      >
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                          />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteSeriesTasks();
+                        }}
+                        className="p-2 text-orange-600 hover:bg-orange-50 rounded-full transition-colors"
+                        title="Delete all tasks in series"
+                      >
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
+                        </svg>
+                      </button>
+                    </>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();

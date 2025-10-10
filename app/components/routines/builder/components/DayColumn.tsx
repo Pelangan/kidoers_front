@@ -29,6 +29,7 @@ interface DayColumnProps {
   getTasksWithDayOrder: (tasks: Task[], day: string, memberId: string) => Task[]
   extractMemberIdFromId: (id: string, selectedMemberId: string) => string
   getTotalTasksForDay: (day: string, calendarTasks: any, selectedMemberId: string) => number
+  onSeriesBadgeClick?: (seriesId: string, day: string) => void // Handler for series badge click
 }
 
 export const DayColumn: React.FC<DayColumnProps> = ({
@@ -50,7 +51,8 @@ export const DayColumn: React.FC<DayColumnProps> = ({
   onRemoveGroup,
   getTasksWithDayOrder,
   extractMemberIdFromId,
-  getTotalTasksForDay
+  getTotalTasksForDay,
+  onSeriesBadgeClick,
 }) => {
   // Debug: Log when selectedMemberIds changes
   console.log('[KIDOERS-ROUTINE] 🔄 DayColumn re-rendered:', { day, selectedMemberIds });
@@ -222,6 +224,8 @@ export const DayColumn: React.FC<DayColumnProps> = ({
                     onDragStart={onTaskDragStart}
                     onDragEnd={onTaskDragEnd}
                     onClick={onTaskClick}
+                    allDayTasks={dayTasks.individualTasks}
+                    onSeriesBadgeClick={onSeriesBadgeClick}
                   />
                   
                   {/* Drop zone after this task */}

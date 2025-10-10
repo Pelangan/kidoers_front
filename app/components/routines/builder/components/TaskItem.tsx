@@ -21,6 +21,9 @@ interface TaskItemProps {
   onDragStart: (e: React.DragEvent, task: Task, day: string, memberId: string) => void
   onDragEnd: () => void
   onClick: (e: React.MouseEvent, task: Task, day: string, memberId: string) => void
+  // New props for series badge functionality
+  allDayTasks?: Task[] // All tasks for this day to count series
+  onSeriesBadgeClick?: (seriesId: string, day: string) => void // Handler for series badge click
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({
@@ -33,7 +36,9 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   getMemberColors,
   onDragStart,
   onDragEnd,
-  onClick
+  onClick,
+  allDayTasks = [],
+  onSeriesBadgeClick
 }) => {
   // Create assignees data for single-member tasks if not available
   const getAssignees = () => {
@@ -112,6 +117,31 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
   const taskColor = getTaskColor()
 
+  // Calculate series badge information
+  const getSeriesBadgeInfo = () => {
+    if (!task.series_id || !allDayTasks.length) {
+      return null
+    }
+
+    // Count tasks with the same series_id on this day
+    const seriesTasks = allDayTasks.filter(t => t.series_id === task.series_id)
+    
+    if (seriesTasks.length <= 1) {
+      return null // No badge needed if only one task in series
+    }
+
+    // Get other tasks in the same series (excluding current task)
+    const otherSeriesTasks = seriesTasks.filter(t => t.id !== task.id)
+    
+    return {
+      count: otherSeriesTasks.length,
+      seriesId: task.series_id,
+      otherTasks: otherSeriesTasks
+    }
+  }
+
+  const seriesBadgeInfo = getSeriesBadgeInfo()
+
   return (
     <div 
       className={`relative flex items-center space-x-1 p-3 rounded border border-gray-200 ${taskColor.bg} ${taskColor.border} cursor-pointer hover:shadow-sm transition-shadow ${
@@ -131,13 +161,31 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       <div className="flex-1">
         <div className="flex items-center justify-between">
           <div className={`text-sm font-medium ${taskColor.text}`}>{task.name}</div>
-          {/* Only show avatar badge for multi-member tasks */}
-          {(task.member_count && task.member_count > 1) && (
-            <MultiMemberBadge 
-              memberCount={task.member_count || assignees.length || 1}
-              assignees={assignees}
-            />
-          )}
+          <div className="flex items-center space-x-1">
+            {/* Only show avatar badge for multi-member tasks */}
+            {(task.member_count && task.member_count > 1) && (
+              <MultiMemberBadge 
+                memberCount={task.member_count || assignees.length || 1}
+                assignees={assignees}
+              />
+            )}
+            
+            {/* Series badge for clone tasks */}
+            {seriesBadgeInfo && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (onSeriesBadgeClick) {
+                    onSeriesBadgeClick(seriesBadgeInfo.seriesId, day)
+                  }
+                }}
+                className="flex items-center justify-center w-5 h-5 bg-blue-500 text-white text-xs font-medium rounded-full hover:bg-blue-600 transition-colors"
+                title={`${seriesBadgeInfo.count} other task(s) in this series`}
+              >
+                +{seriesBadgeInfo.count}
+              </button>
+            )}
+          </div>
         </div>
         {task.from_group && (
           <div className="text-xs flex items-center space-x-1 text-purple-600">

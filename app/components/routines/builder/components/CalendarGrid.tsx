@@ -28,6 +28,7 @@ interface CalendarGridProps {
   getTasksWithDayOrder: (tasks: Task[], day: string, memberId: string) => Task[]
   extractMemberIdFromId: (id: string, selectedMemberId: string) => string
   getTotalTasksForDay: (day: string, calendarTasks: any, selectedMemberId: string) => number
+  onSeriesBadgeClick?: (seriesId: string, day: string) => void // Handler for series badge click
 }
 
 export const CalendarGrid: React.FC<CalendarGridProps> = ({
@@ -48,7 +49,8 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
   onRemoveGroup,
   getTasksWithDayOrder,
   extractMemberIdFromId,
-  getTotalTasksForDay
+  getTotalTasksForDay,
+  onSeriesBadgeClick,
 }) => {
   const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 
@@ -122,6 +124,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                 getTasksWithDayOrder={getTasksWithDayOrder}
                 extractMemberIdFromId={extractMemberIdFromId}
                 getTotalTasksForDay={getTotalTasksForDay}
+                onSeriesBadgeClick={onSeriesBadgeClick}
               />
             ))}
           </div>
