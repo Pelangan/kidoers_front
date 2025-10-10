@@ -3603,9 +3603,9 @@ export default function ManualRoutineBuilder({
                   </Label>
                 </div>
 
-                {/* Quick Selection */}
-                <div className="space-y-3">
-                  <div className="flex flex-wrap gap-2">
+                {/* Quick Selection Buttons */}
+                <div className="space-y-4">
+                  <div className="flex gap-3">
                     {(() => {
                       const allFamilyCount = familyMembers.length;
                       const allKidsCount = familyMembers.filter(m => m.role === 'child').length;
@@ -3627,10 +3627,10 @@ export default function ManualRoutineBuilder({
                                 setTaskAssignmentMemberIds(familyMembers.map(m => m.id));
                               }
                             }}
-                            className={`px-3 py-2 rounded-lg border-2 transition-all text-sm font-medium ${
+                            className={`px-4 py-2.5 rounded-full border-2 transition-all text-sm font-medium ${
                               isAllFamilySelected
-                                ? 'border-green-500 bg-green-50 text-green-700'
-                                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                                ? 'border-gray-800 bg-gray-100 text-gray-800'
+                                : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
                             }`}
                           >
                             All Family ({allFamilyCount})
@@ -3651,10 +3651,10 @@ export default function ManualRoutineBuilder({
                                   setTaskAssignmentMemberIds([...nonKids, ...kids.map(k => k.id)]);
                                 }
                               }}
-                              className={`px-3 py-2 rounded-lg border-2 transition-all text-sm font-medium ${
+                              className={`px-4 py-2.5 rounded-full border-2 transition-all text-sm font-medium ${
                                 isAllKidsSelected
-                                  ? 'border-green-500 bg-green-50 text-green-700'
-                                  : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                                  ? 'border-gray-800 bg-gray-100 text-gray-800'
+                                  : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
                               }`}
                             >
                               All Kids ({allKidsCount})
@@ -3676,10 +3676,10 @@ export default function ManualRoutineBuilder({
                                   setTaskAssignmentMemberIds([...nonParents, ...parents.map(p => p.id)]);
                                 }
                               }}
-                              className={`px-3 py-2 rounded-lg border-2 transition-all text-sm font-medium ${
+                              className={`px-4 py-2.5 rounded-full border-2 transition-all text-sm font-medium ${
                                 isAllParentsSelected
-                                  ? 'border-green-500 bg-green-50 text-green-700'
-                                  : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                                  ? 'border-gray-800 bg-gray-100 text-gray-800'
+                                  : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
                               }`}
                             >
                               All Parents ({allParentsCount})
@@ -3690,80 +3690,60 @@ export default function ManualRoutineBuilder({
                     })()}
                   </div>
 
-                  {/* Individual Selection */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-700">Individual Selection</span>
-                      <button
-                        onClick={() => {
-                          // Toggle all members
-                          if (taskAssignmentMemberIds.length === familyMembers.length) {
-                            setTaskAssignmentMemberIds([]);
-                          } else {
-                            setTaskAssignmentMemberIds(familyMembers.map(m => m.id));
-                          }
-                        }}
-                        className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
-                      >
-                        Show All Members
-                      </button>
-                    </div>
-                    
-                    {/* Selected Members */}
-                    {taskAssignmentMemberIds.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="text-xs text-gray-600">
-                          Selected Members ({taskAssignmentMemberIds.length}):
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {taskAssignmentMemberIds.map((memberId) => {
-                            const member = familyMembers.find(m => m.id === memberId);
-                            if (!member) return null;
-                            
-                            return (
-                              <div
-                                key={memberId}
-                                className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg"
-                              >
-                                <img
-                                  src={member.avatar_url || generateAvatarUrl(member.avatar_seed || member.id, member.avatar_style || 'bottts', member.avatar_options || {})}
-                                  alt={member.name}
-                                  className="w-5 h-5 rounded-full"
-                                  onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    target.style.display = 'none';
-                                    const fallback = target.nextElementSibling as HTMLElement;
-                                    if (fallback) fallback.style.display = 'flex';
-                                  }}
-                                />
-                                <div
-                                  className="w-5 h-5 rounded-full bg-gray-500 text-white text-xs font-medium items-center justify-center hidden"
-                                  style={{ display: 'none' }}
-                                >
-                                  {member.name.charAt(0).toUpperCase()}
-                                </div>
-                                <span className="text-sm font-medium text-green-700">
-                                  {member.name}
-                                </span>
-                                <button
-                                  onClick={() => {
-                                    setTaskAssignmentMemberIds(taskAssignmentMemberIds.filter(id => id !== memberId));
-                                  }}
-                                  className="text-green-500 hover:text-green-700 ml-1"
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                  </svg>
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
+                  {/* Selected Members Section */}
+                  {taskAssignmentMemberIds.length > 0 && (
+                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-medium text-gray-700">
+                          Selected Members ({taskAssignmentMemberIds.length})
+                        </h4>
+                        <span className="text-sm text-gray-600">
+                          {taskAssignmentMemberIds.length} tasks will be created
+                        </span>
                       </div>
-                    )}
+                      <div className="flex flex-wrap gap-2">
+                        {taskAssignmentMemberIds.map((memberId) => {
+                          const member = familyMembers.find(m => m.id === memberId);
+                          if (!member) return null;
+                          
+                          return (
+                            <div
+                              key={memberId}
+                              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-full shadow-sm"
+                            >
+                              <img
+                                src={member.avatar_url || generateAvatarUrl(member.avatar_seed || member.id, member.avatar_style || 'bottts', member.avatar_options || {})}
+                                alt={member.name}
+                                className="w-6 h-6 rounded-full"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                  const fallback = target.nextElementSibling as HTMLElement;
+                                  if (fallback) fallback.style.display = 'flex';
+                                }}
+                              />
+                              <div
+                                className="w-6 h-6 rounded-full bg-gray-500 text-white text-xs font-medium items-center justify-center hidden"
+                                style={{ display: 'none' }}
+                              >
+                                {member.name.charAt(0).toUpperCase()}
+                              </div>
+                              <span className="text-sm font-medium text-gray-700">
+                                {member.name}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
-                    {/* All Members as Badges */}
-                    <div className="flex flex-wrap gap-2">
+                  {/* Individual Selection */}
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-gray-700">Individual Selection</h4>
+                    
+                    {/* Member Cards */}
+                    <div className="grid grid-cols-4 gap-2">
                       {familyMembers.map((member) => {
                         const isSelected = taskAssignmentMemberIds.includes(member.id);
                         return (
@@ -3776,32 +3756,46 @@ export default function ManualRoutineBuilder({
                                 setTaskAssignmentMemberIds([...taskAssignmentMemberIds, member.id]);
                               }
                             }}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+                            className={`relative p-2 rounded-lg border-2 transition-all text-left ${
                               isSelected 
-                                ? 'border-green-500 bg-green-50 text-green-700' 
-                                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                                ? 'border-gray-800 bg-gray-50' 
+                                : 'border-gray-200 bg-white hover:border-gray-300'
                             }`}
                           >
-                            <img
-                              src={member.avatar_url || generateAvatarUrl(member.avatar_seed || member.id, member.avatar_style || 'bottts', member.avatar_options || {})}
-                              alt={member.name}
-                              className="w-5 h-5 rounded-full"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                                const fallback = target.nextElementSibling as HTMLElement;
-                                if (fallback) fallback.style.display = 'flex';
-                              }}
-                            />
-                            <div
-                              className="w-5 h-5 rounded-full bg-gray-500 text-white text-xs font-medium items-center justify-center hidden"
-                              style={{ display: 'none' }}
-                            >
-                              {member.name.charAt(0).toUpperCase()}
+                            {isSelected && (
+                              <div className="absolute top-1 right-1 w-4 h-4 bg-gray-800 rounded-full flex items-center justify-center">
+                                <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                            )}
+                            <div className="flex flex-col items-center space-y-1">
+                              <img
+                                src={member.avatar_url || generateAvatarUrl(member.avatar_seed || member.id, member.avatar_style || 'bottts', member.avatar_options || {})}
+                                alt={member.name}
+                                className="w-8 h-8 rounded-full"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                  const fallback = target.nextElementSibling as HTMLElement;
+                                  if (fallback) fallback.style.display = 'flex';
+                                }}
+                              />
+                              <div
+                                className="w-8 h-8 rounded-full bg-gray-500 text-white text-xs font-medium items-center justify-center hidden"
+                                style={{ display: 'none' }}
+                              >
+                                {member.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="text-center">
+                                <div className="text-xs font-medium text-gray-900">
+                                  {member.name}
+                                </div>
+                                <div className="text-xs text-gray-500 capitalize">
+                                  {member.role}
+                                </div>
+                              </div>
                             </div>
-                            <span className="text-sm font-medium">
-                              {member.name}
-                            </span>
                           </button>
                         );
                       })}
@@ -3809,7 +3803,7 @@ export default function ManualRoutineBuilder({
                   </div>
 
                   {/* Helper Text */}
-                  <div className="text-xs text-gray-500 italic">
+                  <div className="text-xs text-gray-500 italic text-center">
                     We will create one task per selected member.
                   </div>
                 </div>
