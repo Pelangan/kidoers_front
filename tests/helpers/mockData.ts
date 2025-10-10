@@ -64,29 +64,23 @@ export const mockTasks = [
   },
 ];
 
-// Mock Multi-Member Task
-export const mockMultiMemberTask = {
-  id: 'task-multi-1',
-  name: 'Family Dinner',
-  description: 'Help prepare dinner',
-  points: 15,
-  duration_mins: 30,
-  time_of_day: 'evening' as const,
+// Mock Single-Member Task
+export const mockSingleMemberTask = {
+  id: 'task-single-1',
+  name: 'Individual Task',
+  description: 'Single member task',
+  points: 10,
+  duration_mins: 20,
+  time_of_day: 'morning' as const,
   frequency: 'daily' as const,
   days_of_week: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-  member_count: 2,
+  member_count: 1,
   assignees: [
     {
       id: '2',
       name: 'Child One',
       role: 'child' as const,
       color: 'green',
-    },
-    {
-      id: '3',
-      name: 'Child Two',
-      role: 'child' as const,
-      color: 'yellow',
     },
   ],
 };

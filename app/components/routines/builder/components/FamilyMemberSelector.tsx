@@ -25,10 +25,10 @@ export const FamilyMemberSelector: React.FC<FamilyMemberSelectorProps> = ({
   return (
     <div className="flex items-center justify-between gap-10 py-0 px-16 bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 rounded-3xl shadow-sm border border-white/50 min-w-fit">
       <div className="flex items-center gap-10">
-        {enhancedFamilyMembers.length === 0 && (
+        {!enhancedFamilyMembers || enhancedFamilyMembers.length === 0 ? (
           <div className="text-sm text-gray-500">Loading family members...</div>
-        )}
-        {enhancedFamilyMembers.map((member) => {
+        ) : (
+          enhancedFamilyMembers.map((member) => {
         const colors = getMemberColors(member.color)
         const avatarUrl = member.avatar_url || generateAvatarUrl(
           member.avatar_seed || member.name.toLowerCase().replace(/\s+/g, '-'),
@@ -141,7 +141,8 @@ export const FamilyMemberSelector: React.FC<FamilyMemberSelectorProps> = ({
             </div>
           </div>
         )
-      })}
+      })
+        )}
       </div>
 
       {/* View Mode Toggle - Moved to the right */}
