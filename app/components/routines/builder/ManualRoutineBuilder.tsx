@@ -3690,53 +3690,6 @@ export default function ManualRoutineBuilder({
                     })()}
                   </div>
 
-                  {/* Selected Members Section */}
-                  {taskAssignmentMemberIds.length > 0 && (
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-sm font-medium text-gray-700">
-                          Selected Members ({taskAssignmentMemberIds.length})
-                        </h4>
-                        <span className="text-sm text-gray-600">
-                          {taskAssignmentMemberIds.length} tasks will be created
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {taskAssignmentMemberIds.map((memberId) => {
-                          const member = familyMembers.find(m => m.id === memberId);
-                          if (!member) return null;
-                          
-                          return (
-                            <div
-                              key={memberId}
-                              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-full shadow-sm"
-                            >
-                              <img
-                                src={member.avatar_url || generateAvatarUrl(member.avatar_seed || member.id, member.avatar_style || 'bottts', member.avatar_options || {})}
-                                alt={member.name}
-                                className="w-6 h-6 rounded-full"
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  target.style.display = 'none';
-                                  const fallback = target.nextElementSibling as HTMLElement;
-                                  if (fallback) fallback.style.display = 'flex';
-                                }}
-                              />
-                              <div
-                                className="w-6 h-6 rounded-full bg-gray-500 text-white text-xs font-medium items-center justify-center hidden"
-                                style={{ display: 'none' }}
-                              >
-                                {member.name.charAt(0).toUpperCase()}
-                              </div>
-                              <span className="text-sm font-medium text-gray-700">
-                                {member.name}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
 
                   {/* Individual Selection */}
                   <div className="space-y-3">
