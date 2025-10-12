@@ -146,6 +146,7 @@ export const DayColumn: React.FC<DayColumnProps> = ({
               console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - dayTasks:', dayTasks);
               console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - dayTasks.individualTasks:', dayTasks.individualTasks);
               console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - selectedMemberIds:', selectedMemberIds);
+              console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - individualTasks count:', dayTasks.individualTasks?.length || 0);
               
               // Check if individualTasks exists and has length
               if (!dayTasks.individualTasks || dayTasks.individualTasks.length === 0) {
@@ -193,6 +194,13 @@ export const DayColumn: React.FC<DayColumnProps> = ({
               });
               
               console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - filteredTasks:', filteredTasks);
+              console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - filteredTasks count:', filteredTasks.length);
+              console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - filteredTasks details:', filteredTasks.map(t => ({
+                id: t.id,
+                name: t.name,
+                memberCount: t.member_count,
+                assignees: t.assignees?.map(a => a.name) || []
+              })));
               
               return getTasksWithDayOrder(filteredTasks, day, selectedMemberIds[0]);
             })()

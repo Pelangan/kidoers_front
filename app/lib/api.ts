@@ -691,6 +691,7 @@ export async function bulkCreateIndividualTasks(routineId: string, payload: {
       frequency: string;
       days_of_week: string[];
       order_index: number;
+      member_id: string;
     }>;
   }>(`/routines/${routineId}/tasks/bulk-assign`, {
     method: "POST",
@@ -1301,53 +1302,3 @@ export interface SeriesDeleteResponse {
   message: string
 }
 
-/**
- * Create cloned tasks for multiple members
- */
-export async function createCloneTasks(
-  request: CloneTaskRequest
-): Promise<CloneTaskResponse> {
-  return apiService.makeRequest('/api/planner/clone-tasks', {
-    method: 'POST',
-    body: JSON.stringify(request),
-  })
-}
-
-/**
- * Get all tasks in a series
- */
-export async function getSeriesTasks(seriesId: string): Promise<Array<{
-  task_id: string
-  member_id: string
-  member_name: string
-  recurring_template_id: string
-  series_id: string
-}>> {
-  return apiService.makeRequest(`/api/planner/series/${seriesId}/tasks`)
-}
-
-/**
- * Update all tasks in a series
- */
-export async function updateSeries(
-  seriesId: string,
-  request: SeriesUpdateRequest
-): Promise<SeriesUpdateResponse> {
-  return apiService.makeRequest(`/api/planner/series/${seriesId}`, {
-    method: 'PATCH',
-    body: JSON.stringify(request),
-  })
-}
-
-/**
- * Delete all tasks in a series
- */
-export async function deleteSeries(
-  seriesId: string,
-  request: SeriesDeleteRequest
-): Promise<SeriesDeleteResponse> {
-  return apiService.makeRequest(`/api/planner/series/${seriesId}`, {
-    method: 'DELETE',
-    body: JSON.stringify(request),
-  })
-}

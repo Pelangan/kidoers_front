@@ -351,13 +351,14 @@ interface ScheduleException {
 - **Timezone Support**: All operations respect family timezone settings
 - **Bulk Operations**: Generate instances for date ranges efficiently
 
-### Multiple Assignment Feature
-When assigning chores to multiple family members:
-- **Individual Instances**: Each member gets their own chore instance
-- **Unique IDs**: Chores use timestamp + member ID for uniqueness
-- **Independent Tracking**: Each member can complete their own chore independently
+### Bulk Task Creation Feature
+When creating tasks for multiple family members:
+- **Independent Tasks**: Each member gets their own separate task (different database records)
+- **No Relationships**: Tasks are completely independent with no special linking or series IDs
+- **Same Properties**: All tasks share the same name, description, points, frequency, etc.
+- **Individual Management**: Each task can be edited or deleted independently like any regular task
 - **Visual Feedback**: Selected members show their assigned colors
-- **Bulk Creation**: Single form submission creates multiple chore instances
+- **Bulk Creation**: Single form submission creates multiple separate task instances
 
 2. **Assignment Comparison**: Compares current assignments with new member selection
 3. **Selective Updates**: Only modifies assignments that have changed (adds/removes members)
