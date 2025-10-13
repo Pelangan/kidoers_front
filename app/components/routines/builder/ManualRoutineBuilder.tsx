@@ -221,10 +221,9 @@ const transformCalendarTasksToWeekData = (
     }> = [];
 
     // Always add member buckets for selected members (even if empty)
-    // Use the order from selectedMemberIds to match the selector order
-    selectedMemberIds.forEach((memberId) => {
-      const member = familyMembers.find((m) => m.id === memberId);
-      if (member) {
+    // Use the order from familyMembers to maintain consistent ordering (not selection order)
+    familyMembers.forEach((member) => {
+      if (selectedMemberIds.includes(member.id)) {
         buckets.push({
           bucket_type: "member" as const,
           bucket_member_id: member.id,

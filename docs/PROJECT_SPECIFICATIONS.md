@@ -40,6 +40,21 @@ To avoid confusion during development, it's essential to understand the distinct
 - **Code**: References `routineGroups` state variable ✅
 - **User Experience**: User sees "routine" but it maps to `task_groups` in the database ✅
 
+## 🔧 Recent Fixes & Improvements
+
+### Avatar Ordering Fix (January 2025)
+**Issue**: Avatar rows in the routine grid were displaying in the order that members were selected, rather than maintaining a consistent order.
+
+**Problem**: The `transformCalendarTasksToWeekData` function was using `selectedMemberIds.forEach()` which preserved the selection order, causing inconsistent row ordering.
+
+**Solution**: Changed the function to iterate through `familyMembers.forEach()` and filter by `selectedMemberIds.includes(member.id)`, ensuring consistent ordering based on family member order rather than selection order.
+
+**Files Modified**:
+- `kidoers_front/app/components/routines/builder/ManualRoutineBuilder.tsx` (lines 225-234)
+- `kidoers_front/tests/integration/avatarOrdering.test.tsx` (new test file)
+
+**Test Coverage**: Added comprehensive tests to verify consistent avatar ordering regardless of selection order.
+
 ## 🏗️ Architecture
 
 ### Technology Stack
