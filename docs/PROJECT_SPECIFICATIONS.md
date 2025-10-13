@@ -55,6 +55,33 @@ To avoid confusion during development, it's essential to understand the distinct
 
 **Test Coverage**: Added comprehensive tests to verify consistent avatar ordering regardless of selection order.
 
+### Avatar Positioning Fix (January 2025)
+**Issue**: When adding family members to the selection, the existing member's tasks would shift up slightly due to avatar positioning changes in the grid layout.
+
+**Problem**: The avatar column was using `flex items-center justify-center` which centered avatars vertically within each row. When the grid structure changed (adding/removing members), the centering caused slight movement of task positions.
+
+**Solution**: Modified the avatar column styling to use `flex items-start justify-center` with additional top padding (`pt-4`), providing consistent positioning that doesn't shift when the grid structure changes.
+
+**Files Modified**:
+- `kidoers_front/app/components/routines/builder/components/PlannerWeek.tsx` (line 147)
+
+**Result**: Avatars now maintain consistent vertical positioning regardless of how many family members are selected, eliminating the task movement issue.
+
+### Row Height Consistency Fix (January 2025)
+**Issue**: When adding family members to the selection, Cristian's row would become "compacted" or compressed due to the grid having to fit multiple rows within a fixed container height.
+
+**Problem**: The grid container had a fixed `min-h-[900px]` height, and when multiple rows were added, they had to share this space, causing compression of existing rows. Additionally, the minimum row height was too small (60px) for comfortable viewing.
+
+**Solution**: 
+1. Removed the fixed container height constraint (`min-h-[900px]`)
+2. Increased the minimum row height from 60px to 120px for better spacing
+3. Increased the padding from 20px to 40px for more comfortable task spacing
+
+**Files Modified**:
+- `kidoers_front/app/components/routines/builder/components/PlannerWeek.tsx` (lines 138, 141)
+
+**Result**: Each row now maintains its proper height regardless of how many family members are selected, eliminating the "compaction" effect when adding additional members.
+
 ## 🏗️ Architecture
 
 ### Technology Stack
