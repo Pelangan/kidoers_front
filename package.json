@@ -70,6 +70,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@mizchi/lsmcp": "^0.10.0",
     "@playwright/test": "^1.55.1",
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react": "^14.1.2",

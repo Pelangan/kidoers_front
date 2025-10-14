@@ -148,3 +148,5 @@ temp/
 # package-lock.json
 # yarn.lock
 # pnpm-lock.yaml (keep this one since you're using pnpm) 
+# lsmcp cache
+.lsmcp/cache
