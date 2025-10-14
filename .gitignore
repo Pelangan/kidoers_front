@@ -155,8 +155,16 @@ temp/
 /test-results/
 /playwright-report/
 /playwright/.cache/
-/playwright/.cache/
 playwright-report/
 test-results/
 blob-report/
 playwright/.cache/
+
+# Playwright debug images and screenshots
+debug-*.png
+login-*.png
+signup-*.png
+*-after-click.png
+*-form-filled.png
+*-page-loaded.png
+*-before-navigation.png
