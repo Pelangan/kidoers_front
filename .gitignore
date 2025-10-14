@@ -150,3 +150,13 @@ temp/
 # pnpm-lock.yaml (keep this one since you're using pnpm) 
 # lsmcp cache
 .lsmcp/cache
+
+# Playwright test artifacts
+/test-results/
+/playwright-report/
+/playwright/.cache/
+/playwright/.cache/
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/

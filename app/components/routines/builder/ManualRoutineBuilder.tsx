@@ -51,6 +51,9 @@ import { useFamilyMembers } from "./hooks/useFamilyMembers";
 import { useCalendarTasks } from "./hooks/useCalendarTasks";
 import { useTaskModals } from "./hooks/useTaskModals";
 import { useTaskDragAndDrop } from "./hooks/useTaskDragAndDrop";
+import { useTaskOrdering } from "./hooks/useTaskOrdering";
+import { useRecurringTaskOperations } from "./hooks/useRecurringTaskOperations";
+import { useTaskEditing } from "./hooks/useTaskEditing";
 import { FamilyMemberSelector } from "./components/FamilyMemberSelector";
 import { CalendarGrid } from "./components/CalendarGrid";
 import { PlannerWeek } from "./components/PlannerWeek";
@@ -239,151 +242,21 @@ export default function ManualRoutineBuilder({
 
   // Load all initial data using the hook (moved after hook declarations)
 
-  // Save day-specific order to backend
-  const saveDaySpecificOrder = async (
-    day: string,
-    memberId: string,
-    tasks: Task[],
-  ) => {
-    console.log(
-      "[DRAG-ORDER] 🚀 saveDaySpecificOrder called in ManualRoutineBuilder!",
-      {
-        day,
-        memberId,
-        taskCount: tasks.length,
-        tasks: tasks.map((t) => ({ id: t.id, name: t.name })),
-        currentRoutineId,
-      },
-    );
-
-    if (!currentRoutineId) {
-      console.log(
-        "[DRAG-ORDER] ❌ No routine ID for saving day-specific order",
-      );
-      return;
-    }
-
-    try {
-      console.log("[DRAG-ORDER] 💾 Saving day-specific order for:", {
-        day,
-        memberId,
-        tasks: tasks.map((t) => t.name),
-      });
-
-      const taskOrders = tasks.map((task, index) => {
-        // Use routine_task_id if available, otherwise extract from id
-        const routineTaskId =
-          task.routine_task_id || extractRoutineTaskIdFromId(task.id);
-        console.log("[DRAG-ORDER] 🔍 ID extraction:", {
-          originalId: task.id,
-          routine_task_id: task.routine_task_id,
-          extractedId: extractRoutineTaskIdFromId(task.id),
-          finalId: routineTaskId,
-          taskName: task.name,
-          hasRoutineTaskId: !!task.routine_task_id,
-        });
-        return {
-          routine_task_id: routineTaskId,
-          order_index: index,
-        };
-      });
-
-      console.log("[DRAG-ORDER] 🔍 Task order mapping:", {
-        originalTaskIds: tasks.map((t) => t.id),
-        extractedRoutineTaskIds: taskOrders.map((to) => to.routine_task_id),
-        taskNames: tasks.map((t) => t.name),
-        taskRoutineTaskIds: tasks.map((t) => t.routine_task_id),
-        taskOrdersWithIndex: taskOrders.map((to, idx) => ({
-          routine_task_id: to.routine_task_id,
-          order_index: to.order_index,
-          taskName: tasks[idx]?.name,
-          taskId: tasks[idx]?.id,
-          hasRoutineTaskId: !!tasks[idx]?.routine_task_id,
-        })),
-      });
-
-      console.log(
-        "[DRAG-ORDER] 🔍 Detailed task analysis:",
-        tasks.map((t, idx) => ({
-          index: idx,
-          taskId: t.id,
-          taskName: t.name,
-          routineTaskId: t.routine_task_id,
-          extractedId: extractRoutineTaskIdFromId(t.id),
-          finalRoutineTaskId:
-            t.routine_task_id || extractRoutineTaskIdFromId(t.id),
-          memberId: t.memberId,
-        })),
-      );
-
-      const bulkUpdate: BulkDayOrderUpdate = {
-        member_id: memberId,
-        day_of_week: day,
-        task_orders: taskOrders,
-      };
-
-      console.log("[DRAG-ORDER] 🚀 Sending bulk update to backend:", {
-        routineId: currentRoutineId,
-        bulkUpdate: {
-          member_id: bulkUpdate.member_id,
-          day_of_week: bulkUpdate.day_of_week,
-          task_orders: bulkUpdate.task_orders.map((to) => ({
-            routine_task_id: to.routine_task_id,
-            order_index: to.order_index,
-          })),
-        },
-      });
-
-      const updatedOrders = await bulkUpdateDayOrders(
-        currentRoutineId,
-        bulkUpdate,
-      );
-      console.log("[DRAG-ORDER] ✅ Day-specific order saved:", updatedOrders);
-      console.log(
-        "[DRAG-ORDER] 📊 Backend returned orders:",
-        updatedOrders.map((o) => ({
-          id: o.id,
-          routine_task_id: o.routine_task_id,
-          order_index: o.order_index,
-          day_of_week: o.day_of_week,
-        })),
-      );
-
-      console.log("[DRAG-ORDER] 🔍 Expected vs Actual orders:", {
-        expectedCount: taskOrders.length,
-        actualCount: updatedOrders.length,
-        expectedOrderIndexes: taskOrders.map((to) => to.order_index),
-        actualOrderIndexes: updatedOrders.map((o) => o.order_index),
-      });
-
-      // Update local day orders state
-      setDayOrders((prev) => {
-        // Remove existing orders for this member/day
-        const filtered = prev.filter(
-          (order) =>
-            !(order.member_id === memberId && order.day_of_week === day),
-        );
-        // Add new orders
-        return [...filtered, ...updatedOrders];
-      });
-    } catch (error) {
-      console.error(
-        "[DRAG-ORDER] ❌ Failed to save day-specific order:",
-        error,
-      );
-      // TODO: Show user-friendly error message
-    }
-  };
+  // Use task ordering hook
+  const {
+    dayOrders,
+    setDayOrders,
+    saveDaySpecificOrder,
+    moveTaskToNewDay,
+  } = useTaskOrdering();
 
   // Use task drag and drop hook
   const {
     draggedTask,
     dragOverPosition,
-    dayOrders,
     isDragging,
     setDraggedTask,
     setDragOverPosition,
-    setDayOrders,
     setIsDragging,
     handleTaskDragStart,
     handleTaskDragOver,
@@ -398,81 +271,36 @@ export default function ManualRoutineBuilder({
     updateCalendarTasks,
     extractRoutineTaskIdFromId,
     currentRoutineId,
-    saveDaySpecificOrder,
+    (day: string, memberId: string, tasks: Task[]) => saveDaySpecificOrder(day, memberId, tasks, currentRoutineId!),
     recurringTemplates,
     () => loadExistingRoutineData(currentRoutineId!, enhancedFamilyMembers),
   );
 
+  // Use recurring task operations hook
+  const { handleRemoveDayFromRecurringTask } = useRecurringTaskOperations();
 
-  // Move task to a new day (cross-column dragging)
-  const moveTaskToNewDay = async (
-    task: Task,
-    fromDay: string,
-    toDay: string,
-    memberId: string,
-  ) => {
-    console.log(
-      "[MOVE-TASK] Moving task:",
-      task.name,
-      "from",
-      fromDay,
-      "to",
-      toDay,
+  // Use task editing hook
+  const { handleEditTask: handleEditTaskInternal } = useTaskEditing();
+
+  // Wrapper for handleEditTask to pass all required parameters
+  const handleEditTask = () => {
+    handleEditTaskInternal(
+      selectedTaskForEdit,
+      currentRoutineId,
+      calendarTasks,
+      recurringTemplates,
+      setRecurringTemplates,
+      setPendingDrop,
+      setTaskAssignmentMemberIds,
+      setDaySelection,
+      setEditableTaskName,
+      setSelectedWhoOption,
+      setSelectedRoutineGroup,
+      setShowTaskMiniPopup,
+      setMiniPopupPosition,
+      setShowApplyToPopup,
+      getMemberNameById,
     );
-
-    try {
-      // Get routine ID
-      const routineData = await ensureRoutineExists();
-      if (!routineData) {
-        setError("Failed to get routine information. Please try again.");
-        return;
-      }
-
-      // Update task in backend to new day
-      console.log("[MOVE-TASK] 🗑️ Updating task in backend to new day:", toDay);
-
-      // TODO: For recurring tasks, we should update the template instead of individual task
-      // This would require a simpler API endpoint for updating just the template's days_of_week
-      // For now, we update the individual task and rely on the template system for consistency
-      await patchRoutineTask(routineData.id, task.id, {
-        days_of_week: [toDay],
-      });
-      console.log("[MOVE-TASK] ✅ Task updated in backend successfully");
-
-      // Update UI state
-      setCalendarTasks((prev) => {
-        const newCalendarTasks = { ...prev };
-
-        // Remove from source day
-        newCalendarTasks[fromDay] = {
-          ...newCalendarTasks[fromDay],
-          individualTasks: newCalendarTasks[fromDay].individualTasks.filter(
-            (t) => t.id !== task.id,
-          ),
-        };
-
-        // Add to target day
-        newCalendarTasks[toDay] = {
-          ...newCalendarTasks[toDay],
-          individualTasks: [
-            ...newCalendarTasks[toDay].individualTasks,
-            {
-              ...task,
-              days_of_week: [toDay], // Update the task's days
-            },
-          ],
-        };
-
-        // Day orders are now handled by the drag and drop hook
-
-        return newCalendarTasks;
-      });
-
-      console.log("[MOVE-TASK] ✅ Task moved successfully");
-    } catch (error) {
-      console.error("[MOVE-TASK] ❌ Error moving task:", error);
-      throw error;
-    }
   };
 
   // Handle task click for mini popup
@@ -520,346 +348,7 @@ export default function ManualRoutineBuilder({
 
   // handleColumnClick and handleColumnClickWrapper moved to useTaskCreation hook
 
-  // Handle removing a day from a recurring task (updates template)
-  const handleRemoveDayFromRecurringTask = async (
-    task: Task,
-    dayToRemove: string,
-    memberId: string,
-  ) => {
-    console.log("[REMOVE-DAY] Removing day from recurring task:", {
-      taskName: task.name,
-      dayToRemove,
-      memberId,
-      recurringTemplateId: task.recurring_template_id,
-    });
 
-    if (!task.recurring_template_id) {
-      console.log(
-        "[REMOVE-DAY] ❌ Task has no recurring_template_id, cannot remove day",
-      );
-      return;
-    }
-
-    try {
-      // Get routine data
-      const routineData = await ensureRoutineExists();
-      if (!routineData) {
-        setError("Failed to get routine information. Please try again.");
-        return;
-      }
-
-      // Get current template data - extract actual task ID if it contains day suffix
-      const actualTaskId = extractTaskId(task.id);
-      const templateData = (await getTaskForEdit(
-        routineData.id,
-        actualTaskId,
-      )) as any;
-      const currentDays = normalizeWeekdays(
-        templateData.template_days_of_week || [],
-      );
-
-      console.log("[REMOVE-DAY] Current template days:", currentDays);
-
-      // Remove the day from the template
-      const newDays = currentDays.filter(
-        (day) => day !== dayToRemove.toLowerCase(),
-      );
-
-      if (newDays.length === 0) {
-        // If no days remain, delete the entire template and all associated tasks
-        console.log(
-          "[REMOVE-DAY] No days remaining, deleting entire template and all tasks",
-        );
-
-        const deleteResult = (await bulkDeleteTasks(routineData.id, {
-          recurring_template_id: task.recurring_template_id,
-          delete_scope: "all_days",
-          target_day: dayToRemove,
-        })) as any;
-
-        console.log(
-          "[REMOVE-DAY] ✅ Template and all tasks deleted:",
-          deleteResult,
-        );
-
-        // Refresh the routine data to get updated templates
-        const fullData = await getRoutineFullData(routineData.id);
-        setRecurringTemplates(fullData.recurring_templates || []);
-
-        // Refresh calendar tasks by triggering a re-fetch
-        await loadExistingRoutineData(routineData.id, familyMembers);
-
-        return;
-      }
-
-      console.log("[REMOVE-DAY] New template days:", newDays);
-
-      // Update the template
-      const result = (await updateTemplateDays(
-        routineData.id,
-        task.recurring_template_id,
-        {
-          days_of_week: newDays,
-        },
-      )) as any;
-
-      console.log("[REMOVE-DAY] ✅ Template updated:", result);
-
-      // Refresh the routine data to get updated templates
-      const fullData = await getRoutineFullData(routineData.id);
-      setRecurringTemplates(fullData.recurring_templates || []);
-
-      // Refresh calendar tasks by triggering a re-fetch
-      // We'll let the useEffect handle the refresh when recurringTemplates changes
-
-      console.log("[REMOVE-DAY] ✅ Day removed successfully");
-    } catch (error) {
-      console.error("[REMOVE-DAY] ❌ Error removing day:", error);
-      setError("Failed to remove day from recurring task. Please try again.");
-    }
-  };
-
-  // Handle edit task - opens the Apply Tasks To modal
-  const handleEditTask = async () => {
-    if (!selectedTaskForEdit) {
-      console.log("[TASK-EDIT] ❌ No selectedTaskForEdit, cannot edit");
-      return;
-    }
-
-    console.log("[TASK-EDIT] ===== EDIT TASK DEBUG START =====");
-    console.log(
-      "[TASK-EDIT] Opening edit modal for task:",
-      selectedTaskForEdit.task.name,
-    );
-    console.log("[TASK-EDIT] Selected task for edit:", {
-      taskId: selectedTaskForEdit.task.id,
-      routineTaskId: selectedTaskForEdit.task.routine_task_id,
-      memberCount: selectedTaskForEdit.task.member_count,
-      assignees: selectedTaskForEdit.task.assignees?.length,
-      isMultiMember:
-        selectedTaskForEdit.task.member_count &&
-        selectedTaskForEdit.task.member_count > 1,
-    });
-    console.log("[TASK-EDIT] Full task object:", selectedTaskForEdit.task);
-    console.log("[TASK-EDIT] Task details:", {
-      name: selectedTaskForEdit.task.name,
-      days_of_week: selectedTaskForEdit.task.days_of_week,
-      recurring_template_id: selectedTaskForEdit.task.recurring_template_id,
-      template_id: selectedTaskForEdit.task.template_id,
-      is_system: selectedTaskForEdit.task.is_system,
-      memberId: selectedTaskForEdit.task.memberId,
-      id: selectedTaskForEdit.task.id,
-    });
-
-    // Refresh routine data to ensure we have the latest template information
-    if (currentRoutineId) {
-      console.log(
-        "[TASK-EDIT] 🔄 Refreshing routine data to get latest template info...",
-      );
-      try {
-        const fullData = await getRoutineFullData(currentRoutineId);
-        setRecurringTemplates(fullData.recurring_templates || []);
-        console.log(
-          "[TASK-EDIT] ✅ Updated recurring templates:",
-          fullData.recurring_templates,
-        );
-      } catch (error) {
-        console.warn("[TASK-EDIT] ⚠️ Failed to refresh routine data:", error);
-      }
-    }
-
-    // Check if this task appears on multiple days in the calendar
-    const taskAppearsOnDays: string[] = [];
-    Object.keys(calendarTasks).forEach((day) => {
-      const dayTasks = calendarTasks[day].individualTasks || [];
-      const hasTaskOnDay = dayTasks.some((task) => {
-        // Check by name and member ID for recurring tasks
-        return (
-          task.name === selectedTaskForEdit.task.name &&
-          (task.memberId === selectedTaskForEdit.memberId ||
-            task.memberId === selectedTaskForEdit.task.memberId)
-        );
-      });
-      if (hasTaskOnDay) {
-        taskAppearsOnDays.push(day);
-      }
-    });
-
-    console.log(
-      "[TASK-EDIT] Task appears on days (from calendar):",
-      taskAppearsOnDays,
-    );
-    console.log(
-      "[TASK-EDIT] Task appears on",
-      taskAppearsOnDays.length,
-      "days",
-    );
-
-    // Set up the task for editing
-    setPendingDrop({
-      type: "task",
-      item: selectedTaskForEdit.task,
-      targetMemberId: selectedTaskForEdit.memberId,
-      targetMemberName: getMemberNameById(selectedTaskForEdit.memberId),
-      targetDay: selectedTaskForEdit.day,
-      fromGroup: undefined,
-    });
-
-    // For multi-member tasks, initialize taskAssignmentMemberIds with all assignees
-    if (
-      selectedTaskForEdit.task.member_count &&
-      selectedTaskForEdit.task.member_count > 1 &&
-      selectedTaskForEdit.task.assignees
-    ) {
-      console.log(
-        "[TASK-EDIT] Multi-member task detected, initializing with all assignees:",
-        selectedTaskForEdit.task.assignees.map((a) => ({
-          id: a.id,
-          name: a.name,
-        })),
-      );
-      const assigneeIds = selectedTaskForEdit.task.assignees.map(
-        (assignee) => assignee.id,
-      );
-      setTaskAssignmentMemberIds(assigneeIds);
-    } else {
-      console.log(
-        "[TASK-EDIT] Single-member task, initializing with clicked member:",
-        selectedTaskForEdit.memberId,
-      );
-      setTaskAssignmentMemberIds([selectedTaskForEdit.memberId]);
-    }
-
-    // Get fresh template data from API instead of stale state
-    console.log(
-      "[TASK-EDIT] 🔍 DEBUG: Getting fresh template data from API...",
-    );
-
-    let templateDays: Weekday[] = [];
-    let frequencyType = "weekly";
-    let hasException = false;
-
-    if (selectedTaskForEdit.task.recurring_template_id) {
-      try {
-        // Get routine data first
-        const routineData = await ensureRoutineExists();
-        if (!routineData) {
-          setError("Failed to get routine information. Please try again.");
-          return;
-        }
-
-        // Get fresh template data from the API
-        const actualTaskId = extractTaskId(selectedTaskForEdit.task.id);
-        const templateData = (await getTaskForEdit(
-          routineData.id,
-          actualTaskId,
-        )) as any;
-
-        console.log(
-          "[TASK-EDIT] 🔍 Fresh template data from API:",
-          templateData,
-        );
-        console.log(
-          "[TASK-EDIT] 🔍 Raw template_days_of_week:",
-          templateData.template_days_of_week,
-        );
-        console.log(
-          "[TASK-EDIT] 🔍 Raw template_frequency_type:",
-          templateData.template_frequency_type,
-        );
-
-        // Use template data as source of truth
-        templateDays = normalizeWeekdays(
-          templateData.template_days_of_week || [],
-        );
-        frequencyType = templateData.template_frequency_type || "weekly";
-        hasException = templateData.has_exception_for_date || false;
-
-        console.log("[TASK-EDIT] ✅ Using fresh template data:", {
-          templateDays,
-          frequencyType,
-          hasException,
-          rawTemplateDays: templateData.template_days_of_week,
-          rawFrequencyType: templateData.template_frequency_type,
-        });
-      } catch (error) {
-        console.warn(
-          "[TASK-EDIT] ⚠️ Failed to get fresh template data, falling back to state:",
-          error,
-        );
-        // Fallback to stale state data
-        frequencyType = getTaskFrequencyType(
-          selectedTaskForEdit.task,
-          recurringTemplates,
-        );
-        const templateDaysOfWeek = getTaskDaysOfWeek(
-          selectedTaskForEdit.task,
-          recurringTemplates,
-        );
-        templateDays = normalizeWeekdays(templateDaysOfWeek);
-      }
-    } else {
-      // For non-recurring tasks, use task data directly
-      templateDays = normalizeWeekdays(
-        selectedTaskForEdit.task.days_of_week || [],
-      );
-      frequencyType = selectedTaskForEdit.task.frequency || "weekly";
-    }
-
-    console.log("[TASK-EDIT] Template-based recurrence data:", {
-      templateDays,
-      hasException,
-      templateFrequencyType: frequencyType,
-    });
-
-    // Determine recurrence option from template
-    const recurrenceOption = optionFromTemplate(templateDays, hasException);
-
-    // Set day selection based on recurrence option
-    // Default to 'custom' mode (Select specific days)
-    let daySelectionMode: "everyday" | "custom" = "custom";
-    let selectedDays: string[] = [selectedTaskForEdit.day];
-
-    if (recurrenceOption === "EVERY_DAY") {
-      daySelectionMode = "everyday";
-      selectedDays = DAYS_OF_WEEK;
-    } else if (recurrenceOption === "SPECIFIC_DAYS") {
-      daySelectionMode = "custom";
-      selectedDays = templateDays.length > 0 ? templateDays : taskAppearsOnDays;
-    }
-    // Note: Removed "Just this day" option - now only "Every day" and "Select specific days"
-
-    console.log("[TASK-EDIT] Final day selection based on template:", {
-      recurrenceOption,
-      mode: daySelectionMode,
-      selectedDays,
-      templateDays,
-      hasException,
-    });
-
-    // Initialize day selection with the correct mode based on template frequency
-    setDaySelection({ mode: daySelectionMode, selectedDays: selectedDays });
-
-    console.log("[TASK-EDIT] ===== EDIT TASK DEBUG END =====");
-
-    // Close mini popup but preserve selectedTaskForEdit for editing
-    setShowTaskMiniPopup(false);
-    setMiniPopupPosition(null);
-    // Don't call closeTaskMiniPopup() as it clears selectedTaskForEdit
-
-    setEditableTaskName(selectedTaskForEdit.task.name);
-    setSelectedWhoOption("none");
-    setSelectedRoutineGroup("none");
-
-    // Use setTimeout to ensure state update happens before modal opens
-    setTimeout(() => {
-      console.log(
-        "[TASK-EDIT] 🔍 Opening edit modal with selectedTaskForEdit preserved:",
-        selectedTaskForEdit,
-      );
-      setShowApplyToPopup(true);
-    }, 0);
-  };
 
   // handleApplyToSelection moved to useTaskCreation hook
 
