@@ -45,6 +45,9 @@ export const extractRoutineTaskIdFromId = (id: string): string => {
   return id // Fallback to original ID
 }
 
+// Alias for extractRoutineTaskIdFromId for backward compatibility
+export const extractTaskId = extractRoutineTaskIdFromId
+
 export const getTotalTasksForDay = (
   day: string, 
   calendarTasks: Record<string, { groups: TaskGroup[], individualTasks: Task[] }>,
