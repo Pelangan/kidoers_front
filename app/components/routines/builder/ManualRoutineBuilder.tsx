@@ -13,6 +13,8 @@ import {
   bulkDeleteTasks,
   getRoutineFullData,
   updateTemplateDays,
+  bulkCreateIndividualTasks,
+  bulkUpdateRecurringTasks,
 } from "../../../lib/api";
 import RoutineDetailsModal from "./RoutineDetailsModal";
 import type {
@@ -350,7 +352,272 @@ export default function ManualRoutineBuilder({
 
 
 
-  // handleApplyToSelection moved to useTaskCreation hook
+  // Restored handleApplyToSelection implementation
+  const handleApplyToSelection = async (applyToId?: string) => {
+    const selectedApplyToId = applyToId || selectedWhoOption;
+    console.log('[KIDOERS-ROUTINE] 🚀 handleApplyToSelection called with applyToId:', selectedApplyToId);
+    
+    if (!pendingDrop) {
+      console.log('[DRAG-ORDER] ❌ No pending drop found');
+      return;
+    }
+
+    setIsCreatingTasks(true);
+
+    try {
+      console.log('[KIDOERS-ROUTINE] 📋 Applying task/group:', {
+        type: pendingDrop.type,
+        item: pendingDrop.item,
+        targetMemberId: pendingDrop.targetMemberId,
+        applyToId: selectedApplyToId,
+        daySelection
+      });
+
+      // Determine which days to add the task to based on day selection
+      let targetDays: string[] = [];
+      
+      if (daySelection.mode === 'everyday') {
+        targetDays = DAYS_OF_WEEK;
+      } else if (daySelection.mode === 'custom') {
+        targetDays = daySelection.selectedDays;
+      }
+
+      console.log('[KIDOERS-ROUTINE] Target days:', targetDays);
+
+      // Check if we're editing an existing recurring task
+      const isEditingRecurringTask = selectedTaskForEdit && 
+                                   selectedTaskForEdit.task.recurring_template_id && 
+                                   pendingDrop.type === 'task' &&
+                                   pendingDrop.item.id === selectedTaskForEdit.task.id;
+
+      console.log('[KIDOERS-ROUTINE] 🔍 Edit mode check:', {
+        isEditingRecurringTask,
+        hasSelectedTaskForEdit: !!selectedTaskForEdit,
+        hasRecurringTemplateId: selectedTaskForEdit?.task.recurring_template_id,
+        pendingDropType: pendingDrop.type,
+        taskIdsMatch: selectedTaskForEdit?.task.id === pendingDrop.item.id
+      });
+
+      // Determine which members should receive the task based on applyToId
+      let targetMemberIds: string[] = [];
+      
+      console.log('[KIDOERS-ROUTINE] 🔍 Assignment Debug Info:');
+      console.log('[KIDOERS-ROUTINE] - applyToId:', selectedApplyToId);
+      console.log('[KIDOERS-ROUTINE] - enhancedFamilyMembers:', enhancedFamilyMembers);
+      console.log('[KIDOERS-ROUTINE] - Member types:', enhancedFamilyMembers.map(m => ({ id: m.id, name: m.name, type: m.type })));
+      console.log('[KIDOERS-ROUTINE] - Full member details:', enhancedFamilyMembers.map(m => ({ 
+        id: m.id, 
+        name: m.name, 
+        type: m.type,
+        allFields: Object.keys(m),
+        memberObject: m
+      })));
+      
+      if (selectedApplyToId === 'none') {
+        // Only the member the task was dropped on
+        targetMemberIds = [pendingDrop.targetMemberId];
+        console.log('[KIDOERS-ROUTINE] - Selected: This member only, targetMemberIds:', targetMemberIds);
+      } else if (selectedApplyToId === 'all-kids') {
+        // All children in the family
+        const kids = enhancedFamilyMembers.filter(member => member.type === 'child');
+        targetMemberIds = kids.map(member => member.id);
+        console.log('[KIDOERS-ROUTINE] - Selected: All kids');
+        console.log('[KIDOERS-ROUTINE] - Kids found:', kids);
+        console.log('[KIDOERS-ROUTINE] - Kids IDs:', targetMemberIds);
+      } else if (selectedApplyToId === 'all-parents') {
+        // All parents in the family
+        const parents = enhancedFamilyMembers.filter(member => member.type === 'parent');
+        targetMemberIds = parents.map(member => member.id);
+        console.log('[KIDOERS-ROUTINE] - Selected: All parents');
+        console.log('[KIDOERS-ROUTINE] - Parents found:', parents);
+        console.log('[KIDOERS-ROUTINE] - Parents IDs:', targetMemberIds);
+      } else if (selectedApplyToId === 'all-family') {
+        // All family members
+        targetMemberIds = enhancedFamilyMembers.map(member => member.id);
+        console.log('[KIDOERS-ROUTINE] - Selected: All family, targetMemberIds:', targetMemberIds);
+      } else {
+        // Fallback to single member
+        targetMemberIds = [pendingDrop.targetMemberId];
+        console.log('[KIDOERS-ROUTINE] - Fallback: Single member, targetMemberIds:', targetMemberIds);
+      }
+      
+      console.log('[KIDOERS-ROUTINE] Target members for applyToId:', selectedApplyToId, targetMemberIds);
+
+      // Handle task creation with bulk API for better performance
+      if (pendingDrop.type === 'task') {
+        // Ensure routine exists first
+        const routineData = await ensureRoutineExists();
+        if (!routineData) {
+          setError('Failed to create routine. Please try again.');
+          return;
+        }
+
+        // Check if we're editing an existing recurring task
+        if (isEditingRecurringTask && selectedTaskForEdit) {
+          console.log('[KIDOERS-ROUTINE] 🔄 Updating existing recurring task');
+          
+          const task = pendingDrop.item as Task;
+          const updatePayload = {
+            recurring_template_id: selectedTaskForEdit.task.recurring_template_id!,
+            task_template: {
+              name: editableTaskName || task.name,
+              description: task.description || undefined,
+              points: task.points,
+              duration_mins: task.estimatedMinutes,
+              time_of_day: task.time_of_day || undefined,
+              from_task_template_id: task.is_system ? task.id : undefined
+            },
+            assignments: targetMemberIds.map(memberId => ({
+              member_id: memberId,
+              days_of_week: targetDays,
+              order_index: 0
+            })),
+            new_days_of_week: targetDays
+          };
+
+          console.log('[KIDOERS-ROUTINE] 📦 Recurring update payload:', updatePayload);
+
+          // Call the recurring task update API
+          const result = await bulkUpdateRecurringTasks(routineData.id, updatePayload);
+          console.log('[KIDOERS-ROUTINE] ✅ Recurring task update result:', result);
+
+          // Update UI with the changes
+          // First, remove all existing tasks for this recurring template
+          const newCalendarTasks = { ...calendarTasks };
+          Object.keys(newCalendarTasks).forEach(day => {
+            newCalendarTasks[day] = {
+              ...newCalendarTasks[day],
+              individualTasks: newCalendarTasks[day].individualTasks.filter(task => 
+                task.recurring_template_id !== selectedTaskForEdit.task.recurring_template_id
+              )
+            };
+          });
+
+          // Add the updated tasks
+          for (const updatedTask of result.updated_tasks) {
+            const day = updatedTask.days_of_week[0]; // Each task is for one day
+            if (!newCalendarTasks[day]) {
+              newCalendarTasks[day] = { individualTasks: [], groups: [] };
+            }
+            
+            // Add task to UI for each assigned member
+            for (const assignment of updatedTask.assignments) {
+              const taskForUI = {
+                ...updatedTask,
+                memberId: assignment.member_id,
+                is_saved: true,
+                template_id: updatedTask.recurring_template_id || undefined,
+                recurring_template_id: updatedTask.recurring_template_id || undefined,
+                from_group: undefined,
+                estimatedMinutes: updatedTask.duration_mins || 5,
+                time_of_day: updatedTask.time_of_day as "morning" | "afternoon" | "evening" | "night" | undefined
+              };
+              
+              newCalendarTasks[day].individualTasks.push(taskForUI);
+            }
+          }
+
+          setCalendarTasks(newCalendarTasks);
+          console.log('[KIDOERS-ROUTINE] ✅ Updated calendar tasks for recurring task');
+
+          // Close modal and reset state
+          setShowApplyToPopup(false);
+          setPendingDrop(null);
+          setDaySelection({ mode: 'custom', selectedDays: [] });
+          setSelectedWhoOption('none');
+          setEditableTaskName('');
+          setSelectedTaskForEdit(null);
+
+          return; // Exit early for recurring task updates
+        }
+
+        console.log('[KIDOERS-ROUTINE] 🚀 Using bulk API for task creation');
+
+        // Prepare bulk task creation payload
+        const task = pendingDrop.item as Task;
+        const bulkPayload = {
+          task_template: {
+            name: editableTaskName || task.name,
+            description: task.description || undefined,
+            points: task.points,
+            duration_mins: task.estimatedMinutes,
+            time_of_day: task.time_of_day || undefined,
+            from_task_template_id: task.is_system ? task.id : undefined
+          },
+          assignments: targetMemberIds.map(memberId => ({
+            member_id: memberId,
+            days_of_week: targetDays,
+            order_index: 0
+          })),
+          create_recurring_template: targetDays.length > 1 // Create recurring template for multi-day tasks
+        };
+
+        console.log('[KIDOERS-ROUTINE] 📦 Bulk payload:', bulkPayload);
+
+        // Call bulk API
+        const result = await bulkCreateIndividualTasks(routineData.id, bulkPayload);
+        console.log('[KIDOERS-ROUTINE] ✅ Bulk task creation result:', result);
+
+        // Update UI with created tasks
+        const newCalendarTasks = { ...calendarTasks };
+        for (const createdTask of result.created_tasks) {
+          const day = createdTask.days_of_week[0]; // Each task is created for one day
+          if (!newCalendarTasks[day]) {
+            newCalendarTasks[day] = { individualTasks: [], groups: [] };
+          }
+          
+          // Add task to UI for each assigned member
+          for (const memberId of targetMemberIds) {
+            const taskForUI = {
+              ...createdTask,
+              memberId: memberId,
+              is_saved: true,
+              estimatedMinutes: createdTask.duration_mins || 30, // Default to 30 minutes if not specified
+              time_of_day: createdTask.time_of_day as "morning" | "afternoon" | "evening" | "night" | null
+            };
+            
+            // Check if task already exists in UI state to avoid duplicates
+            const existingTaskIndex = newCalendarTasks[day].individualTasks.findIndex(
+              existingTask => existingTask.id === taskForUI.id && existingTask.memberId === memberId
+            );
+            
+            if (existingTaskIndex >= 0) {
+              // Update existing task
+              newCalendarTasks[day].individualTasks[existingTaskIndex] = taskForUI;
+              console.log(`[KIDOERS-ROUTINE] 🔄 Updated existing task in UI: ${taskForUI.name} for ${day}`);
+            } else {
+              // Add new task
+              newCalendarTasks[day].individualTasks.push(taskForUI);
+              console.log(`[KIDOERS-ROUTINE] ➕ Added new task to UI: ${taskForUI.name} for ${day}`);
+            }
+          }
+        }
+        
+        setCalendarTasks(newCalendarTasks);
+        console.log('[KIDOERS-ROUTINE] ✅ UI updated with bulk created tasks');
+      } else if (pendingDrop.type === 'group') {
+        // Handle group creation (keep existing logic for now)
+        for (const day of targetDays) {
+          for (const memberId of targetMemberIds) {
+            console.log('[KIDOERS-ROUTINE] ',`Adding group to ${day} for member ${memberId}`);
+            addGroupToCalendar(memberId, pendingDrop.item as TaskGroup, selectedApplyToId, day, pendingDrop.selectedTasks);
+          }
+        }
+      }
+
+      // Close popup and reset
+      setShowApplyToPopup(false);
+      setPendingDrop(null);
+      setDaySelection({ mode: 'custom', selectedDays: [] });
+      setSelectedWhoOption('none');
+      setEditableTaskName('');
+    } catch (error) {
+      console.error('[KIDOERS-ROUTINE] ❌ Error in handleApplyToSelection:', error);
+      setError('Failed to create tasks. Please try again.');
+    } finally {
+      setIsCreatingTasks(false);
+    }
+  };
 
   // Wrapper functions to handle error state
   const handleSaveRoutineDetailsWrapper = async (
@@ -422,7 +689,7 @@ export default function ManualRoutineBuilder({
   });
 
   // Task creation hook (column clicks, task creation logic)
-  const { handleColumnClick, handleColumnClickWrapper, handleApplyToSelection } = useTaskCreation({
+  const { handleColumnClick, handleColumnClickWrapper } = useTaskCreation({
     selectedMemberIds,
     pendingDrop,
     editableTaskName,
