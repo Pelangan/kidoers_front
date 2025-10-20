@@ -21,11 +21,9 @@ export interface Task {
   is_system?: boolean
   time_of_day?: "morning" | "afternoon" | "evening" | "night" | null
   template_id?: string // Store the original template ID
-  recurring_template_id?: string // Store the recurring template ID for grouping
+  recurring_template_id?: string // Optional temporarily for migration
   is_saved?: boolean // Track if this task has been saved to backend
   memberId?: string // Store the member ID for filtering
-  days_of_week?: string[] // Days when this task should appear
-  frequency?: string // Task frequency: one_off, daily, specific_days, weekly
   from_group?: { // Track which group this task came from
     id: string
     name: string
@@ -90,9 +88,9 @@ export interface RecurringTemplate {
   points: number
   duration_mins: number | null
   time_of_day: string | null
-  frequency_type: string // 'just_this_day', 'every_day', 'specific_days'
-  days_of_week: string[]
-  frequency: string
+  frequency_type: string // 'every_day' | 'specific_days'
+  days_of_week: string[] // Required, not optional
+  frequency: string // Label: 'daily' | 'specific_days'
   created_at: string
   updated_at: string
 }

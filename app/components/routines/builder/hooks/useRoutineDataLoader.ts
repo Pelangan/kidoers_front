@@ -96,8 +96,7 @@ export const useRoutineDataLoader = ({
         fullData.individual_tasks.map((task) => ({
           id: task.id,
           name: task.name,
-          days_of_week: task.days_of_week,
-          recurring_template_id: task.recurring_template_id,
+          recurring_template_id: task.recurring_template_id || 'temp-id',
         })),
       );
 
@@ -142,8 +141,7 @@ export const useRoutineDataLoader = ({
             | undefined,
           is_saved: true,
           template_id: undefined,
-          recurring_template_id: task.recurring_template_id || undefined,
-          days_of_week: task.days_of_week,
+          recurring_template_id: task.recurring_template_id || 'temp-id',
         })),
         color: "bg-blue-100 border-blue-300",
         time_of_day: group.time_of_day as
@@ -174,9 +172,7 @@ export const useRoutineDataLoader = ({
           | undefined,
         is_saved: true,
         template_id: undefined,
-        recurring_template_id: task.recurring_template_id || undefined,
-        days_of_week: task.days_of_week,
-        frequency: task.frequency, // Add frequency property
+        recurring_template_id: task.recurring_template_id || 'temp-id',
       }));
 
       console.log("[KIDOERS-ROUTINE] Transformed groups:", transformedGroups);
@@ -194,7 +190,6 @@ export const useRoutineDataLoader = ({
           id: transformedTargetTask.id,
           name: transformedTargetTask.name,
           recurring_template_id: transformedTargetTask.recurring_template_id,
-          days_of_week: transformedTargetTask.days_of_week,
         });
       }
 
@@ -313,19 +308,22 @@ export const useRoutineDataLoader = ({
         console.log(
           "[KIDOERS-ROUTINE] 🔍 Task:",
           task.name,
-          "days_of_week:",
-          task.days_of_week,
-          "frequency:",
-          task.frequency,
+          "recurring_template_id:",
+          task.recurring_template_id,
         );
 
-        if (task.frequency === "one_off") {
-          // For one_off tasks, use the days_of_week from the task data
+        // Get recurrence from template instead of legacy fields
+        const template = fullData.recurring_templates?.find((t: any) => t.id === task.recurring_template_id);
+        const taskDays = template?.days_of_week || [];
+        const isOneOff = template?.frequency_type === 'one_off';
+        
+        if (isOneOff) {
+          // For one_off tasks, use the days from template
           console.log(
             "[KIDOERS-ROUTINE] 🔍 Processing one_off task:",
             task.name,
             "days_of_week:",
-            task.days_of_week,
+            taskDays,
           );
 
           // Get assignments from the original backend data
@@ -336,11 +334,11 @@ export const useRoutineDataLoader = ({
           if (
             backendTask?.assignments &&
             backendTask.assignments.length > 0 &&
-            task.days_of_week &&
-            task.days_of_week.length > 0
+            taskDays &&
+            taskDays.length > 0
           ) {
-            // For one_off tasks, use the days_of_week from the task data
-            for (const day of task.days_of_week) {
+            // For one_off tasks, use the days from template
+            for (const day of taskDays) {
               if (newCalendarTasks[day]) {
                 // Create a single task instance with all assignees for multi-member tasks
                 // This ensures the task appears for all members, not just individual instances
@@ -402,13 +400,13 @@ export const useRoutineDataLoader = ({
             }
           } else {
             console.warn(
-              "[KIDOERS-ROUTINE] ⚠️ One-off task has no days_of_week or assignments:",
+              "[KIDOERS-ROUTINE] ⚠️ One-off task has no days or assignments:",
               task.name,
             );
           }
-        } else if (task.days_of_week && task.days_of_week.length > 0) {
+        } else if (taskDays && taskDays.length > 0) {
           // Add this task to each day it's scheduled for, for each assigned member
-          for (const day of task.days_of_week) {
+          for (const day of taskDays) {
             if (newCalendarTasks[day]) {
               // Get assignments from the original backend data
               const backendTask = fullData.individual_tasks.find(
@@ -494,19 +492,21 @@ export const useRoutineDataLoader = ({
         );
 
         if (memberGroupTasks.length > 0) {
-          // Add groups to days based on their tasks' days_of_week
+          // Add groups to days based on their tasks' template days_of_week
           const allDays = new Set<string>();
           memberGroupTasks.forEach((task) => {
-            if (task.days_of_week) {
-              task.days_of_week.forEach((day) => allDays.add(day));
-            }
+            const template = fullData.recurring_templates?.find((t: any) => t.id === task.recurring_template_id);
+            const taskDays = template?.days_of_week || [];
+            taskDays.forEach((day: string) => allDays.add(day));
           });
 
           for (const day of allDays) {
             if (newCalendarTasks[day]) {
-              const tasksForDay = memberGroupTasks.filter(
-                (task) => task.days_of_week && task.days_of_week.includes(day),
-              );
+              const tasksForDay = memberGroupTasks.filter((task) => {
+                const template = fullData.recurring_templates?.find((t: any) => t.id === task.recurring_template_id);
+                const taskDays = template?.days_of_week || [];
+                return taskDays.includes(day);
+              });
 
               newCalendarTasks[day].groups.push({
                 ...group,

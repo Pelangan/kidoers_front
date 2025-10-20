@@ -443,7 +443,7 @@ export default function ManualRoutineBuilder({
       
       console.log('[KIDOERS-ROUTINE] Target members for applyToId:', selectedApplyToId, targetMemberIds);
 
-      // Handle task creation with bulk API for better performance
+      // Handle task creation/update
       if (pendingDrop.type === 'task') {
         // Ensure routine exists first
         const routineData = await ensureRoutineExists();
@@ -506,6 +506,8 @@ export default function ManualRoutineBuilder({
                 ...updatedTask,
                 memberId: assignment.member_id,
                 is_saved: true,
+                // Ensure deletion and ordering logic can find backend ID
+                routine_task_id: updatedTask.id,
                 template_id: updatedTask.recurring_template_id || undefined,
                 recurring_template_id: updatedTask.recurring_template_id || undefined,
                 from_group: undefined,
@@ -531,6 +533,48 @@ export default function ManualRoutineBuilder({
           return; // Exit early for recurring task updates
         }
 
+        // If editing a single (non-recurring) existing task, PATCH instead of creating a new one
+        const isEditingSingleTask =
+          !!selectedTaskForEdit &&
+          !selectedTaskForEdit.task.recurring_template_id &&
+          pendingDrop.item.id === selectedTaskForEdit.task.id;
+
+        if (isEditingSingleTask) {
+          try {
+            const taskId = extractTaskId(selectedTaskForEdit.task.id);
+            await patchRoutineTask(routineData.id, taskId, {
+              name: editableTaskName || selectedTaskForEdit.task.name,
+            });
+
+            // Update UI name in place
+            const updated = { ...calendarTasks };
+            Object.keys(updated).forEach((day) => {
+              updated[day] = {
+                ...updated[day],
+                individualTasks: (updated[day].individualTasks || []).map((t) =>
+                  t.id === selectedTaskForEdit.task.id
+                    ? { ...t, name: editableTaskName || selectedTaskForEdit.task.name }
+                    : t,
+                ),
+              };
+            });
+            setCalendarTasks(updated);
+
+            // Close modal and reset state
+            setShowApplyToPopup(false);
+            setPendingDrop(null);
+            setDaySelection({ mode: 'custom', selectedDays: [] });
+            setSelectedWhoOption('none');
+            setEditableTaskName('');
+            setSelectedTaskForEdit(null);
+
+            return; // Exit after successful update
+          } catch (err) {
+            console.error('[KIDOERS-ROUTINE] ❌ Failed to update task name:', err);
+            // Fall through to creation path only if update fails explicitly
+          }
+        }
+
         console.log('[KIDOERS-ROUTINE] 🚀 Using bulk API for task creation');
 
         // Prepare bulk task creation payload
@@ -549,7 +593,7 @@ export default function ManualRoutineBuilder({
             days_of_week: targetDays,
             order_index: 0
           })),
-          create_recurring_template: targetDays.length > 1 // Create recurring template for multi-day tasks
+          create_recurring_template: true // Always create recurring template
         };
 
         console.log('[KIDOERS-ROUTINE] 📦 Bulk payload:', bulkPayload);
@@ -561,34 +605,42 @@ export default function ManualRoutineBuilder({
         // Update UI with created tasks
         const newCalendarTasks = { ...calendarTasks };
         for (const createdTask of result.created_tasks) {
-          const day = createdTask.days_of_week[0]; // Each task is created for one day
-          if (!newCalendarTasks[day]) {
-            newCalendarTasks[day] = { individualTasks: [], groups: [] };
-          }
+          // Get the day from the template's days_of_week (since routine_tasks.days_of_week is now NULL)
+          // For now, we'll use the targetDays from the UI since each task is created for specific days
+          const taskDays = targetDays; // Use the days from the UI selection
           
-          // Add task to UI for each assigned member
-          for (const memberId of targetMemberIds) {
-            const taskForUI = {
-              ...createdTask,
-              memberId: memberId,
-              is_saved: true,
-              estimatedMinutes: createdTask.duration_mins || 30, // Default to 30 minutes if not specified
-              time_of_day: createdTask.time_of_day as "morning" | "afternoon" | "evening" | "night" | null
-            };
+          // Add task to UI for each assigned day and member
+          for (const day of taskDays) {
+            if (!newCalendarTasks[day]) {
+              newCalendarTasks[day] = { individualTasks: [], groups: [] };
+            }
+            
+            for (const memberId of targetMemberIds) {
+              const taskForUI = {
+                ...createdTask,
+                memberId: memberId,
+                is_saved: true,
+                // Ensure deletion and ordering logic can find backend ID
+                routine_task_id: createdTask.id,
+                estimatedMinutes: createdTask.duration_mins || 30, // Default to 30 minutes if not specified
+                time_of_day: createdTask.time_of_day as "morning" | "afternoon" | "evening" | "night" | null,
+                recurring_template_id: createdTask.recurring_template_id || 'temp-id'
+              };
             
             // Check if task already exists in UI state to avoid duplicates
             const existingTaskIndex = newCalendarTasks[day].individualTasks.findIndex(
               existingTask => existingTask.id === taskForUI.id && existingTask.memberId === memberId
             );
             
-            if (existingTaskIndex >= 0) {
-              // Update existing task
-              newCalendarTasks[day].individualTasks[existingTaskIndex] = taskForUI;
-              console.log(`[KIDOERS-ROUTINE] 🔄 Updated existing task in UI: ${taskForUI.name} for ${day}`);
-            } else {
-              // Add new task
-              newCalendarTasks[day].individualTasks.push(taskForUI);
-              console.log(`[KIDOERS-ROUTINE] ➕ Added new task to UI: ${taskForUI.name} for ${day}`);
+              if (existingTaskIndex >= 0) {
+                // Update existing task
+                newCalendarTasks[day].individualTasks[existingTaskIndex] = taskForUI;
+                console.log(`[KIDOERS-ROUTINE] 🔄 Updated existing task in UI: ${taskForUI.name} for ${day}`);
+              } else {
+                // Add new task
+                newCalendarTasks[day].individualTasks.push(taskForUI);
+                console.log(`[KIDOERS-ROUTINE] ➕ Added new task to UI: ${taskForUI.name} for ${day}`);
+              }
             }
           }
         }

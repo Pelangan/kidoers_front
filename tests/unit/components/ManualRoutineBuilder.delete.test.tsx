@@ -7,343 +7,372 @@
  * - Should delete immediately for standalone tasks
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ManualRoutineBuilder from '@/app/components/routines/builder/ManualRoutineBuilder';
 
 // Mock Next.js router
-vi.mock('next/navigation', () => ({
+jest.mock('next/navigation', () => ({
   useRouter: () => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    prefetch: vi.fn(),
+    push: jest.fn(),
+    replace: jest.fn(),
+    prefetch: jest.fn(),
   }),
   useSearchParams: () => ({
-    get: vi.fn(),
+    get: jest.fn(),
   }),
   usePathname: () => '/dashboard',
 }));
 
 // Mock API module
-vi.mock('@/app/lib/api', () => ({
+jest.mock('@/app/lib/api', () => ({
   apiService: {
-    getFamilyMembers: vi.fn(),
-    makeRequest: vi.fn(),
+    getFamilyMembers: jest.fn(),
+    makeRequest: jest.fn(),
   },
+  getRoutineFullData: jest.fn(),
+  getOnboardingRoutine: jest.fn(),
 }));
 
 // Mock storage
-vi.mock('@/app/lib/storage', () => ({
-  getItem: vi.fn(),
-  setItem: vi.fn(),
+jest.mock('@/app/lib/storage', () => ({
+  getItem: jest.fn(),
+  setItem: jest.fn(),
 }));
 
 // Import API after mocking
-import { apiService } from '@/app/lib/api';
+import { apiService, getRoutineFullData, getOnboardingRoutine } from '@/app/lib/api';
 
 describe('ManualRoutineBuilder - Delete Modal Behavior', () => {
   const mockFamilyId = 'test-family-123';
-  const mockOnComplete = vi.fn();
+  const mockOnComplete = jest.fn();
 
   // Mock family data
   const mockFamilyMembers = [
-    {
-      id: 'member-1',
-      family_id: mockFamilyId,
-      name: 'Cristian',
-      type: 'parent',
-      avatar_type: 'human',
-      avatar_seed: 'seed1',
-    },
-  ];
-
-  const mockRoutines = [
-    {
-      id: 'routine-1',
-      family_id: mockFamilyId,
-      name: 'Morning Routine',
-      icon: '☀️',
-      source: 'scratch',
-      status: 'active',
-    },
+    { id: 'member-1', name: 'Cristian', role: 'parent', color: 'blue', avatar_url: null },
+    { id: 'member-2', name: 'Cristina', role: 'parent', color: 'yellow', avatar_url: null },
+    { id: 'member-3', name: 'Guille', role: 'child', color: 'green', avatar_url: null },
   ];
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    jest.clearAllMocks();
     
-    // Mock API responses
-    (apiService.getFamilyMembers as any).mockResolvedValue(mockFamilyMembers);
-    (apiService.makeRequest as any).mockImplementation((url: string) => {
-      if (url.includes('/families/') && url.includes('/members')) {
-        return Promise.resolve(mockFamilyMembers);
-      }
-      if (url.includes('/routines')) {
-        return Promise.resolve(mockRoutines);
-      }
-      if (url.includes('/templates')) {
-        return Promise.resolve([]);
-      }
-      if (url.includes('/tasks')) {
-        return Promise.resolve([]);
-      }
-      return Promise.resolve([]);
-    });
-
-    // Mock successful task deletion
-    (apiService.makeRequest as any).mockResolvedValue({
-      routine_id: 'routine-1',
-      tasks_deleted: 1,
-      assignments_deleted: 1,
-      instances_deleted: 1,
-      message: 'Task deleted successfully'
+    // Setup default API mocks
+    (apiService.getFamilyMembers as jest.Mock).mockResolvedValue(mockFamilyMembers);
+    (apiService.makeRequest as jest.Mock).mockResolvedValue({ data: [] });
+    (getOnboardingRoutine as jest.Mock).mockResolvedValue(null);
+    (getRoutineFullData as jest.Mock).mockResolvedValue({
+      individual_tasks: [],
+      groups: [],
+      recurring_templates: [],
     });
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    jest.clearAllMocks();
   });
 
-  /**
-   * Helper to create mock calendar tasks with specific scenarios
-   */
-  const createMockCalendarTasks = (scenario: 'same-template-multiple-days' | 'different-templates-same-name' | 'standalone-task') => {
-    const baseTask = {
-      id: 'task-1',
-      name: 'Test Task',
-      memberId: 'member-1',
-      points: 10,
-      duration_mins: 30,
-      time_of_day: 'morning' as const,
-      frequency: 'daily',
-      days_of_week: ['monday'],
-      order_index: 0,
-    };
-
-    switch (scenario) {
-      case 'same-template-multiple-days':
-        return {
-          monday: {
-            individualTasks: [
-              { ...baseTask, id: 'task-1', recurring_template_id: 'template-123' }
-            ],
-            groups: []
-          },
-          tuesday: {
-            individualTasks: [
-              { ...baseTask, id: 'task-2', recurring_template_id: 'template-123' }
-            ],
-            groups: []
-          },
-          wednesday: { individualTasks: [], groups: [] },
-          thursday: { individualTasks: [], groups: [] },
-          friday: { individualTasks: [], groups: [] },
-          saturday: { individualTasks: [], groups: [] },
-          sunday: { individualTasks: [], groups: [] }
-        };
-
-      case 'different-templates-same-name':
-        return {
-          monday: {
-            individualTasks: [
-              { ...baseTask, id: 'task-1', recurring_template_id: 'template-123' }
-            ],
-            groups: []
-          },
-          tuesday: {
-            individualTasks: [
-              { ...baseTask, id: 'task-2', recurring_template_id: 'template-456' }
-            ],
-            groups: []
-          },
-          wednesday: { individualTasks: [], groups: [] },
-          thursday: { individualTasks: [], groups: [] },
-          friday: { individualTasks: [], groups: [] },
-          saturday: { individualTasks: [], groups: [] },
-          sunday: { individualTasks: [], groups: [] }
-        };
-
-      case 'standalone-task':
-        return {
-          monday: {
-            individualTasks: [
-              { ...baseTask, id: 'task-1', recurring_template_id: undefined }
-            ],
-            groups: []
-          },
-          tuesday: { individualTasks: [], groups: [] },
-          wednesday: { individualTasks: [], groups: [] },
-          thursday: { individualTasks: [], groups: [] },
-          friday: { individualTasks: [], groups: [] },
-          saturday: { individualTasks: [], groups: [] },
-          sunday: { individualTasks: [], groups: [] }
-        };
-
-      default:
-        return {
-          monday: { individualTasks: [], groups: [] },
-          tuesday: { individualTasks: [], groups: [] },
-          wednesday: { individualTasks: [], groups: [] },
-          thursday: { individualTasks: [], groups: [] },
-          friday: { individualTasks: [], groups: [] },
-          saturday: { individualTasks: [], groups: [] },
-          sunday: { individualTasks: [], groups: [] }
-        };
-    }
-  };
-
-  describe('🎯 Delete Modal Logic', () => {
+  describe('Delete modal for recurring tasks', () => {
     it('should show delete modal for tasks with same recurring_template_id on multiple days', async () => {
-      // GIVEN: Tasks with same name and same recurring_template_id on multiple days
-      const mockTasks = createMockCalendarTasks('same-template-multiple-days');
-      
-      // Mock the component to use our test data
-      const { container } = render(
-        <ManualRoutineBuilder
-          familyId={mockFamilyId}
-          onComplete={mockOnComplete}
-        />
-      );
+      // Mock tasks with same recurring_template_id on different days
+      const mockTasks = [
+        {
+          id: 'task-1',
+          name: 'Brush Teeth',
+          recurring_template_id: 'template-1',
+          days_of_week: ['monday'],
+          memberId: 'member-1',
+        },
+        {
+          id: 'task-2',
+          name: 'Brush Teeth',
+          recurring_template_id: 'template-1', // Same template ID
+          days_of_week: ['tuesday'],
+          memberId: 'member-1',
+        },
+      ];
 
-      // Wait for component to load
+      // Mock getRoutineFullData to return tasks with proper structure
+      (getRoutineFullData as jest.Mock).mockResolvedValue({
+        individual_tasks: mockTasks.map(task => ({
+          id: task.id,
+          name: task.name,
+          recurring_template_id: task.recurring_template_id,
+          days_of_week: task.days_of_week,
+          member_id: task.memberId,
+          assignees: [],
+          assignments: [{
+            member_id: 'member-1',
+            routine_task_id: task.id,
+          }], // Add proper assignments structure
+          points: 5,
+          time_of_day: 'morning',
+          is_active: true,
+        })),
+        groups: [],
+        recurring_templates: [],
+      });
+
+      render(<ManualRoutineBuilder familyId={mockFamilyId} onComplete={mockOnComplete} />);
+
       await waitFor(() => {
-        expect(apiService.getFamilyMembers).toHaveBeenCalled();
-      }, { timeout: 3000 });
+        expect(screen.getAllByText('Brush Teeth')).toHaveLength(2);
+      });
 
-      // WHEN: User attempts to delete a task that belongs to a recurring template
-      // (This would normally be triggered by clicking delete on a task)
-      
-      // For this test, we'll verify the logic by checking if the modal would appear
-      // In a real scenario, this would be triggered by user interaction
-      
-      // THEN: The delete modal should be shown (not implemented in this test due to complexity)
-      // The actual behavior would be verified through integration testing
-      
-      expect(container).toBeTruthy();
+      // Find and click delete button for one of the tasks
+      const deleteButtons = screen.getAllByLabelText(/delete/i);
+      await userEvent.click(deleteButtons[0]);
+
+      await waitFor(() => {
+        // Should show delete confirmation modal
+        expect(screen.getByText(/Are you sure you want to delete/i)).toBeInTheDocument();
+        expect(screen.getByText(/This will delete the task from all days/i)).toBeInTheDocument();
+      });
     });
 
-    it('should delete immediately for tasks with different recurring_template_id', async () => {
-      // GIVEN: Tasks with same name but different recurring_template_id
-      const mockTasks = createMockCalendarTasks('different-templates-same-name');
-      
-      const { container } = render(
-        <ManualRoutineBuilder
-          familyId={mockFamilyId}
-          onComplete={mockOnComplete}
-        />
-      );
+    it('should not show delete modal for tasks with different recurring_template_id', async () => {
+      // Mock tasks with different recurring_template_id but same name
+      const mockTasks = [
+        {
+          id: 'task-1',
+          name: 'Brush Teeth',
+          recurring_template_id: 'template-1',
+          days_of_week: ['monday'],
+          memberId: 'member-1',
+        },
+        {
+          id: 'task-2',
+          name: 'Brush Teeth',
+          recurring_template_id: 'template-2', // Different template ID
+          days_of_week: ['tuesday'],
+          memberId: 'member-1',
+        },
+      ];
 
-      // Wait for component to load
+      // Mock getRoutineFullData to return tasks with proper structure
+      (getRoutineFullData as jest.Mock).mockResolvedValue({
+        individual_tasks: mockTasks.map(task => ({
+          id: task.id,
+          name: task.name,
+          recurring_template_id: task.recurring_template_id,
+          days_of_week: task.days_of_week,
+          member_id: task.memberId,
+          assignees: [],
+          assignments: [{
+            member_id: 'member-1',
+            routine_task_id: task.id,
+          }], // Add proper assignments structure
+          points: 5,
+          time_of_day: 'morning',
+          is_active: true,
+        })),
+        groups: [],
+        recurring_templates: [],
+      });
+
+      render(<ManualRoutineBuilder familyId={mockFamilyId} onComplete={mockOnComplete} />);
+
       await waitFor(() => {
-        expect(apiService.getFamilyMembers).toHaveBeenCalled();
-      }, { timeout: 3000 });
+        expect(screen.getAllByText('Brush Teeth')).toHaveLength(2);
+      });
 
-      // WHEN: User attempts to delete a task
-      // THEN: The task should be deleted immediately without showing the modal
-      
-      expect(container).toBeTruthy();
+      // Find and click delete button for one of the tasks
+      const deleteButtons = screen.getAllByLabelText(/delete/i);
+      await userEvent.click(deleteButtons[0]);
+
+      await waitFor(() => {
+        // Should NOT show delete confirmation modal
+        expect(screen.queryByText(/Are you sure you want to delete/i)).not.toBeInTheDocument();
+        // Task should be deleted immediately
+        expect(screen.queryByText('Brush Teeth')).not.toBeInTheDocument();
+      });
     });
 
-    it('should delete immediately for standalone tasks', async () => {
-      // GIVEN: A standalone task (no recurring_template_id)
-      const mockTasks = createMockCalendarTasks('standalone-task');
-      
-      const { container } = render(
-        <ManualRoutineBuilder
-          familyId={mockFamilyId}
-          onComplete={mockOnComplete}
-        />
-      );
+    it('should not show delete modal for standalone tasks', async () => {
+      // Mock standalone task (only appears on one day)
+      const mockTasks = [
+        {
+          id: 'task-1',
+          name: 'Standalone Task',
+          recurring_template_id: 'template-1',
+          days_of_week: ['monday'],
+          memberId: 'member-1',
+        },
+      ];
 
-      // Wait for component to load
+      // Mock getRoutineFullData to return tasks with proper structure
+      (getRoutineFullData as jest.Mock).mockResolvedValue({
+        individual_tasks: mockTasks.map(task => ({
+          id: task.id,
+          name: task.name,
+          recurring_template_id: task.recurring_template_id,
+          days_of_week: task.days_of_week,
+          member_id: task.memberId,
+          assignees: [],
+          assignments: [{
+            member_id: 'member-1',
+            routine_task_id: task.id,
+          }], // Add proper assignments structure
+          points: 5,
+          time_of_day: 'morning',
+          is_active: true,
+        })),
+        groups: [],
+        recurring_templates: [],
+      });
+
+      render(<ManualRoutineBuilder familyId={mockFamilyId} onComplete={mockOnComplete} />);
+
       await waitFor(() => {
-        expect(apiService.getFamilyMembers).toHaveBeenCalled();
-      }, { timeout: 3000 });
+        expect(screen.getByText('Standalone Task')).toBeInTheDocument();
+      });
 
-      // WHEN: User attempts to delete a standalone task
-      // THEN: The task should be deleted immediately without showing the modal
-      
-      expect(container).toBeTruthy();
+      // Find and click delete button
+      const deleteButton = screen.getByLabelText(/delete/i);
+      await userEvent.click(deleteButton);
+
+      await waitFor(() => {
+        // Should NOT show delete confirmation modal
+        expect(screen.queryByText(/Are you sure you want to delete/i)).not.toBeInTheDocument();
+        // Task should be deleted immediately
+        expect(screen.queryByText('Standalone Task')).not.toBeInTheDocument();
+      });
     });
   });
 
-  describe('🔍 Delete Logic Unit Tests', () => {
-    it('should correctly identify tasks with same recurring template', () => {
-      // Test the logic directly without component rendering
-      const task1 = {
-        id: 'task-1',
-        name: 'Test Task',
-        memberId: 'member-1',
-        recurring_template_id: 'template-123'
-      };
+  describe('Delete confirmation modal actions', () => {
+    it('should delete task from all days when confirmed', async () => {
+      const user = userEvent.setup();
       
-      const task2 = {
-        id: 'task-2', 
-        name: 'Test Task',
-        memberId: 'member-1',
-        recurring_template_id: 'template-123'
-      };
+      // Mock tasks with same recurring_template_id
+      const mockTasks = [
+        {
+          id: 'task-1',
+          name: 'Recurring Task',
+          recurring_template_id: 'template-1',
+          days_of_week: ['monday'],
+          memberId: 'member-1',
+        },
+        {
+          id: 'task-2',
+          name: 'Recurring Task',
+          recurring_template_id: 'template-1',
+          days_of_week: ['tuesday'],
+          memberId: 'member-1',
+        },
+      ];
 
-      const task3 = {
-        id: 'task-3',
-        name: 'Test Task', 
-        memberId: 'member-1',
-        recurring_template_id: 'template-456'
-      };
+      // Mock getRoutineFullData to return tasks with proper structure
+      (getRoutineFullData as jest.Mock).mockResolvedValue({
+        individual_tasks: mockTasks.map(task => ({
+          id: task.id,
+          name: task.name,
+          recurring_template_id: task.recurring_template_id,
+          days_of_week: task.days_of_week,
+          member_id: task.memberId,
+          assignees: [],
+          assignments: [{
+            member_id: 'member-1',
+            routine_task_id: task.id,
+          }], // Add proper assignments structure
+          points: 5,
+          time_of_day: 'morning',
+          is_active: true,
+        })),
+        groups: [],
+        recurring_templates: [],
+      });
 
-      // Tasks 1 and 2 have same name, member, and template ID
-      expect(task1.name === task2.name).toBe(true);
-      expect(task1.memberId === task2.memberId).toBe(true);
-      expect(task1.recurring_template_id === task2.recurring_template_id).toBe(true);
+      render(<ManualRoutineBuilder familyId={mockFamilyId} onComplete={mockOnComplete} />);
 
-      // Tasks 1 and 3 have same name and member but different template ID
-      expect(task1.name === task3.name).toBe(true);
-      expect(task1.memberId === task3.memberId).toBe(true);
-      expect(task1.recurring_template_id === task3.recurring_template_id).toBe(false);
+      await waitFor(() => {
+        expect(screen.getAllByText('Recurring Task')).toHaveLength(2);
+      });
+
+      // Click delete button
+      const deleteButtons = screen.getAllByLabelText(/delete/i);
+      await user.click(deleteButtons[0]);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Are you sure you want to delete/i)).toBeInTheDocument();
+      });
+
+      // Click confirm button
+      const confirmButton = screen.getByText(/Delete from all days/i);
+      await user.click(confirmButton);
+
+      await waitFor(() => {
+        // Task should be deleted from all days
+        expect(screen.queryByText('Recurring Task')).not.toBeInTheDocument();
+      });
     });
 
-    it('should handle undefined recurring_template_id correctly', () => {
-      const task1 = {
-        id: 'task-1',
-        name: 'Test Task',
-        memberId: 'member-1',
-        recurring_template_id: undefined
-      };
+    it('should cancel deletion when cancel button is clicked', async () => {
+      const user = userEvent.setup();
       
-      const task2 = {
-        id: 'task-2',
-        name: 'Test Task', 
-        memberId: 'member-1',
-        recurring_template_id: 'template-123'
-      };
+      // Mock tasks with same recurring_template_id
+      const mockTasks = [
+        {
+          id: 'task-1',
+          name: 'Recurring Task',
+          recurring_template_id: 'template-1',
+          days_of_week: ['monday'],
+          memberId: 'member-1',
+        },
+        {
+          id: 'task-2',
+          name: 'Recurring Task',
+          recurring_template_id: 'template-1',
+          days_of_week: ['tuesday'],
+          memberId: 'member-1',
+        },
+      ];
 
-      // Task with undefined template ID should not match task with defined template ID
-      expect(task1.recurring_template_id === task2.recurring_template_id).toBe(false);
-      
-      // Both undefined should match
-      const task3 = { ...task1, id: 'task-3' };
-      expect(task1.recurring_template_id === task3.recurring_template_id).toBe(true);
+      // Mock getRoutineFullData to return tasks with proper structure
+      (getRoutineFullData as jest.Mock).mockResolvedValue({
+        individual_tasks: mockTasks.map(task => ({
+          id: task.id,
+          name: task.name,
+          recurring_template_id: task.recurring_template_id,
+          days_of_week: task.days_of_week,
+          member_id: task.memberId,
+          assignees: [],
+          assignments: [{
+            member_id: 'member-1',
+            routine_task_id: task.id,
+          }], // Add proper assignments structure
+          points: 5,
+          time_of_day: 'morning',
+          is_active: true,
+        })),
+        groups: [],
+        recurring_templates: [],
+      });
+
+      render(<ManualRoutineBuilder familyId={mockFamilyId} onComplete={mockOnComplete} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Recurring Task')).toHaveLength(2);
+      });
+
+      // Click delete button
+      const deleteButtons = screen.getAllByLabelText(/delete/i);
+      await user.click(deleteButtons[0]);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Are you sure you want to delete/i)).toBeInTheDocument();
+      });
+
+      // Click cancel button
+      const cancelButton = screen.getByText(/Cancel/i);
+      await user.click(cancelButton);
+
+      await waitFor(() => {
+        // Modal should be closed
+        expect(screen.queryByText(/Are you sure you want to delete/i)).not.toBeInTheDocument();
+        // Task should still be visible
+        expect(screen.getByText('Recurring Task')).toBeInTheDocument();
+      });
     });
   });
 });
-
-/**
- * 🎯 TEST STRATEGY NOTES:
- * 
- * These tests cover the core logic for when the delete modal should appear:
- * 
- * 1. **Same Template Multiple Days**: Tasks with same name, member, AND recurring_template_id
- *    → Should show modal (recurring task deletion options)
- * 
- * 2. **Different Templates Same Name**: Tasks with same name and member but different recurring_template_id  
- *    → Should delete immediately (separate standalone tasks)
- * 
- * 3. **Standalone Tasks**: Tasks without recurring_template_id
- *    → Should delete immediately (no recurring behavior)
- * 
- * INTEGRATION TESTING:
- * - These tests provide the foundation for integration tests
- * - Integration tests would simulate actual user interactions (clicking delete buttons)
- * - Integration tests would verify modal appearance and deletion behavior
- * - Integration tests would test the full deletion flow with API calls
- */

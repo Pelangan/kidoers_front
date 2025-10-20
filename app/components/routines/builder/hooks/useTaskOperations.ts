@@ -8,7 +8,6 @@ import {
 } from '../../../../lib/api'
 import type {
   Task,
-  CalendarTasks,
   EnhancedFamilyMember,
   RecurringTemplate,
 } from '../types/routineBuilderTypes'
@@ -16,13 +15,13 @@ import type {
 interface UseTaskOperationsProps {
   // State from main component
   selectedTaskForEdit: { task: Task; day: string; memberId: string } | null
-  calendarTasks: CalendarTasks
+  calendarTasks: Record<string, { groups: any[]; individualTasks: Task[] }>
   currentRoutineId: string | null
   enhancedFamilyMembers: EnhancedFamilyMember[]
   recurringTemplates: RecurringTemplate[]
   
   // Setters from main component
-  setCalendarTasks: (updater: (prev: CalendarTasks) => CalendarTasks) => void
+  setCalendarTasks: (updater: (prev: Record<string, { groups: any[]; individualTasks: Task[] }>) => Record<string, { groups: any[]; individualTasks: Task[] }>) => void
   setError: (error: string | null) => void
   setShowTaskMiniPopup: (show: boolean) => void
   setMiniPopupPosition: (position: { x: number; y: number } | null) => void
@@ -74,17 +73,20 @@ export const useTaskOperations = ({
       return;
     }
 
+    // Get recurrence data from template
+    const template = recurringTemplates.find(t => t.id === selectedTaskForEdit.task.recurring_template_id);
+    const taskDays = template?.days_of_week || [];
+
     console.log('[KIDOERS-ROUTINE] 🗑️ Checking task for deletion:', {
       task_id: selectedTaskForEdit.task.routine_task_id,
       name: selectedTaskForEdit.task.name,
       recurring_template_id: selectedTaskForEdit.task.recurring_template_id,
-      days_of_week: selectedTaskForEdit.task.days_of_week
+      template_days: taskDays
     });
 
-    // Check if this is a recurring task (has recurring_template_id and multiple days or frequency)
+    // Check if this is a recurring task (has recurring_template_id and multiple days)
     const isRecurringTask = selectedTaskForEdit.task.recurring_template_id && 
-                           ((selectedTaskForEdit.task.days_of_week?.length || 0) > 1 || 
-                            selectedTaskForEdit.task.frequency === 'daily');
+                           taskDays.length > 1;
 
     if (isRecurringTask) {
       console.log('[KIDOERS-ROUTINE] 🔄 This is a recurring task, showing deletion modal');
@@ -144,18 +146,22 @@ export const useTaskOperations = ({
       const operationId = `delete-${taskToDelete.task.id}-${Date.now()}`;
 
       // Store task data needed for undo
+      // Get template data for the task being deleted
+      const deleteTemplate = recurringTemplates.find(t => t.id === taskToDelete.task.recurring_template_id);
+      const deleteTaskDays = deleteTemplate?.days_of_week || [taskToDelete.day];
+
       const taskDataForUndo = {
         name: taskToDelete.task.name,
         description: taskToDelete.task.description || undefined,
         points: taskToDelete.task.points,
         duration_mins: taskToDelete.task.estimatedMinutes,
         time_of_day: taskToDelete.task.time_of_day || undefined,
-        frequency: (taskToDelete.task.frequency || "specific_days") as
+        frequency: (deleteTemplate?.frequency_type || "specific_days") as
           | "one_off"
           | "daily"
           | "specific_days"
           | "weekly",
-        days_of_week: taskToDelete.task.days_of_week || [taskToDelete.day],
+        days_of_week: deleteTaskDays,
         member_ids: taskToDelete.task.assignees?.map((a) => a.id) || [
           taskToDelete.memberId,
         ],
@@ -181,7 +187,7 @@ export const useTaskOperations = ({
               },
               assignments: taskDataForUndo.member_ids.map((memberId) => ({
                 member_id: memberId,
-                days_of_week: taskDataForUndo.days_of_week || [],
+                days_of_week: deleteTaskDays,
                 order_index: 0,
               })),
               create_recurring_template: true,
@@ -324,6 +330,10 @@ export const useTaskOperations = ({
 
           // Recreate the task in the backend using bulk individual tasks
           if (currentRoutineId && enhancedFamilyMembers.length > 0) {
+            // Get template data for the task being deleted
+            const deleteTemplate = recurringTemplates.find(t => t.id === taskToDelete.task.recurring_template_id);
+            const deleteTaskDays = deleteTemplate?.days_of_week || [taskToDelete.day];
+            
             const bulkPayload = {
               task_template: {
                 name: taskToDelete.task.name,
@@ -335,7 +345,7 @@ export const useTaskOperations = ({
               },
               assignments: [{
                 member_id: taskToDelete.memberId,
-                days_of_week: taskToDelete.task.days_of_week || [],
+                days_of_week: deleteTaskDays,
                 order_index: 0,
               }],
               create_recurring_template: true,

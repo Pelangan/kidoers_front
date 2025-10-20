@@ -117,27 +117,10 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
   const taskColor = getTaskColor()
 
-  // Calculate series badge information
+  // Calculate series badge information - removed series_id support
   const getSeriesBadgeInfo = () => {
-    if (!task.series_id || !allDayTasks.length) {
-      return null
-    }
-
-    // Count tasks with the same series_id on this day
-    const seriesTasks = allDayTasks.filter(t => t.series_id === task.series_id)
-    
-    if (seriesTasks.length <= 1) {
-      return null // No badge needed if only one task in series
-    }
-
-    // Get other tasks in the same series (excluding current task)
-    const otherSeriesTasks = seriesTasks.filter(t => t.id !== task.id)
-    
-    return {
-      count: otherSeriesTasks.length,
-      seriesId: task.series_id,
-      otherTasks: otherSeriesTasks
-    }
+    // Series functionality removed - all tasks now use recurring templates
+    return null
   }
 
   const seriesBadgeInfo = getSeriesBadgeInfo()

@@ -4,7 +4,6 @@
  * These are pure functions that don't require component rendering
  */
 
-import { describe, it, expect } from 'vitest';
 import { 
   helperLabel, 
   optionFromTemplate, 

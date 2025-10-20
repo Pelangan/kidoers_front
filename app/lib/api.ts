@@ -692,6 +692,7 @@ export async function bulkCreateIndividualTasks(routineId: string, payload: {
       days_of_week: string[];
       order_index: number;
       member_id: string;
+      recurring_template_id: string;
     }>;
   }>(`/routines/${routineId}/tasks/bulk-assign`, {
     method: "POST",

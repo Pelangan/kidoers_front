@@ -950,3 +950,46 @@ pnpm test:coverage            # With coverage
 - **TEST_COVERAGE_MATRIX.md**: Functional coverage tracking
 - **TEST_SCENARIOS.md**: Detailed test scenarios in Given-When-Then format
 - **TESTING_CONVENTIONS.md**: Team coding standards and best practices
+
+## 🔄 Template-Based Recurrence System (January 2025)
+
+### Overview
+Migrated from dual-storage recurrence model to template-only model where `recurring_task_templates.days_of_week` is the single source of truth for all weekly tasks.
+
+### Key Changes
+
+#### Database Schema
+- **Migration**: `20250120_normalize_recurrence_to_templates.sql`
+- **Constraint**: All `routine_tasks` must have `recurring_template_id` (NOT NULL)
+- **Legacy Fields**: `routine_tasks.frequency` and `routine_tasks.days_of_week` are always NULL
+- **Trigger**: Auto-nulls legacy fields when `recurring_template_id` is set
+- **Validation**: Templates must have valid `days_of_week` array (1-7 lowercase weekdays)
+
+#### Backend Changes
+- **Pydantic Schemas**: Updated `RecurringTaskTemplateOut` to require `days_of_week`
+- **Task Creation**: Always creates `recurring_task_templates` first, then links via `recurring_template_id`
+- **Frequency Logic**: 
+  - 7 days → `frequency_type='every_day'`, `frequency='daily'`
+  - 1-6 days → `frequency_type='specific_days'`, `frequency='specific_days'`
+- **API Endpoints**: Modified `bulk_create_individual_tasks` to enforce template-based model
+
+#### Frontend Changes
+- **TypeScript Types**: Updated `Task` interface to remove legacy fields
+- **Task Creation**: Always sends `create_recurring_template: true`
+- **Calendar Rendering**: Reads recurrence from templates, not `routine_tasks`
+- **Utility Functions**: Updated `taskUtils.ts` to use template data exclusively
+
+### Field Semantics
+
+| Task Type | frequency_type | days_of_week | frequency (label) | routine_tasks.frequency | routine_tasks.days_of_week |
+|-----------|---------------|--------------|-------------------|------------------------|---------------------------|
+| Daily (7/7) | `every_day` | `['monday','tuesday',...,'sunday']` (7 items) | `daily` | NULL | NULL |
+| Specific days (2-6) | `specific_days` | subset (e.g. `['monday','wednesday','friday']`) | `specific_days` | NULL | NULL |
+| Single-day weekly | `specific_days` | `['wednesday']` (1 item) | `specific_days` | NULL | NULL |
+
+### Implementation Benefits
+- **Single Source of Truth**: Template `days_of_week` is authoritative
+- **Data Integrity**: Constraints prevent inconsistent states
+- **Simplified Logic**: No dual-storage complexity
+- **Future-Proof**: Ready for one-off task support
+- **Backward Compatibility**: Legacy fields preserved but unused

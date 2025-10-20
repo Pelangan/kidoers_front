@@ -57,7 +57,6 @@ export const useTaskEditing = () => {
     console.log("[TASK-EDIT] Full task object:", selectedTaskForEdit.task);
     console.log("[TASK-EDIT] Task details:", {
       name: selectedTaskForEdit.task.name,
-      days_of_week: selectedTaskForEdit.task.days_of_week,
       recurring_template_id: selectedTaskForEdit.task.recurring_template_id,
       template_id: selectedTaskForEdit.task.template_id,
       is_system: selectedTaskForEdit.task.is_system,
@@ -213,11 +212,9 @@ export const useTaskEditing = () => {
         templateDays = normalizeWeekdays(templateDaysOfWeek);
       }
     } else {
-      // For non-recurring tasks, use task data directly
-      templateDays = normalizeWeekdays(
-        selectedTaskForEdit.task.days_of_week || [],
-      );
-      frequencyType = selectedTaskForEdit.task.frequency || "weekly";
+      // For tasks without templates, use empty days (should not happen with new system)
+      templateDays = [];
+      frequencyType = "weekly";
     }
 
     console.log("[TASK-EDIT] Template-based recurrence data:", {

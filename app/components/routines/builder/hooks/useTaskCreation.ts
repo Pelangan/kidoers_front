@@ -102,6 +102,7 @@ export const useTaskCreation = ({
       estimatedMinutes: 30, // Default duration
       time_of_day: "morning", // Default time
       is_saved: false,
+      recurring_template_id: 'temp-template-id', // Temporary ID for new tasks
     };
 
     // Create pending drop object for the popup

@@ -1,11 +1,11 @@
 /**
  * Smoke tests for UI components
- * Verifies that Vitest and React Testing Library are working correctly
+ * Verifies that Jest and React Testing Library are working correctly
  */
 
-import { describe, it, expect, vi } from 'vitest';
 import { renderWithProviders, screen } from '@/tests/helpers/render';
 import { Button } from '@/components/ui/button';
+import userEvent from '@testing-library/user-event';
 
 describe('Button Component (Smoke Test)', () => {
   it('should render button with text', () => {
@@ -15,8 +15,10 @@ describe('Button Component (Smoke Test)', () => {
   });
 
   it('should call onClick handler when clicked', async () => {
-    const handleClick = vi.fn();
-    const { user } = renderWithProviders(
+    const handleClick = jest.fn();
+    const user = userEvent.setup();
+    
+    renderWithProviders(
       <Button onClick={handleClick}>Click me</Button>
     );
 
@@ -39,4 +41,3 @@ describe('Button Component (Smoke Test)', () => {
     expect(button).toBeInTheDocument();
   });
 });
-

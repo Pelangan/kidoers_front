@@ -145,7 +145,7 @@ export const deriveScheduleFromCalendar = (
 export const getTaskFrequencyType = (
   task: Task,
   recurringTemplates: RecurringTemplate[]
-): 'just_this_day' | 'every_day' | 'specific_days' => {
+): 'every_day' | 'specific_days' => {
   console.log('[FREQUENCY-TYPE] 🔍 DEBUG: getTaskFrequencyType called with:', {
     taskName: task.name,
     taskRecurringTemplateId: task.recurring_template_id,
@@ -153,10 +153,10 @@ export const getTaskFrequencyType = (
     templateIds: recurringTemplates.map(t => t.id)
   })
   
-  // If task has no recurring template, it's a single day task
+  // All tasks must have a recurring template
   if (!task.recurring_template_id) {
-    console.log('[FREQUENCY-TYPE] No recurring_template_id, returning just_this_day')
-    return 'just_this_day'
+    console.warn('[FREQUENCY-TYPE] No recurring_template_id found for task:', task.name)
+    return 'specific_days' // Default fallback
   }
   
   // Find the recurring template
@@ -165,11 +165,11 @@ export const getTaskFrequencyType = (
   if (!template) {
     console.warn('[FREQUENCY-TYPE] Template not found for task:', task.name, 'template_id:', task.recurring_template_id)
     console.warn('[FREQUENCY-TYPE] Available template IDs:', recurringTemplates.map(t => t.id))
-    return 'just_this_day' // Fallback to single day
+    return 'specific_days' // Fallback
   }
   
   console.log('[FREQUENCY-TYPE] ✅ Found template for task:', task.name, 'frequency_type:', template.frequency_type)
-  return template.frequency_type as 'just_this_day' | 'every_day' | 'specific_days'
+  return template.frequency_type as 'every_day' | 'specific_days'
 }
 
 // Get days of week for a task based on its recurring template
@@ -177,9 +177,10 @@ export const getTaskDaysOfWeek = (
   task: Task,
   recurringTemplates: RecurringTemplate[]
 ): string[] => {
-  // If task has no recurring template, return the task's own days_of_week
+  // All tasks must have a recurring template
   if (!task.recurring_template_id) {
-    return task.days_of_week || []
+    console.warn('[DAYS-OF-WEEK] No recurring_template_id found for task:', task.name)
+    return [] // Return empty array as fallback
   }
   
   // Find the recurring template
@@ -187,7 +188,7 @@ export const getTaskDaysOfWeek = (
   
   if (!template) {
     console.warn('[DAYS-OF-WEEK] Template not found for task:', task.name, 'template_id:', task.recurring_template_id)
-    return task.days_of_week || [] // Fallback to task's own days
+    return [] // Return empty array as fallback
   }
   
   console.log('[DAYS-OF-WEEK] Found template for task:', task.name, 'days_of_week:', template.days_of_week)
@@ -232,28 +233,12 @@ export const getTaskDisplayFrequency = (
             const sortedDays = days.sort((a, b) => dayOrder.indexOf(a.toLowerCase()) - dayOrder.indexOf(b.toLowerCase()));
             return `Repeats on ${sortedDays.map(d => d.toLowerCase().charAt(0).toUpperCase() + d.toLowerCase().slice(1)).join(', ')}`
           }
-        case 'just_this_day':
-          return 'One-time'
         default:
           return 'Weekly'
       }
     }
   }
   
-  // For non-recurring tasks, determine based on days_of_week
-  const taskDays = task.days_of_week || []
-  if (taskDays.length === 1) {
-    const dayName = taskDays[0].toLowerCase().charAt(0).toUpperCase() + taskDays[0].toLowerCase().slice(1)
-    return `Every ${dayName}`
-  } else if (taskDays.length > 1) {
-    // Sort days in chronological order (Monday to Sunday)
-    const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-    const sortedDays = taskDays.sort((a, b) => dayOrder.indexOf(a.toLowerCase()) - dayOrder.indexOf(b.toLowerCase()));
-    return `Repeats on ${sortedDays.map(d => d.toLowerCase().charAt(0).toUpperCase() + d.toLowerCase().slice(1)).join(', ')}`
-  } else if (taskDays.length === 0) {
-    return 'Weekly'
-  }
-  
-  // Default fallback
+  // Default fallback for tasks without templates
   return 'Weekly'
 }

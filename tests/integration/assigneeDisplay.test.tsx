@@ -3,8 +3,6 @@
  * Tests the logic that displays assignee information in the task details popup
  */
 
-import { describe, it, expect } from 'vitest'
-
 describe('Assignee Display Logic', () => {
   const mockFamilyMembers = [
     { id: '1', name: 'Cristian', role: 'parent', color: 'blue', avatar_url: null },
