@@ -76,10 +76,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
     // For multi-member tasks, use a neutral gray color scheme
     if (task.assignees && task.assignees.length > 1) {
-      console.log('[KIDOERS-ROUTINE] 🎨 Multi-member task color:', { 
-        taskName: task.name, 
-        assigneesCount: task.assignees.length
-      })
       return {
         bg: 'bg-white',
         border: `border-l-4`,
@@ -92,12 +88,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     const member = familyMembers.find(m => m.id === memberId)
     if (member && getMemberColors) {
       const colors = getMemberColors(member.color)
-      console.log('[KIDOERS-ROUTINE] 🎨 Single-member task color:', { 
-        taskName: task.name, 
-        memberName: member.name, 
-        memberColor: member.color, 
-        borderColor: colors.borderColor 
-      })
       return {
         bg: colors.bg,
         border: `border-l-4`,
@@ -107,7 +97,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     }
 
     // Fallback to green if no color found
-    console.log('[KIDOERS-ROUTINE] 🎨 Fallback color used for task:', task.name)
     return {
       bg: 'bg-green-50',
       border: 'border-l-4 border-green-500',

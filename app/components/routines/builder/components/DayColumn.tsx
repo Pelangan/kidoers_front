@@ -54,11 +54,6 @@ export const DayColumn: React.FC<DayColumnProps> = ({
   getTotalTasksForDay,
   onSeriesBadgeClick,
 }) => {
-  // Debug: Log when selectedMemberIds changes
-  console.log('[KIDOERS-ROUTINE] 🔄 DayColumn re-rendered:', { day, selectedMemberIds });
-  console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - dayTasks received:', { day, dayTasks, individualTasksCount: dayTasks?.individualTasks?.length || 0 });
-  console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - individualTasks:', dayTasks?.individualTasks?.map(t => ({ id: t.id, name: t.name, routine_task_id: t.routine_task_id })) || []);
-  
   const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
   const dayIndex = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].indexOf(day)
   
@@ -66,14 +61,6 @@ export const DayColumn: React.FC<DayColumnProps> = ({
   const totalDayTasks = selectedMemberIds.reduce((total, memberId) => {
     return total + getTotalTasksForDay(day, { [day]: dayTasks }, memberId)
   }, 0)
-  
-  // Debug: Log totalDayTasks calculation
-  console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - totalDayTasks calculation:', { 
-    day, 
-    selectedMemberIds, 
-    totalDayTasks, 
-    individualTasksCount: dayTasks?.individualTasks?.length || 0 
-  });
 
   // Check if column is being dragged over
   const isColumnDraggedOver = draggedTask && dragOverPosition?.day === day
@@ -142,65 +129,24 @@ export const DayColumn: React.FC<DayColumnProps> = ({
 
             {/* Individual Tasks - Filtered by Selected Members */}
             {(() => {
-              console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - Processing day:', day);
-              console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - dayTasks:', dayTasks);
-              console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - dayTasks.individualTasks:', dayTasks.individualTasks);
-              console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - selectedMemberIds:', selectedMemberIds);
-              console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - individualTasks count:', dayTasks.individualTasks?.length || 0);
-              
               // Check if individualTasks exists and has length
               if (!dayTasks.individualTasks || dayTasks.individualTasks.length === 0) {
-                console.log('[KIDOERS-ROUTINE] ⚠️ No individual tasks to process for day:', day);
                 return [];
               }
               
               const filteredTasks = dayTasks.individualTasks.filter((task: Task) => {
-                // Debug: Log task structure to understand why multi-member filtering isn't working
-                console.log('[KIDOERS-ROUTINE] 🔍 Task structure debug:', {
-                  taskId: task.id,
-                  taskName: task.name,
-                  memberCount: task.member_count,
-                  hasAssignees: !!task.assignees,
-                  assigneesLength: task.assignees?.length,
-                  taskMemberId: task.memberId,
-                  selectedMemberIds
-                });
-                
                 // For multi-member tasks, show to all assigned members
                 if (task.member_count && task.member_count > 1 && task.assignees) {
                   const isAssignedToAnySelectedMember = task.assignees.some(assignee => 
                     selectedMemberIds.includes(assignee.id)
                   );
-                  console.log('[KIDOERS-ROUTINE] Multi-member task filtering:', { 
-                    taskId: task.id, 
-                    taskName: task.name, 
-                    memberCount: task.member_count,
-                    isAssignedToAnySelectedMember,
-                    selectedMemberIds
-                  });
                   return isAssignedToAnySelectedMember;
                 }
                 
                 // For single-member tasks, filter by selected member IDs
                 const matches = task.memberId && selectedMemberIds.includes(task.memberId);
-                console.log('[KIDOERS-ROUTINE] Single-member task filtering:', { 
-                  taskId: task.id, 
-                  taskName: task.name, 
-                  taskMemberId: task.memberId, 
-                  selectedMemberIds, 
-                  matches
-                });
                 return matches;
               });
-              
-              console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - filteredTasks:', filteredTasks);
-              console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - filteredTasks count:', filteredTasks.length);
-              console.log('[KIDOERS-ROUTINE] 🔍 DayColumn - filteredTasks details:', filteredTasks.map(t => ({
-                id: t.id,
-                name: t.name,
-                memberCount: t.member_count,
-                assignees: t.assignees?.map(a => a.name) || []
-              })));
               
               return getTasksWithDayOrder(filteredTasks, day, selectedMemberIds[0]);
             })()

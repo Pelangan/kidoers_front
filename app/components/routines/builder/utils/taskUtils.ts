@@ -45,8 +45,17 @@ export const extractRoutineTaskIdFromId = (id: string): string => {
   return id // Fallback to original ID
 }
 
-// Alias for extractRoutineTaskIdFromId for backward compatibility
-export const extractTaskId = extractRoutineTaskIdFromId
+// Extract task ID from composite ID format (uuid_weekday)
+export const extractTaskId = (taskId: string): string => {
+  console.log('[EXTRACT-TASK-ID] 🔍 Input:', taskId);
+  console.log('[EXTRACT-TASK-ID] 🔍 Contains underscore:', taskId.includes('_'));
+  console.log('[EXTRACT-TASK-ID] 🔍 Split result:', taskId.split('_'));
+  
+  const result = taskId.includes('_') ? taskId.split('_')[0] : taskId;
+  console.log('[EXTRACT-TASK-ID] ✅ Result:', result);
+  
+  return result;
+}
 
 export const getTotalTasksForDay = (
   day: string, 

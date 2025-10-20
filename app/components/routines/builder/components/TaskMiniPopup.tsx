@@ -103,6 +103,7 @@ export default function TaskMiniPopup({
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                console.log('[TASK-MINI-POPUP] 🔍 Edit button clicked for task:', selectedTaskForEdit.task.name);
                 onEditTask();
               }}
               className="p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors"

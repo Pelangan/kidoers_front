@@ -75,40 +75,10 @@ export default function ManualRoutineBuilder({
   isEditMode = false,
   onBack,
 }: ManualRoutineBuilderProps = {}) {
-  console.log(
-    "[KIDOERS-ROUTINE] 🚀 ManualRoutineBuilder: Component mounted with props:",
-    {
-      propFamilyId,
-      isEditMode,
-      hasOnComplete: !!onComplete,
-      hasOnBack: !!onBack,
-    },
-  );
-  console.log(
-    "[KIDOERS-ROUTINE] 🔍 Edit Mode Debug - isEditMode value:",
-    isEditMode,
-    "type:",
-    typeof isEditMode,
-  );
   const router = useRouter();
   const sp = useSearchParams();
   const familyId = propFamilyId || sp?.get("family");
-  console.log(
-    "[KIDOERS-ROUTINE] 🏠 ManualRoutineBuilder: Final familyId:",
-    familyId,
-  );
 
-  // Debug component lifecycle
-  useEffect(() => {
-    console.log(
-      "[KIDOERS-ROUTINE] ManualRoutineBuilder: Component mounted/updated",
-    );
-    return () => {
-      console.log(
-        "[KIDOERS-ROUTINE] ManualRoutineBuilder: Component unmounting",
-      );
-    };
-  }, []);
 
   // Use routine data hook
   const {
@@ -314,14 +284,14 @@ export default function ManualRoutineBuilder({
   ) => {
     e.stopPropagation();
     console.log(
-      "[TASK-CLICK] Task clicked:",
+      "[TASK-CLICK] 🔍 Task clicked:",
       task.name,
       "showTaskMiniPopup:",
       showTaskMiniPopup,
       "isDeletingTask:",
       isDeletingTask,
     );
-    console.log("[TASK-CLICK] Task details:", {
+    console.log("[TASK-CLICK] 🔍 Task details:", {
       taskId: task.id,
       routineTaskId: task.routine_task_id,
       memberCount: task.member_count,
@@ -332,7 +302,7 @@ export default function ManualRoutineBuilder({
     // Prevent opening popup if it's already open or if we're deleting
     if (showTaskMiniPopup || isDeletingTask) {
       console.log(
-        "[TASK-CLICK] Popup already open or deleting, ignoring click",
+        "[TASK-CLICK] ❌ Popup already open or deleting, ignoring click",
       );
       return;
     }
@@ -340,10 +310,11 @@ export default function ManualRoutineBuilder({
     // Add a small delay to prevent rapid clicks
     setTimeout(() => {
       if (!showTaskMiniPopup && !isDeletingTask) {
-        console.log("[TASK-CLICK] Opening popup after delay");
+        console.log("[TASK-CLICK] ✅ Opening popup after delay");
         setSelectedTaskForEdit({ task, day, memberId });
         setMiniPopupPosition({ x: e.clientX, y: e.clientY });
         setShowTaskMiniPopup(true);
+        console.log("[TASK-CLICK] ✅ Mini popup state set to true");
       }
     }, 50);
   };
@@ -355,24 +326,14 @@ export default function ManualRoutineBuilder({
   // Restored handleApplyToSelection implementation
   const handleApplyToSelection = async (applyToId?: string) => {
     const selectedApplyToId = applyToId || selectedWhoOption;
-    console.log('[KIDOERS-ROUTINE] 🚀 handleApplyToSelection called with applyToId:', selectedApplyToId);
     
     if (!pendingDrop) {
-      console.log('[DRAG-ORDER] ❌ No pending drop found');
       return;
     }
 
     setIsCreatingTasks(true);
 
     try {
-      console.log('[KIDOERS-ROUTINE] 📋 Applying task/group:', {
-        type: pendingDrop.type,
-        item: pendingDrop.item,
-        targetMemberId: pendingDrop.targetMemberId,
-        applyToId: selectedApplyToId,
-        daySelection
-      });
-
       // Determine which days to add the task to based on day selection
       let targetDays: string[] = [];
       
@@ -382,66 +343,33 @@ export default function ManualRoutineBuilder({
         targetDays = daySelection.selectedDays;
       }
 
-      console.log('[KIDOERS-ROUTINE] Target days:', targetDays);
-
       // Check if we're editing an existing recurring task
       const isEditingRecurringTask = selectedTaskForEdit && 
                                    selectedTaskForEdit.task.recurring_template_id && 
                                    pendingDrop.type === 'task' &&
                                    pendingDrop.item.id === selectedTaskForEdit.task.id;
 
-      console.log('[KIDOERS-ROUTINE] 🔍 Edit mode check:', {
-        isEditingRecurringTask,
-        hasSelectedTaskForEdit: !!selectedTaskForEdit,
-        hasRecurringTemplateId: selectedTaskForEdit?.task.recurring_template_id,
-        pendingDropType: pendingDrop.type,
-        taskIdsMatch: selectedTaskForEdit?.task.id === pendingDrop.item.id
-      });
-
       // Determine which members should receive the task based on applyToId
       let targetMemberIds: string[] = [];
-      
-      console.log('[KIDOERS-ROUTINE] 🔍 Assignment Debug Info:');
-      console.log('[KIDOERS-ROUTINE] - applyToId:', selectedApplyToId);
-      console.log('[KIDOERS-ROUTINE] - enhancedFamilyMembers:', enhancedFamilyMembers);
-      console.log('[KIDOERS-ROUTINE] - Member types:', enhancedFamilyMembers.map(m => ({ id: m.id, name: m.name, type: m.type })));
-      console.log('[KIDOERS-ROUTINE] - Full member details:', enhancedFamilyMembers.map(m => ({ 
-        id: m.id, 
-        name: m.name, 
-        type: m.type,
-        allFields: Object.keys(m),
-        memberObject: m
-      })));
       
       if (selectedApplyToId === 'none') {
         // Only the member the task was dropped on
         targetMemberIds = [pendingDrop.targetMemberId];
-        console.log('[KIDOERS-ROUTINE] - Selected: This member only, targetMemberIds:', targetMemberIds);
       } else if (selectedApplyToId === 'all-kids') {
         // All children in the family
         const kids = enhancedFamilyMembers.filter(member => member.type === 'child');
         targetMemberIds = kids.map(member => member.id);
-        console.log('[KIDOERS-ROUTINE] - Selected: All kids');
-        console.log('[KIDOERS-ROUTINE] - Kids found:', kids);
-        console.log('[KIDOERS-ROUTINE] - Kids IDs:', targetMemberIds);
       } else if (selectedApplyToId === 'all-parents') {
         // All parents in the family
         const parents = enhancedFamilyMembers.filter(member => member.type === 'parent');
         targetMemberIds = parents.map(member => member.id);
-        console.log('[KIDOERS-ROUTINE] - Selected: All parents');
-        console.log('[KIDOERS-ROUTINE] - Parents found:', parents);
-        console.log('[KIDOERS-ROUTINE] - Parents IDs:', targetMemberIds);
       } else if (selectedApplyToId === 'all-family') {
         // All family members
         targetMemberIds = enhancedFamilyMembers.map(member => member.id);
-        console.log('[KIDOERS-ROUTINE] - Selected: All family, targetMemberIds:', targetMemberIds);
       } else {
         // Fallback to single member
         targetMemberIds = [pendingDrop.targetMemberId];
-        console.log('[KIDOERS-ROUTINE] - Fallback: Single member, targetMemberIds:', targetMemberIds);
       }
-      
-      console.log('[KIDOERS-ROUTINE] Target members for applyToId:', selectedApplyToId, targetMemberIds);
 
       // Handle task creation/update
       if (pendingDrop.type === 'task') {
@@ -454,8 +382,6 @@ export default function ManualRoutineBuilder({
 
         // Check if we're editing an existing recurring task
         if (isEditingRecurringTask && selectedTaskForEdit) {
-          console.log('[KIDOERS-ROUTINE] 🔄 Updating existing recurring task');
-          
           const task = pendingDrop.item as Task;
           const updatePayload = {
             recurring_template_id: selectedTaskForEdit.task.recurring_template_id!,
@@ -475,11 +401,8 @@ export default function ManualRoutineBuilder({
             new_days_of_week: targetDays
           };
 
-          console.log('[KIDOERS-ROUTINE] 📦 Recurring update payload:', updatePayload);
-
           // Call the recurring task update API
           const result = await bulkUpdateRecurringTasks(routineData.id, updatePayload);
-          console.log('[KIDOERS-ROUTINE] ✅ Recurring task update result:', result);
 
           // Update UI with the changes
           // First, remove all existing tasks for this recurring template
@@ -520,7 +443,6 @@ export default function ManualRoutineBuilder({
           }
 
           setCalendarTasks(newCalendarTasks);
-          console.log('[KIDOERS-ROUTINE] ✅ Updated calendar tasks for recurring task');
 
           // Close modal and reset state
           setShowApplyToPopup(false);
@@ -596,11 +518,8 @@ export default function ManualRoutineBuilder({
           create_recurring_template: true // Always create recurring template
         };
 
-        console.log('[KIDOERS-ROUTINE] 📦 Bulk payload:', bulkPayload);
-
         // Call bulk API
         const result = await bulkCreateIndividualTasks(routineData.id, bulkPayload);
-        console.log('[KIDOERS-ROUTINE] ✅ Bulk task creation result:', result);
 
         // Update UI with created tasks
         const newCalendarTasks = { ...calendarTasks };
@@ -635,23 +554,19 @@ export default function ManualRoutineBuilder({
               if (existingTaskIndex >= 0) {
                 // Update existing task
                 newCalendarTasks[day].individualTasks[existingTaskIndex] = taskForUI;
-                console.log(`[KIDOERS-ROUTINE] 🔄 Updated existing task in UI: ${taskForUI.name} for ${day}`);
               } else {
                 // Add new task
                 newCalendarTasks[day].individualTasks.push(taskForUI);
-                console.log(`[KIDOERS-ROUTINE] ➕ Added new task to UI: ${taskForUI.name} for ${day}`);
               }
             }
           }
         }
         
         setCalendarTasks(newCalendarTasks);
-        console.log('[KIDOERS-ROUTINE] ✅ UI updated with bulk created tasks');
       } else if (pendingDrop.type === 'group') {
         // Handle group creation (keep existing logic for now)
         for (const day of targetDays) {
           for (const memberId of targetMemberIds) {
-            console.log('[KIDOERS-ROUTINE] ',`Adding group to ${day} for member ${memberId}`);
             addGroupToCalendar(memberId, pendingDrop.item as TaskGroup, selectedApplyToId, day, pendingDrop.selectedTasks);
           }
         }

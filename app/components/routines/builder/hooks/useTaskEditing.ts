@@ -163,8 +163,13 @@ export const useTaskEditing = () => {
 
         // Get fresh template data from the API
         const actualTaskId = extractTaskId(selectedTaskForEdit.task.id);
+        console.log('[TASK-EDIT] 🔍 Task ID extraction:', {
+          original_id: selectedTaskForEdit.task.id,
+          extracted_id: actualTaskId,
+          routine_id: currentRoutineId
+        });
         const templateData = (await getTaskForEdit(
-          routineData.id,
+          currentRoutineId!,
           actualTaskId,
         )) as any;
 
