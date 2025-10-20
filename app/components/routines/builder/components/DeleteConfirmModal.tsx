@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../../../../components/ui/dialog";
+import type { DeleteScope } from "../hooks/useTaskOperations";
 
 interface DeleteConfirmModalProps {
   // Modal state
@@ -14,8 +15,8 @@ interface DeleteConfirmModalProps {
   onOpenChange: (open: boolean) => void;
   
   // Delete scope
-  deleteScope: 'this_day' | 'this_and_following' | 'all_days';
-  onDeleteScopeChange: (scope: 'this_day' | 'this_and_following' | 'all_days') => void;
+  deleteScope: DeleteScope;
+  onDeleteScopeChange: (scope: DeleteScope) => void;
   
   // Actions
   onConfirm: () => void;
@@ -41,37 +42,24 @@ export default function DeleteConfirmModal({
                 type="radio"
                 id="this-event"
                 name="delete-scope"
-                value="this_day"
-                checked={deleteScope === 'this_day'}
-                onChange={(e) => onDeleteScopeChange(e.target.value as 'this_day')}
+                value="instance"
+                checked={deleteScope === 'instance'}
+                onChange={(e) => onDeleteScopeChange(e.target.value as DeleteScope)}
                 className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
               />
               <label htmlFor="this-event" className="text-sm font-medium text-gray-700">
                 This event only
               </label>
             </div>
-            <div className="flex items-center space-x-3">
-              <input
-                type="radio"
-                id="this-and-following"
-                name="delete-scope"
-                value="this_and_following"
-                checked={deleteScope === 'this_and_following'}
-                onChange={(e) => onDeleteScopeChange(e.target.value as 'this_and_following')}
-                className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-              />
-              <label htmlFor="this-and-following" className="text-sm font-medium text-gray-700">
-                This and following events
-              </label>
-            </div>
-            <div className="flex items-center space-x-3">
+            {/* Hide "This and following" until we implement split-series */}
+             <div className="flex items-center space-x-3">
               <input
                 type="radio"
                 id="all-events"
                 name="delete-scope"
-                value="all_days"
-                checked={deleteScope === 'all_days'}
-                onChange={(e) => onDeleteScopeChange(e.target.value as 'all_days')}
+                value="series"
+                checked={deleteScope === 'series'}
+                onChange={(e) => onDeleteScopeChange(e.target.value as DeleteScope)}
                 className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
               />
               <label htmlFor="all-events" className="text-sm font-medium text-gray-700">

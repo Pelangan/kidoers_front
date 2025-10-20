@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Task, TaskGroup, PendingDrop, DaySelection } from '../types/routineBuilderTypes'
+import type { DeleteScope } from './useTaskOperations'
 
 export const useTaskModals = () => {
   // Modal state
@@ -13,7 +14,7 @@ export const useTaskModals = () => {
   const [editableTaskName, setEditableTaskName] = useState('')
   const [selectedTaskForEdit, setSelectedTaskForEdit] = useState<{ task: Task, day: string, memberId: string } | null>(null)
   const [miniPopupPosition, setMiniPopupPosition] = useState<{ x: number, y: number } | null>(null)
-  const [deleteScope, setDeleteScope] = useState<'this_day' | 'this_and_following' | 'all_days'>('this_day')
+  const [deleteScope, setDeleteScope] = useState<DeleteScope>('instance')
   const [daySelection, setDaySelection] = useState<DaySelection>({ mode: 'everyday', selectedDays: [] })
   const [selectedWhoOption, setSelectedWhoOption] = useState<string>('none')
   const [selectedRoutineGroup, setSelectedRoutineGroup] = useState<string>('none')
@@ -52,12 +53,12 @@ export const useTaskModals = () => {
 
   const openDeleteConfirmModal = () => {
     setShowDeleteConfirmModal(true)
-    setDeleteScope('this_day')
+    setDeleteScope('instance')
   }
 
   const closeDeleteConfirmModal = () => {
     setShowDeleteConfirmModal(false)
-    setDeleteScope('this_day')
+    setDeleteScope('instance')
   }
 
   const openRoutineDetailsModal = () => {

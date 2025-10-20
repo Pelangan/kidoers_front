@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTaskOperations } from "../../../hooks/useTaskOperations";
-import { useTaskOperations as useTaskOperationsBuilder } from "./hooks/useTaskOperations";
+import { useTaskOperations as useTaskOperationsBuilder, type DeleteScope } from "./hooks/useTaskOperations";
 import { useTaskCreation } from "./hooks/useTaskCreation";
 import { useRoutineDataLoader } from "./hooks/useRoutineDataLoader";
 import {
