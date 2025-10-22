@@ -7,6 +7,7 @@ import {
 import {
   optionFromTemplate,
   normalizeWeekdays,
+  type Weekday,
 } from "../utils/recurrence";
 import { DAYS_OF_WEEK } from "../utils/calendarTransform";
 import type {
@@ -33,6 +34,7 @@ export const useTaskEditing = () => {
     setShowTaskMiniPopup: (show: boolean) => void,
     setMiniPopupPosition: (position: { x: number; y: number } | null) => void,
     setShowApplyToPopup: (show: boolean) => void,
+    setIsCreatingTasks: (loading: boolean) => void,
     getMemberNameById: (id: string) => string,
   ) => {
     if (!selectedTaskForEdit) {
@@ -45,6 +47,9 @@ export const useTaskEditing = () => {
       "[TASK-EDIT] Opening edit modal for task:",
       selectedTaskForEdit.task.name,
     );
+    
+    // Set loading state to prevent modal from opening too early
+    setIsCreatingTasks(true);
     console.log("[TASK-EDIT] Selected task for edit:", {
       taskId: selectedTaskForEdit.task.id,
       routineTaskId: selectedTaskForEdit.task.routine_task_id,
@@ -64,22 +69,9 @@ export const useTaskEditing = () => {
       id: selectedTaskForEdit.task.id,
     });
 
-    // Refresh routine data to ensure we have the latest template information
-    if (currentRoutineId) {
-      console.log(
-        "[TASK-EDIT] 🔄 Refreshing routine data to get latest template info...",
-      );
-      try {
-        const fullData = await getRoutineFullData(currentRoutineId);
-        setRecurringTemplates(fullData.recurring_templates || []);
-        console.log(
-          "[TASK-EDIT] ✅ Updated recurring templates:",
-          fullData.recurring_templates,
-        );
-      } catch (error) {
-        console.warn("[TASK-EDIT] ⚠️ Failed to refresh routine data:", error);
-      }
-    }
+    // Skip API refresh to prevent overwriting correct frontend state
+    console.log("[TASK-EDIT] 🔍 DEBUG: Skipping API refresh to preserve frontend state");
+    console.log("[TASK-EDIT] 🔍 DEBUG: Current recurringTemplates state:", recurringTemplates);
 
     // Check if this task appears on multiple days in the calendar
     const taskAppearsOnDays: string[] = [];
@@ -148,7 +140,7 @@ export const useTaskEditing = () => {
       "[TASK-EDIT] 🔍 DEBUG: Getting fresh template data from API...",
     );
 
-    let templateDays: string[] = [];
+    let templateDays: Weekday[] = [];
     let frequencyType = "weekly";
     let hasException = false;
 
@@ -231,6 +223,15 @@ export const useTaskEditing = () => {
     // Determine recurrence option from template
     const recurrenceOption = optionFromTemplate(templateDays, hasException);
 
+    console.log("[TASK-EDIT] 🔍 DEBUG: Template days and recurrence option:", {
+      templateDays,
+      templateDaysLength: templateDays.length,
+      recurrenceOption,
+      hasException,
+      isEveryDay: templateDays.length === 7,
+      allDays: DAYS_OF_WEEK
+    });
+
     // Set day selection based on recurrence option
     // Default to 'custom' mode (Select specific days)
     let daySelectionMode: "everyday" | "custom" = "custom";
@@ -239,9 +240,11 @@ export const useTaskEditing = () => {
     if (recurrenceOption === "EVERY_DAY") {
       daySelectionMode = "everyday";
       selectedDays = DAYS_OF_WEEK;
+      console.log("[TASK-EDIT] 🔍 DEBUG: Setting EVERY_DAY mode with all days:", selectedDays);
     } else if (recurrenceOption === "SPECIFIC_DAYS") {
       daySelectionMode = "custom";
       selectedDays = templateDays.length > 0 ? templateDays : taskAppearsOnDays;
+      console.log("[TASK-EDIT] 🔍 DEBUG: Setting SPECIFIC_DAYS mode with days:", selectedDays);
     }
     // Note: Removed "Just this day" option - now only "Every day" and "Select specific days"
 
@@ -257,6 +260,9 @@ export const useTaskEditing = () => {
     setDaySelection({ mode: daySelectionMode, selectedDays: selectedDays });
 
     console.log("[TASK-EDIT] ===== EDIT TASK DEBUG END =====");
+    
+    // Clear loading state now that data is ready
+    setIsCreatingTasks(false);
 
     // Close mini popup but preserve selectedTaskForEdit for editing
     setShowTaskMiniPopup(false);
@@ -267,14 +273,12 @@ export const useTaskEditing = () => {
     setSelectedWhoOption("none");
     setSelectedRoutineGroup("none");
 
-    // Use setTimeout to ensure state update happens before modal opens
-    setTimeout(() => {
-      console.log(
-        "[TASK-EDIT] 🔍 Opening edit modal with selectedTaskForEdit preserved:",
-        selectedTaskForEdit,
-      );
-      setShowApplyToPopup(true);
-    }, 0);
+    // Open modal immediately since loading state is now cleared
+    console.log(
+      "[TASK-EDIT] 🔍 Opening edit modal with selectedTaskForEdit preserved:",
+      selectedTaskForEdit,
+    );
+    setShowApplyToPopup(true);
   };
 
   return {

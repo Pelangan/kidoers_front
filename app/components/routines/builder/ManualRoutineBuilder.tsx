@@ -278,6 +278,7 @@ export default function ManualRoutineBuilder({
       setShowTaskMiniPopup,
       setMiniPopupPosition,
       setShowApplyToPopup,
+      setIsCreatingTasks,
       getMemberNameById,
     );
   };
@@ -502,11 +503,29 @@ export default function ManualRoutineBuilder({
           setCalendarTasks(newCalendarTasks);
           console.log('[FRONTEND] setCalendarTasks called with:', newCalendarTasks);
 
+          // Update recurring templates to reflect new days in mini modal
+          console.log('[FRONTEND] Updating recurring templates with new days');
+          setRecurringTemplates(prevTemplates => {
+            return prevTemplates.map(template => {
+              if (template.id === result.recurring_template_id) {
+                // Update the template with the new days from the response
+                const newDays = result.days_assigned || [];
+                console.log('[FRONTEND] Updating template', template.id, 'with new days:', newDays);
+                return {
+                  ...template,
+                  days_of_week: newDays
+                };
+              }
+              return template;
+            });
+          });
+
           // Close modal and reset state
           console.log('[FRONTEND] About to close modal and reset state');
           setShowApplyToPopup(false);
           setPendingDrop(null);
-          setDaySelection({ mode: 'custom', selectedDays: [] });
+          // Don't reset daySelection for recurring tasks - let useTaskEditing handle it
+          console.log('[FRONTEND] 🔍 DEBUG: NOT resetting daySelection for recurring task');
           setSelectedWhoOption('none');
           setEditableTaskName('');
           setSelectedTaskForEdit(null);
@@ -545,6 +564,7 @@ export default function ManualRoutineBuilder({
             // Close modal and reset state
             setShowApplyToPopup(false);
             setPendingDrop(null);
+            console.log('[FRONTEND] 🔍 DEBUG: Resetting daySelection to custom mode (single task edit)');
             setDaySelection({ mode: 'custom', selectedDays: [] });
             setSelectedWhoOption('none');
             setEditableTaskName('');
@@ -635,6 +655,7 @@ export default function ManualRoutineBuilder({
       // Close popup and reset
       setShowApplyToPopup(false);
       setPendingDrop(null);
+      console.log('[FRONTEND] 🔍 DEBUG: Resetting daySelection to custom mode (error case)');
       setDaySelection({ mode: 'custom', selectedDays: [] });
       setSelectedWhoOption('none');
       setEditableTaskName('');

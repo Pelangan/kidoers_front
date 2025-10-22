@@ -134,6 +134,38 @@ To avoid confusion during development, it's essential to understand the distinct
 2. **Field Type**: Used `Optional[List[dict]]` to maintain flexibility and backward compatibility
 3. **Documentation**: Added inline comment explaining the field's purpose for recurring tasks
 
+### Template Update Fix - Missing Days Persistence (October 2025)
+**Issue**: When adding new days to recurring tasks (e.g., adding Sunday to a Tuesday/Thursday task), the new days would appear in the UI temporarily but disappear after browser refresh, and the modal wouldn't highlight the new days when reopened.
+
+**Root Cause**: The bulk update function was updating individual `routine_tasks` rows with new days but **not updating the `recurring_task_templates` table**. When the frontend refreshed, it loaded data from the template which still had the old days.
+
+**Solution**: Added template update logic to the bulk update function to sync the template's `days_of_week` and `frequency_type` fields with the new days.
+
+**Files Modified**:
+- `kidoers_backend/app/routers/routines_builder.py` (lines 2064-2084)
+
+**Key Changes**:
+1. **Template Sync**: Added logic to update `recurring_task_templates.days_of_week` with all assigned days
+2. **Frequency Type Logic**: Automatically determines frequency type based on day patterns (daily, weekdays, weekends, specific_days)
+3. **Persistence**: Ensures new days persist across browser refreshes and are properly loaded in modals
+4. **Debugging**: Added logging to track template updates
+
+### Mini Modal State Sync Fix (October 2025)
+**Issue**: After adding new days to recurring tasks (e.g., adding Wednesday), the mini modal (task detail popup) would not immediately show the new days in the "Repeats on..." text until the edit modal was opened.
+
+**Root Cause**: The mini modal uses `getTaskDisplayFrequency` which reads from the `recurringTemplates` state. After bulk updates, this state was not being updated with the new template data, so the mini modal continued to show the old days.
+
+**Solution**: Added state update logic to refresh the `recurringTemplates` state after bulk updates, ensuring the mini modal immediately reflects the new days.
+
+**Files Modified**:
+- `kidoers_front/app/components/routines/builder/ManualRoutineBuilder.tsx` (lines 505-520)
+
+**Key Changes**:
+1. **State Sync**: Added `setRecurringTemplates` update after bulk update completion
+2. **Template Update**: Updates the specific template's `days_of_week` with new days from API response
+3. **Immediate Reflection**: Mini modal now immediately shows updated days without requiring edit modal interaction
+4. **Debugging**: Added logging to track template state updates
+
 ### Avatar Ordering Fix (January 2025)
 **Issue**: Avatar rows in the routine grid were displaying in the order that members were selected, rather than maintaining a consistent order.
 

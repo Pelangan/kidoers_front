@@ -16,6 +16,21 @@ export const useTaskModals = () => {
   const [miniPopupPosition, setMiniPopupPosition] = useState<{ x: number, y: number } | null>(null)
   const [deleteScope, setDeleteScope] = useState<DeleteScope>('instance')
   const [daySelection, setDaySelection] = useState<DaySelection>({ mode: 'everyday', selectedDays: [] })
+
+  // Debug wrapper for setDaySelection
+  const debugSetDaySelection = (newValue: DaySelection | ((prev: DaySelection) => DaySelection)) => {
+    console.log('[USE-TASK-MODALS] 🔍 DEBUG: setDaySelection called with:', newValue);
+    if (typeof newValue === 'function') {
+      setDaySelection((prev) => {
+        const result = newValue(prev);
+        console.log('[USE-TASK-MODALS] 🔍 DEBUG: setDaySelection function result:', result);
+        return result;
+      });
+    } else {
+      console.log('[USE-TASK-MODALS] 🔍 DEBUG: setDaySelection direct value:', newValue);
+      setDaySelection(newValue);
+    }
+  }
   const [selectedWhoOption, setSelectedWhoOption] = useState<string>('none')
   const [selectedRoutineGroup, setSelectedRoutineGroup] = useState<string>('none')
   const [taskAssignmentMemberIds, setTaskAssignmentMemberIds] = useState<string[]>([])
@@ -78,6 +93,7 @@ export const useTaskModals = () => {
   }
 
   const resetFormState = () => {
+    console.log('[USE-TASK-MODALS] 🔍 DEBUG: resetFormState called - resetting daySelection to everyday');
     setEditableTaskName('')
     setSelectedWhoOption('none')
     setSelectedRoutineGroup('none')
@@ -86,6 +102,7 @@ export const useTaskModals = () => {
   }
 
   const closeAllModals = () => {
+    console.log('[USE-TASK-MODALS] 🔍 DEBUG: closeAllModals called - will call resetFormState');
     setShowApplyToPopup(false)
     setShowTaskMiniPopup(false)
     setShowDeleteConfirmModal(false)
@@ -128,7 +145,7 @@ export const useTaskModals = () => {
     setSelectedTaskForEdit,
     setMiniPopupPosition,
     setDeleteScope,
-    setDaySelection,
+    setDaySelection: debugSetDaySelection,
     setSelectedWhoOption,
     setSelectedRoutineGroup,
     setTaskAssignmentMemberIds,
