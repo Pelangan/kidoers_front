@@ -42,6 +42,98 @@ To avoid confusion during development, it's essential to understand the distinct
 
 ## 🔧 Recent Fixes & Improvements
 
+### Bulk Update Recurring Tasks Fix (January 2025)
+**Issue**: When updating the name of a task scheduled for multiple days, the system was throwing a duplicate key constraint violation error: `duplicate key value violates unique constraint "uniq_rt_by_template_time"`.
+
+**Problem**: The `bulk-update-recurring` endpoint was trying to create separate tasks for each day-member combination, but the unique constraint `(routine_id, name, time_of_day, recurring_template_id)` prevented this because it doesn't include member_id or specific day in the constraint.
+
+**Root Cause**: The logic was flawed - it was attempting to create individual tasks for each day (e.g., separate tasks for Tuesday and Friday for the same member), but the unique constraint prevents having multiple tasks with the same `(routine_id, name, time_of_day, recurring_template_id)` combination.
+
+**Solution**: Modified the logic to group assignments by member and create one task per member with all their assigned days in a single `days_of_week` array, rather than creating separate tasks for each day.
+
+**Files Modified**:
+- `kidoers_backend/app/routers/routines_builder.py` (lines 1948-2055)
+
+**Key Changes**:
+1. **Grouped Assignment Logic**: Now groups assignments by member to create one task per member with all their days
+2. **Single Task Creation**: Creates one `routine_tasks` row per member with `days_of_week: [tuesday, friday]` instead of separate rows
+3. **Simplified Deletion**: Deletes tasks per member rather than per day-member combination
+4. **Constraint Compliance**: Respects the unique constraint by ensuring only one task per `(routine_id, name, time_of_day, recurring_template_id)` combination
+
+**Result**: Users can now successfully update task names for recurring tasks without encountering duplicate key violations.
+
+**Frontend Fix**: Updated the frontend code to handle the new task structure where each task contains multiple days in the `days_of_week` array instead of separate tasks per day.
+
+**Files Modified**:
+- `kidoers_front/app/components/routines/builder/ManualRoutineBuilder.tsx` (lines 420-445)
+
+**Key Changes**:
+1. **Multi-Day Task Handling**: Now iterates through all days in `updatedTask.days_of_week` instead of assuming single day
+2. **Proper Assignment Iteration**: Fixed the iteration over `updatedTask.assignments` to handle the array structure correctly
+3. **UI Task Distribution**: Tasks are now properly added to each day they're scheduled for in the calendar view
+
+**Backend State Update Fix**: Fixed issue where tasks disappeared from calendar after saving because the backend wasn't returning updated tasks in the response when updating existing tasks (only when creating new ones).
+
+**Files Modified**:
+- `kidoers_backend/app/routers/routines_builder.py` (lines 1965-1985)
+
+**Key Changes**:
+1. **Response Completeness**: Now includes updated tasks in the `updated_tasks` array for both create and update operations
+2. **Frontend State Sync**: Ensures frontend receives the updated task data to maintain calendar state
+3. **No Refresh Required**: Tasks now persist in the calendar immediately after saving without requiring browser refresh
+
+**Critical Days Array Fix**: Fixed issue where `days_of_week` array was empty in the response, causing tasks to disappear from calendar.
+
+**Files Modified**:
+- `kidoers_backend/app/routers/routines_builder.py` (line 2039)
+
+**Root Cause**: The response was using `task_row[7]` (database field) which was returning `None` instead of using `days_list` (the actual assigned days).
+
+**Key Changes**:
+1. **Correct Days Data**: Now uses `days_list` instead of `task_row[7]` for the `days_of_week` field in the response
+2. **Data Consistency**: Ensures the response contains the same days that were actually assigned to the task
+3. **Frontend Compatibility**: Frontend can now properly iterate through the days and display tasks correctly
+
+**Debugging Enhancement**: Added comprehensive logging to identify why tasks disappear after saving.
+
+**Files Modified**:
+- `kidoers_backend/app/routers/routines_builder.py` (lines 1970-1995, 2035-2060)
+- `kidoers_front/app/components/routines/builder/ManualRoutineBuilder.tsx` (lines 414-425, 215-220)
+
+**Key Changes**:
+1. **Backend Assignment Debugging**: Added detailed logging of assignment data creation and response structure
+2. **Frontend Response Analysis**: Added logging to analyze the actual structure of received data
+3. **State Change Monitoring**: Added useEffect to monitor calendar tasks state changes
+4. **Step-by-Step Tracking**: Added logging for each step of the task update process
+
+**Root Cause Investigation**: Added comprehensive debugging to identify why assignments field is undefined in frontend response.
+
+**Files Modified**:
+- `kidoers_backend/app/routers/routines_builder.py` (lines 2087-2106)
+- `kidoers_front/app/lib/api.ts` (lines 185-193)
+- `kidoers_front/app/components/routines/builder/ManualRoutineBuilder.tsx` (lines 453-462)
+
+**Key Changes**:
+1. **Backend Field Verification**: Added logging to check if assignments field exists in response dictionary
+2. **API Response Analysis**: Added debugging in API service to check assignments immediately after JSON parsing
+3. **Frontend Defensive Programming**: Added handling for undefined assignments field
+4. **Response Structure Validation**: Added checks to ensure assignments field is present in all tasks
+
+### Critical Schema Fix - Assignments Field Missing (October 2025)
+**Issue**: Tasks were disappearing from the calendar after saving because the `assignments` field was `undefined` in the frontend response, preventing tasks from being re-added to the calendar after removal.
+
+**Root Cause**: The `TaskOut` Pydantic schema did not include an `assignments` field, causing FastAPI to strip out the assignments data when serializing the response, even though the backend code was correctly creating the assignments.
+
+**Solution**: Added `assignments: Optional[List[dict]] = None` field to the `TaskOut` schema.
+
+**Files Modified**:
+- `kidoers_backend/app/schemas/routines.py` (line 122)
+
+**Key Changes**:
+1. **Schema Update**: Added `assignments` field to `TaskOut` model to allow assignments data to be included in API responses
+2. **Field Type**: Used `Optional[List[dict]]` to maintain flexibility and backward compatibility
+3. **Documentation**: Added inline comment explaining the field's purpose for recurring tasks
+
 ### Avatar Ordering Fix (January 2025)
 **Issue**: Avatar rows in the routine grid were displaying in the order that members were selected, rather than maintaining a consistent order.
 

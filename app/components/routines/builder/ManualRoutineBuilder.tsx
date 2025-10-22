@@ -212,6 +212,13 @@ export default function ManualRoutineBuilder({
     getTotalTasks,
   } = useCalendarTasks(selectedMemberIds[0], ensureRoutineExists, setError);
 
+  // Debug: Monitor calendar tasks changes
+  useEffect(() => {
+    console.log('[FRONTEND] Calendar tasks state changed:', calendarTasks);
+    const totalTasks = Object.values(calendarTasks).reduce((sum, day) => sum + day.individualTasks.length, 0);
+    console.log('[FRONTEND] Total tasks in calendar:', totalTasks);
+  }, [calendarTasks]);
+
   // Load all initial data using the hook (moved after hook declarations)
 
   // Use task ordering hook
@@ -403,54 +410,107 @@ export default function ManualRoutineBuilder({
 
           // Call the recurring task update API
           const result = await bulkUpdateRecurringTasks(routineData.id, updatePayload);
+          
+          console.log('[FRONTEND] Bulk update result:', result);
+          console.log('[FRONTEND] Updated tasks count:', result.updated_tasks?.length || 0);
+          console.log('[FRONTEND] Updated tasks:', result.updated_tasks);
+          
+          // Debug: Check the actual structure of the first task
+          if (result.updated_tasks && result.updated_tasks.length > 0) {
+            const firstTask = result.updated_tasks[0];
+            console.log('[FRONTEND] First task structure:', firstTask);
+            console.log('[FRONTEND] First task assignments:', firstTask.assignments);
+            console.log('[FRONTEND] First task assignments type:', typeof firstTask.assignments);
+            console.log('[FRONTEND] First task assignments isArray:', Array.isArray(firstTask.assignments));
+          }
 
           // Update UI with the changes
           // First, remove all existing tasks for this recurring template
           const newCalendarTasks = { ...calendarTasks };
+          console.log('[FRONTEND] Original calendar tasks before removal:', calendarTasks);
+          console.log('[FRONTEND] Recurring template ID to remove:', selectedTaskForEdit.task.recurring_template_id);
+          
           Object.keys(newCalendarTasks).forEach(day => {
+            const beforeCount = newCalendarTasks[day].individualTasks.length;
             newCalendarTasks[day] = {
               ...newCalendarTasks[day],
               individualTasks: newCalendarTasks[day].individualTasks.filter(task => 
                 task.recurring_template_id !== selectedTaskForEdit.task.recurring_template_id
               )
             };
+            const afterCount = newCalendarTasks[day].individualTasks.length;
+            if (beforeCount !== afterCount) {
+              console.log(`[FRONTEND] Removed ${beforeCount - afterCount} tasks from ${day}`);
+            }
           });
+          
+          console.log('[FRONTEND] Calendar tasks after removal:', newCalendarTasks);
 
           // Add the updated tasks
           for (const updatedTask of result.updated_tasks) {
-            const day = updatedTask.days_of_week[0]; // Each task is for one day
-            if (!newCalendarTasks[day]) {
-              newCalendarTasks[day] = { individualTasks: [], groups: [] };
-            }
+            console.log('[FRONTEND] Processing updated task:', updatedTask);
             
-            // Add task to UI for each assigned member
-            for (const assignment of updatedTask.assignments) {
-              const taskForUI = {
-                ...updatedTask,
-                memberId: assignment.member_id,
-                is_saved: true,
-                // Ensure deletion and ordering logic can find backend ID
-                routine_task_id: updatedTask.id,
-                template_id: updatedTask.recurring_template_id || undefined,
-                recurring_template_id: updatedTask.recurring_template_id || undefined,
-                from_group: undefined,
-                estimatedMinutes: updatedTask.duration_mins || 5,
-                time_of_day: updatedTask.time_of_day as "morning" | "afternoon" | "evening" | "night" | undefined
-              };
+            // Ensure assignments is an array - handle undefined case
+            let assignments = updatedTask.assignments;
+            if (assignments === undefined) {
+              console.log('[FRONTEND] WARNING: assignments is undefined, creating empty array');
+              assignments = [];
+            } else if (!Array.isArray(assignments)) {
+              console.log('[FRONTEND] WARNING: assignments is not an array, converting to array');
+              assignments = Array.isArray(assignments) ? assignments : [];
+            }
+            console.log('[FRONTEND] Assignments:', assignments);
+            
+            // Ensure days_of_week is an array
+            const daysOfWeek = Array.isArray(updatedTask.days_of_week) ? updatedTask.days_of_week : [];
+            console.log('[FRONTEND] Days of week:', daysOfWeek);
+            
+            // Each task now contains multiple days, so we need to add it to each day
+            for (const day of daysOfWeek) {
+              if (!newCalendarTasks[day]) {
+                newCalendarTasks[day] = { individualTasks: [], groups: [] };
+                console.log(`[FRONTEND] Created new day entry for ${day}`);
+              }
               
-              newCalendarTasks[day].individualTasks.push(taskForUI);
+              const beforeCount = newCalendarTasks[day].individualTasks.length;
+              
+              // Add task to UI for each assigned member
+              for (const assignment of assignments) {
+                const taskForUI = {
+                  ...updatedTask,
+                  memberId: assignment.member_id,
+                  is_saved: true,
+                  // Ensure deletion and ordering logic can find backend ID
+                  routine_task_id: updatedTask.id,
+                  template_id: updatedTask.recurring_template_id || undefined,
+                  recurring_template_id: updatedTask.recurring_template_id || undefined,
+                  from_group: undefined,
+                  estimatedMinutes: updatedTask.duration_mins || 5,
+                  time_of_day: updatedTask.time_of_day as "morning" | "afternoon" | "evening" | "night" | undefined
+                };
+                
+                newCalendarTasks[day].individualTasks.push(taskForUI);
+                console.log('[FRONTEND] Added task to UI for day:', day, 'member:', assignment.member_id, 'task name:', taskForUI.name);
+              }
+              
+              const afterCount = newCalendarTasks[day].individualTasks.length;
+              console.log(`[FRONTEND] Day ${day}: ${beforeCount} -> ${afterCount} tasks (added ${afterCount - beforeCount})`);
             }
           }
-
+          
+          console.log('[FRONTEND] Final calendar tasks before setState:', newCalendarTasks);
           setCalendarTasks(newCalendarTasks);
+          console.log('[FRONTEND] setCalendarTasks called with:', newCalendarTasks);
 
           // Close modal and reset state
+          console.log('[FRONTEND] About to close modal and reset state');
           setShowApplyToPopup(false);
           setPendingDrop(null);
           setDaySelection({ mode: 'custom', selectedDays: [] });
           setSelectedWhoOption('none');
           setEditableTaskName('');
           setSelectedTaskForEdit(null);
+          console.log('[FRONTEND] Modal closed and state reset');
 
           return; // Exit early for recurring task updates
         }

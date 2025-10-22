@@ -181,6 +181,17 @@ class ApiService {
 
       const responseData = await response.json()
       console.log('Response data:', responseData)
+      
+      // Debug: Check if this is a bulk update response and log the assignments
+      if (responseData.updated_tasks && Array.isArray(responseData.updated_tasks)) {
+        console.log('🔍 DEBUG: Bulk update response detected')
+        responseData.updated_tasks.forEach((task: any, index: number) => {
+          console.log(`🔍 DEBUG: Task ${index} assignments:`, task.assignments)
+          console.log(`🔍 DEBUG: Task ${index} assignments type:`, typeof task.assignments)
+          console.log(`🔍 DEBUG: Task ${index} assignments isArray:`, Array.isArray(task.assignments))
+        })
+      }
+      
       return responseData
     } catch (error) {
       console.error('API request failed:', error)
