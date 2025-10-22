@@ -158,28 +158,16 @@ export const useTaskOperations = ({
     }
   }, [currentRoutineId, updateTemplateDays, bulkDeleteTasks]);
 
-  // Delete entire series (remove weekday or delete template)
+  // Delete entire series (always delete all tasks with this template)
   const deleteSeries = useCallback(async (card: PlannerCard) => {
     if (!currentRoutineId) return;
 
-    const days = card.recurrence.days_of_week ?? [];
-    
-    if (days.length > 1) {
-      // Remove the specific weekday from the rule
-      const updated = days.filter(d => d !== card.weekday);
-      console.log(`[KIDOERS-ROUTINE] 🔄 Removing ${card.weekday} from series, remaining: ${updated}`);
-      
-      // Update template with remaining days
-      await updateTemplateDays(currentRoutineId!, card.recurring_template_id, { days_of_week: updated });
-    } else {
-      // Last weekday → delete the entire template
-      console.log('[KIDOERS-ROUTINE] 🔄 Deleting entire series (last weekday)');
-      await bulkDeleteTasks(currentRoutineId!, {
-        recurring_template_id: card.recurring_template_id,
-        delete_scope: 'all_days'
-      });
-    }
-  }, [currentRoutineId, updateTemplateDays, bulkDeleteTasks]);
+    console.log('[KIDOERS-ROUTINE] 🔄 Deleting entire series (all events)');
+    await bulkDeleteTasks(currentRoutineId!, {
+      recurring_template_id: card.recurring_template_id,
+      delete_scope: 'all_days'
+    });
+  }, [currentRoutineId, bulkDeleteTasks]);
 
   // Handle delete choice based on scope
   const handleDeleteChoice = useCallback(async (choice: DeleteScope, card: PlannerCard) => {
@@ -253,13 +241,10 @@ export const useTaskOperations = ({
         // Update local recurringTemplates if we found the template
         if (template) {
           console.log('[KIDOERS-ROUTINE] 🔄 Updating local recurringTemplates with fetched template');
-          setRecurringTemplates(prev => {
-            const exists = prev.find(t => t.id === template.id);
-            if (!exists) {
-              return [...prev, template];
-            }
-            return prev;
-          });
+          const exists = recurringTemplates.find(t => t.id === template!.id);
+          if (!exists) {
+            setRecurringTemplates([...recurringTemplates, template!]);
+          }
         }
       } catch (error) {
         console.error('[KIDOERS-ROUTINE] ❌ Failed to fetch template from backend:', error);
@@ -329,10 +314,10 @@ export const useTaskOperations = ({
     return; // IMPORTANT: Exit here to prevent falling through to non-recurring logic
 
     // For non-recurring tasks, delete immediately
-    console.log('[KIDOERS-ROUTINE] 🗑️ Deleting individual task immediately:', selectedTaskForEdit.task.routine_task_id);
+    console.log('[KIDOERS-ROUTINE] 🗑️ Deleting individual task immediately:', selectedTaskForEdit?.task.routine_task_id);
     
     // Store task info and original calendar state for undo
-    const taskToDelete = selectedTaskForEdit;
+    const taskToDelete = selectedTaskForEdit!;
     const originalCalendarTasks = JSON.parse(JSON.stringify(calendarTasks)); // Deep copy for undo
 
     try {
@@ -349,7 +334,7 @@ export const useTaskOperations = ({
       }
       
       // Delete only the specific task by its routine_task_id
-      await deleteRoutineTask(routineData.id, selectedTaskForEdit.task.routine_task_id);
+      await deleteRoutineTask(routineData!.id, selectedTaskForEdit!.task.routine_task_id!);
       
       console.log('[KIDOERS-ROUTINE] ✅ Task deleted successfully');
 
@@ -363,8 +348,8 @@ export const useTaskOperations = ({
             ...newCalendarTasks[day],
             individualTasks: newCalendarTasks[day].individualTasks.filter((t) => {
               // Remove only the exact task with the same routine_task_id and member_id
-              return !(t.routine_task_id === selectedTaskForEdit.task.routine_task_id &&
-                       t.memberId === selectedTaskForEdit.memberId);
+              return !(t.routine_task_id === selectedTaskForEdit!.task.routine_task_id &&
+                       t.memberId === selectedTaskForEdit!.memberId);
             }),
           };
         });
@@ -377,23 +362,23 @@ export const useTaskOperations = ({
 
       // Store task data needed for undo
       // Get template data for the task being deleted
-      const deleteTemplate = recurringTemplates.find(t => t.id === taskToDelete.task.recurring_template_id);
-      const deleteTaskDays = deleteTemplate?.days_of_week || [taskToDelete.day];
+      const deleteTemplate = recurringTemplates.find(t => t.id === taskToDelete!.task.recurring_template_id);
+      const deleteTaskDays = deleteTemplate?.days_of_week || [taskToDelete!.day];
 
       const taskDataForUndo = {
-        name: taskToDelete.task.name,
-        description: taskToDelete.task.description || undefined,
-        points: taskToDelete.task.points,
-        duration_mins: taskToDelete.task.estimatedMinutes,
-        time_of_day: taskToDelete.task.time_of_day || undefined,
+        name: taskToDelete!.task.name,
+        description: taskToDelete!.task.description || undefined,
+        points: taskToDelete!.task.points,
+        duration_mins: taskToDelete!.task.estimatedMinutes,
+        time_of_day: taskToDelete!.task.time_of_day || undefined,
         frequency: (deleteTemplate?.frequency_type || "specific_days") as
           | "one_off"
           | "daily"
           | "specific_days"
           | "weekly",
         days_of_week: deleteTaskDays,
-        member_ids: taskToDelete.task.assignees?.map((a) => a.id) || [
-          taskToDelete.memberId,
+        member_ids: taskToDelete!.task.assignees?.map((a) => a.id) || [
+          taskToDelete!.memberId,
         ],
       };
 
