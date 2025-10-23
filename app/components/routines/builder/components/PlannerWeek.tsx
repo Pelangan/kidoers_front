@@ -230,15 +230,19 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                         {/* Empty bucket drop zone - always render but hide when not dragging */}
                         {orderedTasks.length === 0 && (
                           <div
-                            className={`rounded transition-all ${
+                            className={`rounded transition-all duration-200 ease-in-out ${
                               draggedTask && dragOverPosition?.day === day && 
                               dragOverPosition?.memberId === bucket.bucket_member_id &&
                               !dragOverPosition?.targetTaskId
-                                ? 'h-16 bg-blue-100 border-2 border-dashed border-blue-400' 
+                                ? 'max-h-16 bg-blue-100 border-2 border-dashed border-blue-400' 
                                 : draggedTask 
-                                  ? 'h-16 border-2 border-dashed border-gray-200 hover:bg-blue-50 hover:border-blue-300'
-                                  : 'h-0'
+                                  ? 'max-h-16 border-2 border-dashed border-gray-200 hover:bg-blue-50 hover:border-blue-300'
+                                  : 'max-h-0'
                             }`}
+                            style={{
+                              overflow: 'hidden',
+                              height: draggedTask ? '64px' : '0px'
+                            }}
                             onDragOver={(e) => {
                               console.log('[PLANNER-WEEK] Empty bucket drag over:', {
                                 day,
@@ -295,17 +299,19 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                             <div key={`${task.id}-${day}-${bucket.bucket_type || 'unknown'}-${bucket.bucket_member_id || 'shared'}`}>
                               {/* Drop zone before this task */}
                               <div
-                                className={`rounded transition-all ${
+                                className={`rounded transition-all duration-200 ease-in-out ${
                                   draggedTask && dragOverPosition?.day === day && 
                                     dragOverPosition?.memberId === bucket.bucket_member_id &&
                                     dragOverPosition?.position === 'before' && 
                                     dragOverPosition?.targetTaskId === task.id
-                                      ? 'h-8 bg-blue-400 border-2 border-dashed border-blue-600' 
+                                      ? 'max-h-8 bg-blue-400 border-2 border-dashed border-blue-600' 
                                       : draggedTask 
-                                        ? 'h-8 hover:bg-blue-100 hover:border-2 hover:border-dashed hover:border-blue-300'
-                                        : 'h-0'
+                                        ? 'max-h-8 hover:bg-blue-100 hover:border-2 hover:border-dashed hover:border-blue-300'
+                                        : 'max-h-0'
                                 }`}
-                                style={{ 
+                                style={{
+                                  overflow: 'hidden',
+                                  height: draggedTask ? '32px' : '0px',
                                   zIndex: 10,
                                   position: 'relative'
                                 }}
@@ -352,16 +358,20 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                               {/* Drop zone after this task */}
                               {taskIndex === orderedTasks.length - 1 && (
                                 <div
-                                  className={`rounded transition-all ${
+                                  className={`rounded transition-all duration-200 ease-in-out ${
                                     draggedTask && dragOverPosition?.day === day && 
                                     dragOverPosition?.memberId === bucket.bucket_member_id && 
                                     dragOverPosition?.position === 'after' && 
                                     dragOverPosition?.targetTaskId === task.id
-                                      ? 'h-2 bg-blue-400 border-2 border-dashed border-blue-600' 
+                                      ? 'max-h-2 bg-blue-400 border-2 border-dashed border-blue-600' 
                                       : draggedTask 
-                                        ? 'h-2 hover:bg-blue-100 hover:border-2 hover:border-dashed hover:border-blue-300'
-                                        : 'h-0'
+                                        ? 'max-h-2 hover:bg-blue-100 hover:border-2 hover:border-dashed hover:border-blue-300'
+                                        : 'max-h-0'
                                   }`}
+                                  style={{
+                                    overflow: 'hidden',
+                                    height: draggedTask ? '8px' : '0px'
+                                  }}
                                   onDragOver={(e) => onTaskDragOver(e, day, bucket.bucket_member_id || '', 'after', task.id)}
                                   onDragLeave={onTaskDragLeave}
                                   onDrop={(e) => onTaskDrop(e, day, bucket.bucket_member_id || '')}
@@ -374,15 +384,19 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                         {/* Bottom drop zone for non-empty buckets - always render but hide when not dragging */}
                         {orderedTasks.length > 0 && (
                           <div
-                            className={`mt-2 rounded transition-all ${
+                            className={`mt-2 rounded transition-all duration-200 ease-in-out ${
                               draggedTask && dragOverPosition?.day === day && 
                               dragOverPosition?.memberId === bucket.bucket_member_id &&
                               !dragOverPosition?.targetTaskId
-                                ? 'h-16 bg-blue-100 border-2 border-dashed border-blue-400' 
+                                ? 'max-h-16 bg-blue-100 border-2 border-dashed border-blue-400' 
                                 : draggedTask 
-                                  ? 'h-16 border-2 border-dashed border-gray-200 hover:bg-blue-50 hover:border-blue-300'
-                                  : 'h-0'
+                                  ? 'max-h-16 border-2 border-dashed border-gray-200 hover:bg-blue-50 hover:border-blue-300'
+                                  : 'max-h-0'
                             }`}
+                            style={{
+                              overflow: 'hidden',
+                              height: draggedTask ? '64px' : '0px'
+                            }}
                             onDragOver={(e) => {
                               e.preventDefault()
                               e.stopPropagation()
