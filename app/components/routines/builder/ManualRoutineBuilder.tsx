@@ -14,6 +14,7 @@ import {
   getRoutineFullData,
   updateTemplateDays,
   bulkCreateIndividualTasks,
+  createSeparateTasksForMembers,
   bulkUpdateRecurringTasks,
 } from "../../../lib/api";
 import RoutineDetailsModal from "./RoutineDetailsModal";
@@ -374,6 +375,9 @@ export default function ManualRoutineBuilder({
       } else if (selectedApplyToId === 'all-family') {
         // All family members
         targetMemberIds = enhancedFamilyMembers.map(member => member.id);
+      } else if (taskAssignmentMemberIds && taskAssignmentMemberIds.length > 0) {
+        // Individual member selection from the modal
+        targetMemberIds = taskAssignmentMemberIds;
       } else {
         // Fallback to single member
         targetMemberIds = [pendingDrop.targetMemberId];
@@ -598,46 +602,59 @@ export default function ManualRoutineBuilder({
           create_recurring_template: true // Always create recurring template
         };
 
-        // Call bulk API
-        const result = await bulkCreateIndividualTasks(routineData.id, bulkPayload);
+        console.log('[FRONTEND] 🚀 Calling createSeparateTasksForMembers with payload:', bulkPayload);
+        console.log('[FRONTEND] 🚀 Target members:', targetMemberIds);
+        console.log('[FRONTEND] 🚀 Target days:', targetDays);
+        
+        // Call the separate tasks API (creates separate tasks for each member)
+        const result = await createSeparateTasksForMembers(routineData.id, bulkPayload);
+        
+        console.log('[FRONTEND] ✅ createSeparateTasksForMembers result:', result);
+        console.log('[FRONTEND] ✅ Tasks created:', result.tasks_created);
+        console.log('[FRONTEND] ✅ Created tasks:', result.created_tasks);
 
         // Update UI with created tasks
         const newCalendarTasks = { ...calendarTasks };
+        
+        // The separate tasks API creates separate tasks for each member, and returns one entry per member
+        // Each entry in created_tasks has a member_id field indicating which member it's for
         for (const createdTask of result.created_tasks) {
+          const memberId = createdTask.member_id;
+          
           // Get the day from the template's days_of_week (since routine_tasks.days_of_week is now NULL)
           // For now, we'll use the targetDays from the UI since each task is created for specific days
           const taskDays = targetDays; // Use the days from the UI selection
           
-          // Add task to UI for each assigned day and member
+          // Add task to UI for each assigned day
           for (const day of taskDays) {
             if (!newCalendarTasks[day]) {
               newCalendarTasks[day] = { individualTasks: [], groups: [] };
             }
             
-            for (const memberId of targetMemberIds) {
-              const taskForUI = {
-                ...createdTask,
-                memberId: memberId,
-                is_saved: true,
-                // Ensure deletion and ordering logic can find backend ID
-                routine_task_id: createdTask.id,
-                estimatedMinutes: createdTask.duration_mins || 30, // Default to 30 minutes if not specified
-                time_of_day: createdTask.time_of_day as "morning" | "afternoon" | "evening" | "night" | null,
-                recurring_template_id: createdTask.recurring_template_id || 'temp-id'
-              };
+            // Create a unique UI task entry for this member
+            const taskForUI = {
+              ...createdTask,
+              id: createdTask.id, // Use the actual backend task ID
+              memberId: memberId,
+              is_saved: true,
+              // Ensure deletion and ordering logic can find backend ID
+              routine_task_id: createdTask.id,
+              estimatedMinutes: createdTask.duration_mins || 30, // Default to 30 minutes if not specified
+              time_of_day: createdTask.time_of_day as "morning" | "afternoon" | "evening" | "night" | null,
+              recurring_template_id: createdTask.recurring_template_id || 'temp-id'
+            };
             
             // Check if task already exists in UI state to avoid duplicates
             const existingTaskIndex = newCalendarTasks[day].individualTasks.findIndex(
-              existingTask => existingTask.id === taskForUI.id && existingTask.memberId === memberId
+              existingTask => existingTask.routine_task_id === taskForUI.routine_task_id && existingTask.memberId === memberId
             );
             
-              if (existingTaskIndex >= 0) {
-                // Update existing task
-                newCalendarTasks[day].individualTasks[existingTaskIndex] = taskForUI;
-              } else {
-                // Add new task
-                newCalendarTasks[day].individualTasks.push(taskForUI);
-              }
+            if (existingTaskIndex >= 0) {
+              // Update existing task
+              newCalendarTasks[day].individualTasks[existingTaskIndex] = taskForUI;
+            } else {
+              // Add new task
+              newCalendarTasks[day].individualTasks.push(taskForUI);
             }
           }
         }

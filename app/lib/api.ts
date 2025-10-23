@@ -711,6 +711,51 @@ export async function bulkCreateIndividualTasks(routineId: string, payload: {
   });
 }
 
+// Create separate tasks for each member
+export async function createSeparateTasksForMembers(routineId: string, payload: {
+  task_template: {
+    name: string;
+    description?: string;
+    points: number;
+    duration_mins?: number;
+    time_of_day?: "morning"|"afternoon"|"evening"|"night";
+    from_task_template_id?: string;
+  };
+  assignments: Array<{
+    member_id: string;
+    days_of_week: string[];
+    order_index?: number;
+  }>;
+  create_recurring_template?: boolean;
+  existing_recurring_template_id?: string;
+}) {
+  return apiService.makeRequest<{
+    routine_id: string;
+    tasks_created: number;
+    assignments_created: number;
+    members_assigned: string[];
+    days_assigned: string[];
+    created_tasks: Array<{
+      id: string;
+      routine_id: string;
+      group_id: string | null;
+      name: string;
+      description: string | null;
+      points: number;
+      duration_mins: number | null;
+      time_of_day: string | null;
+      frequency: string;
+      days_of_week: string[];
+      order_index: number;
+      member_id: string;
+      recurring_template_id: string;
+    }>;
+  }>(`/routines/${routineId}/tasks/create-separate`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 // Bulk task deletion
 export async function bulkDeleteTasks(routineId: string, payload: {
   recurring_template_id?: string;

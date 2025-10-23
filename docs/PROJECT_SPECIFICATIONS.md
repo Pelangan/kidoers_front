@@ -134,6 +134,26 @@ To avoid confusion during development, it's essential to understand the distinct
 2. **Field Type**: Used `Optional[List[dict]]` to maintain flexibility and backward compatibility
 3. **Documentation**: Added inline comment explaining the field's purpose for recurring tasks
 
+### Multi-Member Task Creation Fix (January 2025)
+**Issue**: When creating tasks for multiple family members (e.g., Cristian and Cristina), the task was only being created for Cristian instead of creating individual tasks for each selected member.
+
+**Root Cause**: The frontend was not properly using the individually selected members (`taskAssignmentMemberIds`) when determining which members should receive the task, and the database unique constraint prevented creating multiple tasks with the same template.
+
+**Solution**: Fixed the frontend logic to properly use individual member selection and updated the backend to create separate tasks and recurring templates for each member.
+
+**Files Modified**:
+- `kidoers_front/app/components/routines/builder/ManualRoutineBuilder.tsx` (lines 378-384, 605-660)
+- `kidoers_backend/app/routers/routines_builder.py` (lines 1856-1896) - Updated `/routines/{routine_id}/tasks/create-separate` endpoint
+
+**Key Changes**:
+1. **Individual Member Selection**: Added logic to use `taskAssignmentMemberIds` when individual members are selected in the modal
+2. **Separate Recurring Templates**: Backend now creates separate recurring templates for each member to avoid unique constraint violations
+3. **Separate Tasks**: Each member gets their own individual task in the `routine_tasks` table
+4. **Unique Template Names**: Template names are made unique per member using member ID suffix
+5. **Proper Response Handling**: Frontend correctly handles the response to create separate UI entries for each member
+
+**Result**: Tasks are now properly created as separate individual tasks for each selected family member. Each member gets their own task entry in the `routine_tasks` table, their own recurring template, and their own task entry in the calendar view.
+
 ### Template Update Fix - Missing Days Persistence (October 2025)
 **Issue**: When adding new days to recurring tasks (e.g., adding Sunday to a Tuesday/Thursday task), the new days would appear in the UI temporarily but disappear after browser refresh, and the modal wouldn't highlight the new days when reopened.
 
