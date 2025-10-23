@@ -154,13 +154,15 @@ export const DayColumn: React.FC<DayColumnProps> = ({
                 <div key={`${task.id}-${task.memberId || selectedMemberIds[0]}-${day}`}>
                   {/* Drop zone before this task */}
                   <div
-                    className={`h-2 rounded transition-all ${
-                      dragOverPosition?.day === day && 
+                    className={`rounded transition-all ${
+                      draggedTask && dragOverPosition?.day === day && 
                         dragOverPosition?.memberId === (task.memberId || selectedMemberIds[0]) &&
-                      dragOverPosition?.position === 'before' && 
-                      dragOverPosition?.targetTaskId === task.id
-                        ? 'bg-blue-400 border-2 border-dashed border-blue-600' 
-                        : 'hover:bg-blue-100 hover:border-2 hover:border-dashed hover:border-blue-300'
+                        dragOverPosition?.position === 'before' && 
+                        dragOverPosition?.targetTaskId === task.id
+                          ? 'h-2 bg-blue-400 border-2 border-dashed border-blue-600' 
+                          : draggedTask 
+                            ? 'h-2 hover:bg-blue-100 hover:border-2 hover:border-dashed hover:border-blue-300'
+                            : 'h-0'
                     }`}
                     onDragOver={(e) => onTaskDragOver(e, day, task.memberId || selectedMemberIds[0], 'before', task.id)}
                     onDragLeave={onTaskDragLeave}
@@ -186,13 +188,15 @@ export const DayColumn: React.FC<DayColumnProps> = ({
                   {/* Drop zone after this task */}
                   {taskIndex === taskArray.length - 1 && (
                     <div
-                      className={`h-2 rounded transition-all ${
-                        dragOverPosition?.day === day && 
+                      className={`rounded transition-all ${
+                        draggedTask && dragOverPosition?.day === day && 
                         dragOverPosition?.memberId === task.memberId && 
                         dragOverPosition?.position === 'after' && 
                         dragOverPosition?.targetTaskId === task.id
-                          ? 'bg-blue-400 border-2 border-dashed border-blue-600' 
-                          : 'hover:bg-blue-100 hover:border-2 hover:border-dashed hover:border-blue-300'
+                          ? 'h-2 bg-blue-400 border-2 border-dashed border-blue-600' 
+                          : draggedTask 
+                            ? 'h-2 hover:bg-blue-100 hover:border-2 hover:border-dashed hover:border-blue-300'
+                            : 'h-0'
                       }`}
                       onDragOver={(e) => onTaskDragOver(e, day, task.memberId || selectedMemberIds[0], 'after', task.id)}
                       onDragLeave={onTaskDragLeave}
