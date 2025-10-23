@@ -7,7 +7,7 @@ interface DayColumnProps {
   day: string
   dayTasks: { groups: TaskGroupType[]; individualTasks: Task[] }
   selectedMemberIds: string[]
-  draggedTask: { task: Task; day: string; memberId: string } | null
+  draggedTask: { task: Task; day: string; memberId: string; isCopyOperation?: boolean } | null
   dragOverPosition: { day: string; memberId: string; position: 'before' | 'after'; targetTaskId?: string } | null
   recurringTemplates: RecurringTemplate[]
   familyMembers: Array<{
@@ -180,6 +180,7 @@ export const DayColumn: React.FC<DayColumnProps> = ({
                     onClick={onTaskClick}
                     allDayTasks={dayTasks.individualTasks}
                     onSeriesBadgeClick={onSeriesBadgeClick}
+                    isCopyOperation={draggedTask?.isCopyOperation || false}
                   />
                   
                   {/* Drop zone after this task */}

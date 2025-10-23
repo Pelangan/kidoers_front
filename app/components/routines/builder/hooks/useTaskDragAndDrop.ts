@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { bulkUpdateDayOrders, updateTemplateDays } from '../../../../lib/api'
+import { useToast } from '../../../../hooks/use-toast'
 import type { Task, DaySpecificOrder, RecurringTemplate } from '../types/routineBuilderTypes'
 
 interface CalendarTasks {
@@ -11,6 +12,7 @@ interface DraggedTask {
   task: Task
   day: string
   memberId: string
+  isCopyOperation?: boolean
 }
 
 interface DragOverPosition {
@@ -29,6 +31,7 @@ export const useTaskDragAndDrop = (
   recurringTemplates: RecurringTemplate[] = [],
   reloadRoutineData?: () => Promise<void>
 ) => {
+  const { toast } = useToast()
   // Drag and drop state
   const [draggedTask, setDraggedTask] = useState<DraggedTask | null>(null)
   const [dragOverPosition, setDragOverPosition] = useState<DragOverPosition | null>(null)
@@ -54,23 +57,44 @@ export const useTaskDragAndDrop = (
   const handleTaskDragStart = (e: React.DragEvent, task: Task, day: string, memberId: string) => {
     console.log('[DRAG-ORDER] 🚀 DRAG START EVENT TRIGGERED!', { task: task.name, day, memberId })
     console.log('[DRAG-ORDER] 🔧 DEBUG: handleTaskDragStart called with:', { task, day, memberId })
-    e.dataTransfer.effectAllowed = 'move'
+    
+    // Check if this is a copy operation (Option/Alt key held)
+    const isCopyOperation = e.altKey || e.metaKey
+    
+    if (isCopyOperation) {
+      e.dataTransfer.effectAllowed = 'copy'
+      console.log('[DRAG-ORDER] 📋 Copy operation detected (Option/Alt key held)')
+    } else {
+      e.dataTransfer.effectAllowed = 'move'
+    }
+    
     e.dataTransfer.setData('text/plain', '') // Required for Firefox
     
     // Store the dragged task info
-    console.log('[DRAG-ORDER] 📝 Storing dragged task:', { task: task.name, day, memberId })
+    console.log('[DRAG-ORDER] 📝 Storing dragged task:', { task: task.name, day, memberId, isCopyOperation })
     
-    setDraggedTask({ task, day, memberId })
+    setDraggedTask({ task, day, memberId, isCopyOperation })
     setIsDragging(true)
-    console.log('[DRAG-ORDER] ✅ Started dragging task:', task.name, 'from day:', day, 'member:', memberId)
+    console.log('[DRAG-ORDER] ✅ Started dragging task:', task.name, 'from day:', day, 'member:', memberId, 'copy:', isCopyOperation)
     console.log('[CURSOR-DEBUG] Set isDragging to true')
   }
 
   const handleTaskDragOver = (e: React.DragEvent, day: string, memberId: string, position: 'before' | 'after', targetTaskId?: string) => {
-    if (!draggedTask) return
+    console.log('[DRAG-ORDER] 🎯 Drag over event received:', { day, memberId, position, targetTaskId, draggedTask: draggedTask?.task.name })
+    
+    if (!draggedTask) {
+      console.log('[DRAG-ORDER] ❌ No dragged task, ignoring drag over')
+      return
+    }
     
     e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
+    
+    // Set the appropriate drop effect based on operation type
+    if (draggedTask.isCopyOperation) {
+      e.dataTransfer.dropEffect = 'copy'
+    } else {
+      e.dataTransfer.dropEffect = 'move'
+    }
     
     const newDragOverPosition = { day, memberId, position, targetTaskId }
     
@@ -101,36 +125,176 @@ export const useTaskDragAndDrop = (
     
     e.preventDefault()
     
-    const { task, day: sourceDay, memberId: sourceMemberId } = draggedTask
+    const { task, day: sourceDay, memberId: sourceMemberId, isCopyOperation } = draggedTask
     
     console.log('[DRAG-ORDER] 🎯 DROP EVENT:', {
       sourceDay,
       sourceMemberId,
       targetDay,
       targetMemberId,
-      dragOverPosition
+      dragOverPosition,
+      isCopyOperation
     })
 
-    // Don't reorder if dropped in the same position AND no drag over position is specified
-    if (sourceDay === targetDay && sourceMemberId === targetMemberId && (!dragOverPosition || !dragOverPosition.targetTaskId)) {
-      console.log('[DRAG-ORDER] ⚠️ Dropped in same position with no specific target, no reorder needed')
-      setDraggedTask(null)
-      setDragOverPosition(null)
-      return
-    }
+    // Determine operation type
+    const isSameDay = sourceDay === targetDay
+    const isSameMember = sourceMemberId === targetMemberId
+    const isMemberTransfer = !isSameMember
+    const isDayChange = !isSameDay
 
-    // Move the task to the new position
-    console.log('[DRAG-ORDER] ✅ Proceeding with reorder - dragOverPosition:', dragOverPosition)
-    await moveTaskToPosition(task, sourceDay, sourceMemberId, targetDay, targetMemberId, dragOverPosition)
+    // Handle different operation types
+    if (isCopyOperation) {
+      await handleCopyOperation(task, sourceDay, sourceMemberId, targetDay, targetMemberId, dragOverPosition)
+    } else if (isMemberTransfer) {
+      await handleMemberTransfer(task, sourceDay, sourceMemberId, targetDay, targetMemberId, dragOverPosition)
+    } else if (isDayChange) {
+      await handleDayChange(task, sourceDay, sourceMemberId, targetDay, targetMemberId, dragOverPosition)
+    } else {
+      // Same day, same member - reorder only
+      await handleReorder(task, sourceDay, sourceMemberId, dragOverPosition)
+    }
     
-    // Drag state is now cleared immediately after optimistic UI update in moveTaskToPosition
-    console.log('[DRAG-ORDER] ✅ moveTaskToPosition completed - drag state already cleared')
+    // Clear drag state
+    setDraggedTask(null)
+    setDragOverPosition(null)
+    setIsDragging(false)
   }
 
   const handleTaskDragEnd = () => {
     setDraggedTask(null)
     setDragOverPosition(null)
     setIsDragging(false)
+  }
+
+  // New operation handlers
+  const handleCopyOperation = async (
+    task: Task,
+    sourceDay: string,
+    sourceMemberId: string,
+    targetDay: string,
+    targetMemberId: string,
+    dragOverPosition: DragOverPosition | null
+  ) => {
+    console.log('[DRAG-ORDER] 📋 COPY OPERATION:', {
+      taskName: task.name,
+      sourceDay,
+      sourceMemberId,
+      targetDay,
+      targetMemberId
+    })
+
+    // For copy operations, we need to create a new task for the target member/day
+    // This is a complex operation that would require creating a new recurring template
+    // For now, we'll show a toast message indicating this feature is coming soon
+    console.log('[DRAG-ORDER] 📋 Copy operation - feature coming soon')
+    
+    toast({
+      title: "Copy feature coming soon",
+      description: "Copy functionality will be available in a future update."
+    })
+    
+    // TODO: Implement copy functionality
+    // This would involve:
+    // 1. Creating a new recurring template based on the source task
+    // 2. Assigning it to the target member
+    // 3. Setting the appropriate days
+    // 4. Updating the UI optimistically
+  }
+
+  const handleMemberTransfer = async (
+    task: Task,
+    sourceDay: string,
+    sourceMemberId: string,
+    targetDay: string,
+    targetMemberId: string,
+    dragOverPosition: DragOverPosition | null
+  ) => {
+    console.log('[DRAG-ORDER] 👤 MEMBER TRANSFER:', {
+      taskName: task.name,
+      sourceDay,
+      sourceMemberId,
+      targetDay,
+      targetMemberId
+    })
+
+    // For member transfer, we need to:
+    // 1. Update the task's assignees to remove source member and add target member
+    // 2. Handle day changes if applicable
+    // 3. Update recurring template if needed
+    
+    // TODO: Implement member transfer functionality
+    console.log('[DRAG-ORDER] 👤 Member transfer - feature coming soon')
+    
+    toast({
+      title: "Member transfer coming soon",
+      description: "Transferring tasks between members will be available in a future update."
+    })
+  }
+
+  const handleDayChange = async (
+    task: Task,
+    sourceDay: string,
+    sourceMemberId: string,
+    targetDay: string,
+    targetMemberId: string,
+    dragOverPosition: DragOverPosition | null
+  ) => {
+    console.log('[DRAG-ORDER] 📅 DAY CHANGE:', {
+      taskName: task.name,
+      sourceDay,
+      sourceMemberId,
+      targetDay,
+      targetMemberId
+    })
+
+    try {
+      // For day changes, we can use the existing moveTaskToPosition logic
+      await moveTaskToPosition(task, sourceDay, sourceMemberId, targetDay, targetMemberId, dragOverPosition)
+      
+      // Show success toast
+      toast({
+        title: "Task moved",
+        description: `Moved ${task.name} to ${targetDay}`
+      })
+    } catch (error) {
+      console.error('[DRAG-ORDER] ❌ Day change failed:', error)
+      toast({
+        title: "Move failed",
+        description: "Couldn't save changes. Try again.",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleReorder = async (
+    task: Task,
+    sourceDay: string,
+    sourceMemberId: string,
+    dragOverPosition: DragOverPosition | null
+  ) => {
+    console.log('[DRAG-ORDER] 🔄 REORDER:', {
+      taskName: task.name,
+      sourceDay,
+      sourceMemberId
+    })
+
+    try {
+      // For reordering, we can use the existing moveTaskToPosition logic
+      await moveTaskToPosition(task, sourceDay, sourceMemberId, sourceDay, sourceMemberId, dragOverPosition)
+      
+      // Show success toast
+      toast({
+        title: "Tasks reordered",
+        description: `Reordered tasks for ${sourceDay}`
+      })
+    } catch (error) {
+      console.error('[DRAG-ORDER] ❌ Reorder failed:', error)
+      toast({
+        title: "Reorder failed",
+        description: "Couldn't save changes. Try again.",
+        variant: "destructive"
+      })
+    }
   }
 
   const updateTaskTemplateDays = async (task: Task, targetDay: string) => {
