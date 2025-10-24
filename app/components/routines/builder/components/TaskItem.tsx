@@ -112,7 +112,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const taskColor = getTaskColor()
 
   // Calculate series badge information - removed series_id support
-  const getSeriesBadgeInfo = () => {
+  const getSeriesBadgeInfo = (): { seriesId: string; count: number } | null => {
     // Series functionality removed - all tasks now use recurring templates
     return null
   }
@@ -123,8 +123,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     <div 
       className={`relative flex items-center space-x-1 p-3 rounded border border-gray-200 ${taskColor.bg} ${taskColor.border} ${
         isDragging ? 'cursor-grabbing' : 'cursor-pointer'
-      } hover:shadow-sm transition-shadow ${
-        isDragging ? 'opacity-50 task-dragging' : ''
+      } hover:shadow-lg transition-all duration-300 ease-in-out ${
+        isDragging ? 'opacity-50 task-dragging scale-95' : 'hover:bg-opacity-90'
       }`}
       style={{
         borderLeftColor: taskColor.borderColor || undefined,
@@ -169,7 +169,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
             )}
             
             {/* Series badge for clone tasks */}
-            {seriesBadgeInfo && (
+            {seriesBadgeInfo && seriesBadgeInfo.seriesId && (
               <button
                 onClick={(e) => {
                   e.stopPropagation()

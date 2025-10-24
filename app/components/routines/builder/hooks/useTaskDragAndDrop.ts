@@ -44,6 +44,8 @@ export const useTaskDragAndDrop = (
   const [dayOrders, setDayOrders] = useState<DaySpecificOrder[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [isOptimisticUpdate, setIsOptimisticUpdate] = useState(false)
+  const [isReordering, setIsReordering] = useState(false)
+  const [reorderingDay, setReorderingDay] = useState<string | null>(null)
 
   // Update body class when dragging
   useEffect(() => {
@@ -182,7 +184,14 @@ export const useTaskDragAndDrop = (
     } else {
       console.log('[DEBUG-DRAG] 🔄 Executing REORDER operation')
       // Same day, same member - reorder only
-      await handleReorder(task, sourceDay, sourceMemberId, dragOverPosition)
+      setIsReordering(true)
+      setReorderingDay(targetDay)
+      try {
+        await handleReorder(task, sourceDay, sourceMemberId, dragOverPosition)
+      } finally {
+        setIsReordering(false)
+        setReorderingDay(null)
+      }
     }
     
     // Clear drag state
@@ -618,21 +627,42 @@ export const useTaskDragAndDrop = (
     
     if (sourceDay === targetDay && sourceMemberId === targetMemberId) {
       // Same day reordering
-      const filteredTasks = sourceDayTasks.individualTasks.filter((t: Task) => {
-        const taskMemberId = t.memberId || extractRoutineTaskIdFromId(t.id)
-        return !(t.id === task.id && taskMemberId === sourceMemberId)
+      console.log('[DRAG-ORDER] 🔍 Same-day reorder - BEFORE filtering:', {
+        sourceDay,
+        sourceMemberId,
+        draggedTask: { id: task.id, name: task.name },
+        dragOverPosition,
+        allTasks: sourceDayTasks.individualTasks.map(t => ({ id: t.id, name: t.name, memberId: t.memberId }))
       })
+      
+      // Get all tasks for this member first
+      const memberTasks = sourceDayTasks.individualTasks.filter((t: Task) => {
+        const taskMemberId = t.memberId || extractRoutineTaskIdFromId(t.id)
+        return taskMemberId === sourceMemberId
+      })
+      
+      console.log('[DRAG-ORDER] 🔍 Member tasks before reordering:', memberTasks.map(t => ({ id: t.id, name: t.name })))
+      
+      // Remove the dragged task from the list
+      const filteredTasks = memberTasks.filter((t: Task) => t.id !== task.id)
+      
+      console.log('[DRAG-ORDER] 🔍 Tasks after removing dragged task:', filteredTasks.map(t => ({ id: t.id, name: t.name })))
       
       // Insert at new position
       if (dragOverPosition?.targetTaskId) {
         const targetIndex = filteredTasks.findIndex((t: Task) => t.id === dragOverPosition.targetTaskId)
+        console.log('[DRAG-ORDER] 🔍 Target task found at index:', targetIndex, 'for task:', dragOverPosition.targetTaskId)
+        
         if (targetIndex !== -1) {
           const insertIndex = dragOverPosition.position === 'before' ? targetIndex : targetIndex + 1
           filteredTasks.splice(insertIndex, 0, task)
+          console.log('[DRAG-ORDER] 🔍 Inserted at index:', insertIndex, 'position:', dragOverPosition.position)
         } else {
+          console.log('[DRAG-ORDER] 🔍 Target task not found, appending to end')
           filteredTasks.push(task)
         }
       } else {
+        console.log('[DRAG-ORDER] 🔍 No target task specified, appending to end')
         filteredTasks.push(task)
       }
       
@@ -807,6 +837,13 @@ export const useTaskDragAndDrop = (
 
         console.log('[DRAG-ORDER] ✅ Day-specific order saved successfully')
         
+        // Force a reload of the routine data to get the updated day orders
+        console.log('[DRAG-ORDER] 🔄 Triggering routine data reload to get updated day orders')
+        if (reloadRoutineData) {
+          await reloadRoutineData()
+          console.log('[DRAG-ORDER] ✅ Routine data reloaded')
+        }
+        
         // Clear optimistic update flag AFTER backend order is saved
         console.log('[DRAG-ORDER] 🔧 Clearing optimistic update flag AFTER backend order saved')
         setIsOptimisticUpdate(false)
@@ -822,15 +859,17 @@ export const useTaskDragAndDrop = (
   }
 
   const getTasksWithDayOrder = (tasks: Task[], day: string, memberId: string): Task[] => {
-    console.log('[DRAG-ORDER] 🔍 getTasksWithDayOrder called:', {
-      day,
-      memberId,
-      taskCount: tasks.length,
-      isOptimisticUpdate,
-      isDragging,
-      draggedTaskDay: draggedTask?.day,
-      tasks: tasks.map(t => ({ id: t.id, name: t.name, routine_task_id: t.routine_task_id }))
-    })
+    // Reduced logging to avoid console spam
+    if (tasks.length > 0 && day === 'friday') {
+      console.log('[DRAG-ORDER] 🔍 getTasksWithDayOrder called for Friday:', {
+        day,
+        memberId,
+        taskCount: tasks.length,
+        isOptimisticUpdate,
+        isDragging,
+        tasks: tasks.map(t => ({ id: t.id, name: t.name, routine_task_id: t.routine_task_id }))
+      })
+    }
     
     // CRITICAL FIX: Don't apply day order sorting during optimistic UI update
     // This prevents the visual glitch where tasks appear in wrong position
@@ -843,10 +882,12 @@ export const useTaskDragAndDrop = (
       return tasks
     }
 
-    // Find day-specific orders for this member/day
-    const memberDayOrders = dayOrders.filter(order => 
-      order.member_id === memberId && order.day_of_week === day
-    )
+    // Find day-specific orders for this member/day using bucket system
+    const memberDayOrders = dayOrders.filter(order => {
+      // Support both old member_id and new bucket_member_id for backward compatibility
+      const orderMemberId = order.bucket_member_id || order.member_id
+      return orderMemberId === memberId && order.day_of_week === day
+    })
 
     if (!memberDayOrders.length) {
       return tasks
@@ -882,6 +923,8 @@ export const useTaskDragAndDrop = (
     hoveredDropZone,
     dayOrders,
     isDragging,
+    isReordering,
+    reorderingDay,
     
     // Setters
     setDraggedTask,
