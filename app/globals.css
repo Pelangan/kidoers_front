@@ -18,17 +18,17 @@
   }
 
   .task-dragging {
-    cursor: move !important;
+    cursor: grabbing !important;
   }
 
   /* Global cursor for drag operations */
   body.dragging,
-  body.dragging * {
+  body.dragging *:not(.task-dragging) {
     cursor: move !important;
   }
   
   /* More specific selector for drag operations */
-  html body.dragging {
+  html body.dragging:not(.task-dragging) {
     cursor: move !important;
   }
 

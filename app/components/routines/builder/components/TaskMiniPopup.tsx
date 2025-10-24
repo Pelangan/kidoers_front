@@ -106,8 +106,7 @@ export default function TaskMiniPopup({
                 console.log('[TASK-MINI-POPUP] 🔍 Edit button clicked for task:', selectedTaskForEdit.task.name);
                 onEditTask();
               }}
-              className="p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
-              title="Edit task"
+              className="group relative p-2 text-gray-600 hover:bg-gray-100 hover:shadow-lg rounded-full transition-all duration-200 ease-in-out hover:scale-105"
             >
               <svg
                 className="w-4 h-4"
@@ -122,6 +121,11 @@ export default function TaskMiniPopup({
                   d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
                 />
               </svg>
+              {/* Enhanced tooltip */}
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
+                Edit task
+                <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
             </button>
             {/* Individual task actions */}
             <button
@@ -129,8 +133,7 @@ export default function TaskMiniPopup({
                 e.stopPropagation();
                 onDeleteTask();
               }}
-              className="p-2 text-orange-600 hover:bg-orange-50 rounded-full transition-colors"
-              title="Delete task"
+              className="group relative p-2 text-orange-600 hover:bg-orange-50 hover:shadow-lg rounded-full transition-all duration-200 ease-in-out hover:scale-105"
               data-testid="delete-task-button"
             >
               <svg
@@ -146,14 +149,18 @@ export default function TaskMiniPopup({
                   d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                 />
               </svg>
+              {/* Enhanced tooltip */}
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
+                Delete task
+                <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
             </button>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onClose();
               }}
-              className="p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
-              title="Close"
+              className="group relative p-2 text-gray-600 hover:bg-gray-100 hover:shadow-lg rounded-full transition-all duration-200 ease-in-out hover:scale-105"
             >
               <svg
                 className="w-4 h-4"
@@ -168,6 +175,11 @@ export default function TaskMiniPopup({
                   d="M6 18L18 6M6 6l12 12"
                 />
               </svg>
+              {/* Enhanced tooltip */}
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
+                Close
+                <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
             </button>
           </div>
         </div>

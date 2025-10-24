@@ -69,7 +69,7 @@ export const DayColumn: React.FC<DayColumnProps> = ({
   return (
     <div
       key={day}
-      className={`border-r border-gray-200 last:border-r-0 min-h-[900px] flex flex-col cursor-pointer transition-all ${
+      className={`border-r border-gray-200 last:border-r-0 min-h-[900px] flex flex-col transition-all ${
         isColumnDraggedOver 
           ? 'bg-blue-50 border-blue-300 border-2' 
           : 'hover:bg-gray-50'

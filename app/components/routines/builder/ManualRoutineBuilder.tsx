@@ -58,7 +58,6 @@ import { useTaskOrdering } from "./hooks/useTaskOrdering";
 import { useRecurringTaskOperations } from "./hooks/useRecurringTaskOperations";
 import { useTaskEditing } from "./hooks/useTaskEditing";
 import { FamilyMemberSelector } from "./components/FamilyMemberSelector";
-import { CalendarGrid } from "./components/CalendarGrid";
 import { PlannerWeek } from "./components/PlannerWeek";
 import TaskCreationModal from "./components/TaskCreationModal";
 import TaskMiniPopup from "./components/TaskMiniPopup";
@@ -843,8 +842,7 @@ export default function ManualRoutineBuilder({
                 ))}
               </div>
             ) : (
-              selectedMemberIds.length > 0 &&
-              (shouldShowBuckets(selectedMemberIds, calendarTasks) ? (
+              selectedMemberIds.length > 0 && (
                 <PlannerWeek
                   weekData={transformCalendarTasksToWeekData(
                     calendarTasks,
@@ -868,28 +866,7 @@ export default function ManualRoutineBuilder({
                   getTasksWithDayOrder={getTasksWithDayOrder}
                   extractMemberIdFromId={extractMemberIdFromId}
                 />
-              ) : (
-                <CalendarGrid
-                  calendarTasks={calendarTasks}
-                  selectedMemberIds={selectedMemberIds}
-                  draggedTask={draggedTask}
-                  dragOverPosition={dragOverPosition}
-                  recurringTemplates={recurringTemplates}
-                  familyMembers={familyMembers}
-                  getMemberColors={getMemberColors}
-                  onColumnClick={handleColumnClickWrapper}
-                  onTaskDragStart={handleTaskDragStart}
-                  onTaskDragEnd={handleTaskDragEnd}
-                  onTaskDragOver={handleTaskDragOver}
-                  onTaskDragLeave={handleTaskDragLeave}
-                  onTaskDrop={handleTaskDrop}
-                  onTaskClick={handleTaskClick}
-                  onRemoveGroup={removeGroupFromCalendar}
-                  getTasksWithDayOrder={getTasksWithDayOrder}
-                  extractMemberIdFromId={extractMemberIdFromId}
-                  getTotalTasksForDay={getTotalTasksForDay}
-                />
-              ))
+              )
             )}
 
             {/* Save Button */}

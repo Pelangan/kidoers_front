@@ -39,6 +39,52 @@ export const transformCalendarTasksToWeekData = (
     familyMembersCount: familyMembers.length,
   });
 
+  // Fast path for single member - skip complex transformation
+  if (selectedMemberIds.length === 1) {
+    const selectedMemberId = selectedMemberIds[0];
+    const member = familyMembers.find(m => m.id === selectedMemberId);
+    
+    console.log("[BUCKET-TRANSFORM] ⚡ Fast path for single member:", selectedMemberId);
+    
+    const weekData = DAYS_OF_WEEK.map((day) => {
+      const dayTasks = calendarTasks[day]?.individualTasks || [];
+      
+      // Deduplication and member filtering for single member
+      const seenTaskIds = new Set<string>();
+      const filteredTasks = dayTasks.filter((task) => {
+        // Deduplication
+        if (seenTaskIds.has(task.id)) return false;
+        seenTaskIds.add(task.id);
+        
+        // Member filtering - only include tasks assigned to the selected member
+        const assignedMembers =
+          task.assignees?.map((a) => a.id) ||
+          (task.memberId ? [task.memberId] : []);
+        const assignedSelectedMembers = assignedMembers.filter((id: string) =>
+          selectedMemberIds.includes(id),
+        );
+        
+        // Include task if it's assigned to the selected member
+        return assignedSelectedMembers.length > 0;
+      });
+
+      return {
+        day_of_week: day,
+        buckets: [{
+          bucket_type: "member" as const,
+          bucket_member_id: selectedMemberId,
+          bucket_member_name: member?.name || "Unknown",
+          tasks: filteredTasks,
+        }],
+      };
+    });
+
+    console.log("[BUCKET-TRANSFORM] ⚡ Fast path completed");
+    return weekData;
+  }
+
+  // Complex transformation for multiple members
+  console.log("[BUCKET-TRANSFORM] 🔄 Complex transformation for multiple members");
   const weekData = DAYS_OF_WEEK.map((day) => {
     const dayTasks = calendarTasks[day]?.individualTasks || [];
     console.log(`[BUCKET-TRANSFORM] 📅 Processing ${day}:`, {
@@ -147,50 +193,9 @@ export const shouldShowBuckets = (
   selectedMemberIds: string[],
   calendarTasks: Record<string, { groups: any[]; individualTasks: Task[] }>,
 ) => {
-  // Always show buckets if multiple members are selected
-  if (selectedMemberIds.length > 1) {
-    console.log(
-      "[BUCKET-DECISION] 📊 Multiple members selected, showing buckets",
-    );
-    return true;
-  }
-
-  // If only one member selected, check for shared tasks affecting that member
-  if (selectedMemberIds.length === 1) {
-    const selectedMemberId = selectedMemberIds[0];
-
-    // Check all days for tasks assigned to multiple members including the selected one
-    const hasSharedTasks = DAYS_OF_WEEK.some((day) => {
-      const dayTasks = calendarTasks[day]?.individualTasks || [];
-      return dayTasks.some((task) => {
-        const assignedMembers =
-          task.assignees?.map((a) => a.id) ||
-          (task.memberId ? [task.memberId] : []);
-        const assignedSelectedMembers = assignedMembers.filter((id: string) =>
-          selectedMemberIds.includes(id),
-        );
-
-        // Task is shared if it's assigned to multiple members and includes our selected member
-        return assignedSelectedMembers.length > 0 && assignedMembers.length > 1;
-      });
-    });
-
-    if (hasSharedTasks) {
-      console.log(
-        "[BUCKET-DECISION] 📊 Shared tasks found affecting selected member, showing buckets",
-      );
-      return true;
-    } else {
-      console.log(
-        "[BUCKET-DECISION] 📊 No shared tasks, showing simple calendar",
-      );
-      return false;
-    }
-  }
-
-  // No members selected - show simple calendar
+  // Always use PlannerWeek (buckets view) for consistency
   console.log(
-    "[BUCKET-DECISION] 📊 No members selected, showing simple calendar",
+    "[BUCKET-DECISION] 📊 Always showing buckets for consistency",
   );
-  return false;
+  return true;
 };

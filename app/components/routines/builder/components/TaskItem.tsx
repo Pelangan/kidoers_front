@@ -120,7 +120,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   return (
     <div 
       className={`relative flex items-center space-x-1 p-3 rounded border border-gray-200 ${taskColor.bg} ${taskColor.border} ${
-        isDragging ? 'cursor-grabbing' : 'cursor-grab'
+        isDragging ? 'cursor-grabbing' : 'cursor-pointer'
       } hover:shadow-sm transition-shadow ${
         isDragging ? 'opacity-50 task-dragging' : ''
       }`}

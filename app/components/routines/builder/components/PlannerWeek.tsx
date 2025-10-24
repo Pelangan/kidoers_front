@@ -148,7 +148,7 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
           {days.map((day) => (
             <div 
               key={day}
-              className="p-3 bg-gray-50 border-r border-gray-200 last:border-r-0 text-center font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors flex-1"
+              className="p-3 bg-gray-50 border-r border-gray-200 last:border-r-0 text-center font-medium text-gray-700 hover:bg-gray-100 transition-colors flex-1"
               onClick={() => onColumnClick(day, undefined, undefined)}
             >
               {formatDayName(day)}
@@ -209,7 +209,7 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                   return (
                     <div 
                       key={day} 
-                      className="p-2 border-r border-gray-200 last:border-r-0 cursor-pointer hover:bg-gray-50 transition-colors flex-1"
+                      className="p-2 border-r border-gray-200 last:border-r-0 hover:bg-gray-50 transition-colors flex-1"
                       onClick={(e) => {
                         // Don't trigger click if we're dragging
                         if (draggedTask) {
