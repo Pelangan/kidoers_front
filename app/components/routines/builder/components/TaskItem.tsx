@@ -43,6 +43,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onSeriesBadgeClick,
   isCopyOperation = false
 }) => {
+  console.log('=== TASK ITEM RENDERED ===', { taskName: task.name, day, memberId, isDragging })
+  
   // Create assignees data for single-member tasks if not available
   const getAssignees = () => {
     if (task.assignees && task.assignees.length > 0) {

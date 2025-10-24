@@ -144,7 +144,7 @@ export const useTaskCreation = ({
     getMemberNameById,
   ]);
 
-  // Handle column click to create new task (wrapper for both CalendarGrid and PlannerWeek)
+  // Handle column click to create new task (wrapper for PlannerWeek)
   const handleColumnClickWrapper = useCallback(async (
     day: string,
     bucketType?: string,

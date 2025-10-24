@@ -55,8 +55,11 @@ export const useTaskDragAndDrop = (
 
   // Task reordering handlers
   const handleTaskDragStart = (e: React.DragEvent, task: Task, day: string, memberId: string) => {
+    console.log('=== DRAG START DEBUG ===')
     console.log('[DRAG-ORDER] 🚀 DRAG START EVENT TRIGGERED!', { task: task.name, day, memberId })
     console.log('[DRAG-ORDER] 🔧 DEBUG: handleTaskDragStart called with:', { task, day, memberId })
+    console.log('🚀 BASIC DRAG START - Task:', task.name, 'Day:', day, 'Member:', memberId)
+    console.log('=== END DRAG START DEBUG ===')
     
     // Check if this is a copy operation (Option/Alt key held)
     const isCopyOperation = e.altKey || e.metaKey
@@ -116,10 +119,12 @@ export const useTaskDragAndDrop = (
   }
 
   const handleTaskDrop = async (e: React.DragEvent, targetDay: string, targetMemberId: string) => {
-    console.log('[DRAG-ORDER] 🎯 DROP EVENT TRIGGERED!', { targetDay, targetMemberId, draggedTask: draggedTask?.task.name })
+    console.log('[DEBUG-DRAG] 🎯 DROP EVENT TRIGGERED!', { targetDay, targetMemberId, draggedTask: draggedTask?.task.name })
+    console.log('🎯 BASIC DROP EVENT - Target Day:', targetDay, 'Target Member:', targetMemberId, 'Dragged Task:', draggedTask?.task.name)
     
     if (!draggedTask) {
-      console.log('[DRAG-ORDER] ❌ No dragged task on drop')
+      console.log('[DEBUG-DRAG] ❌ No dragged task on drop')
+      console.log('❌ BASIC DROP - No dragged task found!')
       return
     }
     
@@ -127,13 +132,16 @@ export const useTaskDragAndDrop = (
     
     const { task, day: sourceDay, memberId: sourceMemberId, isCopyOperation } = draggedTask
     
-    console.log('[DRAG-ORDER] 🎯 DROP EVENT:', {
+    console.log('[DEBUG-DRAG] 🎯 DROP EVENT:', {
       sourceDay,
       sourceMemberId,
       targetDay,
       targetMemberId,
       dragOverPosition,
-      isCopyOperation
+      isCopyOperation,
+      taskName: task.name,
+      taskId: task.id,
+      hasRecurringTemplateId: !!task.recurring_template_id
     })
 
     // Determine operation type
@@ -142,14 +150,27 @@ export const useTaskDragAndDrop = (
     const isMemberTransfer = !isSameMember
     const isDayChange = !isSameDay
 
+    console.log('[DEBUG-DRAG] 🧮 Operation type analysis:', {
+      isSameDay,
+      isSameMember,
+      isMemberTransfer,
+      isDayChange,
+      isCopyOperation,
+      operationType: isCopyOperation ? 'COPY' : isMemberTransfer ? 'MEMBER_TRANSFER' : isDayChange ? 'DAY_CHANGE' : 'REORDER'
+    })
+
     // Handle different operation types
     if (isCopyOperation) {
+      console.log('[DEBUG-DRAG] 📋 Executing COPY operation')
       await handleCopyOperation(task, sourceDay, sourceMemberId, targetDay, targetMemberId, dragOverPosition)
     } else if (isMemberTransfer) {
+      console.log('[DEBUG-DRAG] 👤 Executing MEMBER_TRANSFER operation')
       await handleMemberTransfer(task, sourceDay, sourceMemberId, targetDay, targetMemberId, dragOverPosition)
     } else if (isDayChange) {
+      console.log('[DEBUG-DRAG] 📅 Executing DAY_CHANGE operation')
       await handleDayChange(task, sourceDay, sourceMemberId, targetDay, targetMemberId, dragOverPosition)
     } else {
+      console.log('[DEBUG-DRAG] 🔄 Executing REORDER operation')
       // Same day, same member - reorder only
       await handleReorder(task, sourceDay, sourceMemberId, dragOverPosition)
     }
@@ -239,16 +260,21 @@ export const useTaskDragAndDrop = (
     targetMemberId: string,
     dragOverPosition: DragOverPosition | null
   ) => {
-    console.log('[DRAG-ORDER] 📅 DAY CHANGE:', {
+    console.log('[DEBUG-DRAG] 📅 handleDayChange called!', {
       taskName: task.name,
+      taskId: task.id,
       sourceDay,
       sourceMemberId,
       targetDay,
-      targetMemberId
+      targetMemberId,
+      dragOverPosition,
+      hasRecurringTemplateId: !!task.recurring_template_id,
+      recurringTemplateId: task.recurring_template_id
     })
 
     try {
       // For day changes, we can use the existing moveTaskToPosition logic
+      console.log('[DEBUG-DRAG] 🚀 Calling moveTaskToPosition for day change')
       await moveTaskToPosition(task, sourceDay, sourceMemberId, targetDay, targetMemberId, dragOverPosition)
       
       // Show success toast
@@ -256,8 +282,16 @@ export const useTaskDragAndDrop = (
         title: "Task moved",
         description: `Moved ${task.name} to ${targetDay}`
       })
+      console.log('[DEBUG-DRAG] ✅ Day change completed successfully')
     } catch (error) {
-      console.error('[DRAG-ORDER] ❌ Day change failed:', error)
+      console.error('[DEBUG-DRAG] ❌ Day change failed:', error)
+      console.error('[DEBUG-DRAG] ❌ Error details:', {
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        errorStack: error instanceof Error ? error.stack : undefined,
+        taskName: task.name,
+        sourceDay,
+        targetDay
+      })
       toast({
         title: "Move failed",
         description: "Couldn't save changes. Try again.",
@@ -298,13 +332,28 @@ export const useTaskDragAndDrop = (
   }
 
   const updateTaskTemplateDays = async (task: Task, targetDay: string) => {
+    console.log('[DEBUG-DRAG] 🚀 updateTaskTemplateDays called!', {
+      taskName: task.name,
+      taskId: task.id,
+      targetDay,
+      currentRoutineId,
+      hasRecurringTemplateId: !!task.recurring_template_id,
+      recurringTemplateId: task.recurring_template_id
+    })
+
     if (!currentRoutineId || !task.recurring_template_id) {
+      console.log('[DEBUG-DRAG] ❌ Missing required data:', {
+        hasCurrentRoutineId: !!currentRoutineId,
+        hasRecurringTemplateId: !!task.recurring_template_id,
+        currentRoutineId,
+        recurringTemplateId: task.recurring_template_id
+      })
       return
     }
 
     try {
-      console.log('[DRAG-ORDER] 📅 Updating template days for task:', task.name)
-      console.log('[DRAG-ORDER] 🔍 Task details:', {
+      console.log('[DEBUG-DRAG] 📅 Updating template days for task:', task.name)
+      console.log('[DEBUG-DRAG] 🔍 Task details:', {
         id: task.id,
         routine_task_id: task.routine_task_id,
         recurring_template_id: task.recurring_template_id,
@@ -317,64 +366,99 @@ export const useTaskDragAndDrop = (
       // Find the recurring template for this task
       const template = recurringTemplates.find(t => t.id === task.recurring_template_id)
       
+      console.log('[DEBUG-DRAG] 🔍 Template search:', {
+        searchingForTemplateId: task.recurring_template_id,
+        availableTemplates: recurringTemplates.map(t => ({ id: t.id, name: t.name })),
+        templateFound: !!template
+      })
+      
       if (!template) {
-        console.warn('[DRAG-ORDER] ⚠️ Template not found for task:', task.name, 'template_id:', task.recurring_template_id)
+        console.warn('[DEBUG-DRAG] ⚠️ Template not found for task:', task.name, 'template_id:', task.recurring_template_id)
         return
       }
       
-      console.log('[DRAG-ORDER] 🔍 Found template:', {
+      console.log('[DEBUG-DRAG] 🔍 Found template:', {
         id: template.id,
         name: template.name,
         days_of_week: template.days_of_week,
         frequency_type: template.frequency_type
       })
 
-      console.log('[DRAG-ORDER] 📋 Current template days:', template.days_of_week)
-      console.log('[DRAG-ORDER] 🎯 Target day:', targetDay)
+      console.log('[DEBUG-DRAG] 📋 Current template days:', template.days_of_week)
+      console.log('[DEBUG-DRAG] 🎯 Target day:', targetDay)
 
       // Determine new days_of_week based on frequency_type
       let newDaysOfWeek: string[] = []
 
+      console.log('[DEBUG-DRAG] 🧮 Calculating new days based on frequency_type:', template.frequency_type)
+
       if (template.frequency_type === 'just_this_day') {
         // For single-day tasks, replace with the new day
         newDaysOfWeek = [targetDay]
-        console.log('[DRAG-ORDER] ✏️ Single-day task: replacing with', targetDay)
+        console.log('[DEBUG-DRAG] ✏️ Single-day task (just_this_day): replacing with', targetDay)
       } else if (template.frequency_type === 'specific_days') {
         const currentDays = template.days_of_week || []
+        
+        console.log('[DEBUG-DRAG] 🔍 Specific days analysis:', {
+          currentDays,
+          currentDaysLength: currentDays.length,
+          targetDay,
+          includesTargetDay: currentDays.includes(targetDay)
+        })
         
         // If it's a single-day specific_days task being moved, REPLACE the day (don't add)
         if (currentDays.length === 1) {
           newDaysOfWeek = [targetDay]
-          console.log('[DRAG-ORDER] ✏️ Single-day specific task: replacing', currentDays[0], 'with', targetDay)
+          console.log('[DEBUG-DRAG] ✏️ Single-day specific task: replacing', currentDays[0], 'with', targetDay)
         } 
         // If it's a multi-day task, ADD the new day if not already present
         else if (!currentDays.includes(targetDay)) {
           newDaysOfWeek = [...currentDays, targetDay].sort()
-          console.log('[DRAG-ORDER] ➕ Multi-day task: adding', targetDay, 'to existing days')
+          console.log('[DEBUG-DRAG] ➕ Multi-day task: adding', targetDay, 'to existing days')
         } else {
           // Already includes this day, no update needed
-          console.log('[DRAG-ORDER] ✅ Task already includes', targetDay)
+          console.log('[DEBUG-DRAG] ✅ Task already includes', targetDay)
           return
         }
       } else if (template.frequency_type === 'every_day') {
         // Every day tasks already have all days, no update needed
-        console.log('[DRAG-ORDER] ℹ️ Every-day task: no update needed')
+        console.log('[DEBUG-DRAG] ℹ️ Every-day task: no update needed')
         return
       }
 
-      console.log('[DRAG-ORDER] 💾 Updating template with new days:', newDaysOfWeek)
+      console.log('[DEBUG-DRAG] 💾 Final newDaysOfWeek calculation:', {
+        originalDays: template.days_of_week,
+        newDaysOfWeek,
+        changed: JSON.stringify(template.days_of_week) !== JSON.stringify(newDaysOfWeek)
+      })
 
       // Update the template days in the backend and get the new task ID mapping
+      console.log('[DEBUG-DRAG] 🚀 Calling updateTemplateDays API:', {
+        routineId: currentRoutineId,
+        templateId: template.id,
+        payload: {
+          days_of_week: newDaysOfWeek
+        }
+      })
+      
       const updateResponse = await updateTemplateDays(currentRoutineId, template.id, {
         days_of_week: newDaysOfWeek
       }) as { day_to_task_id: Record<string, string> }
 
-      console.log('[DRAG-ORDER] ✅ Template days updated successfully')
-      console.log('[DRAG-ORDER] 📊 New task ID mapping:', updateResponse.day_to_task_id)
+      console.log('[DEBUG-DRAG] ✅ Template days updated successfully')
+      console.log('[DEBUG-DRAG] 📊 API Response:', updateResponse)
+      console.log('[DEBUG-DRAG] 📊 New task ID mapping:', updateResponse.day_to_task_id)
       
       return updateResponse.day_to_task_id
     } catch (error) {
-      console.error('[DRAG-ORDER] ❌ Failed to update template days:', error)
+      console.error('[DEBUG-DRAG] ❌ Failed to update template days:', error)
+      console.error('[DEBUG-DRAG] ❌ Error details:', {
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        errorStack: error instanceof Error ? error.stack : undefined,
+        taskName: task.name,
+        targetDay,
+        templateId: task.recurring_template_id
+      })
       throw error
     }
   }

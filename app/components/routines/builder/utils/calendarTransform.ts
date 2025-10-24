@@ -187,15 +187,3 @@ export const transformCalendarTasksToWeekData = (
   console.log("[BUCKET-TRANSFORM] 🎉 Final weekData:", weekData);
   return weekData;
 };
-
-// Helper function to determine if we should show buckets or simple calendar
-export const shouldShowBuckets = (
-  selectedMemberIds: string[],
-  calendarTasks: Record<string, { groups: any[]; individualTasks: Task[] }>,
-) => {
-  // Always use PlannerWeek (buckets view) for consistency
-  console.log(
-    "[BUCKET-DECISION] 📊 Always showing buckets for consistency",
-  );
-  return true;
-};

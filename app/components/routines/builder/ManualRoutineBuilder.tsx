@@ -65,7 +65,7 @@ import DeleteConfirmModal from "./components/DeleteConfirmModal";
 import RoutineDetailsCard from "./components/RoutineDetailsCard";
 import BackButton from "./components/BackButton";
 import SaveButtonSection from "./components/SaveButtonSection";
-import { transformCalendarTasksToWeekData, shouldShowBuckets, DAYS_OF_WEEK } from "./utils/calendarTransform";
+import { transformCalendarTasksToWeekData, DAYS_OF_WEEK } from "./utils/calendarTransform";
 import { User, Baby, UserCheck, Users } from "lucide-react";
 
 
