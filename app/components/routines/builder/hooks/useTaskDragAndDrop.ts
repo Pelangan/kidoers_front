@@ -22,6 +22,11 @@ interface DragOverPosition {
   targetTaskId?: string
 }
 
+interface HoveredDropZone {
+  day: string
+  memberId: string
+}
+
 export const useTaskDragAndDrop = (
   calendarTasks: Record<string, CalendarTasks>,
   updateCalendarTasks: (updater: (prev: any) => any) => void,
@@ -35,6 +40,7 @@ export const useTaskDragAndDrop = (
   // Drag and drop state
   const [draggedTask, setDraggedTask] = useState<DraggedTask | null>(null)
   const [dragOverPosition, setDragOverPosition] = useState<DragOverPosition | null>(null)
+  const [hoveredDropZone, setHoveredDropZone] = useState<HoveredDropZone | null>(null)
   const [dayOrders, setDayOrders] = useState<DaySpecificOrder[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [isOptimisticUpdate, setIsOptimisticUpdate] = useState(false)
@@ -92,6 +98,9 @@ export const useTaskDragAndDrop = (
     
     e.preventDefault()
     
+    // Set the hovered drop zone
+    setHoveredDropZone({ day, memberId })
+    
     // Set the appropriate drop effect based on operation type
     if (draggedTask.isCopyOperation) {
       e.dataTransfer.dropEffect = 'copy'
@@ -116,6 +125,7 @@ export const useTaskDragAndDrop = (
 
   const handleTaskDragLeave = () => {
     setDragOverPosition(null)
+    setHoveredDropZone(null)
   }
 
   const handleTaskDrop = async (e: React.DragEvent, targetDay: string, targetMemberId: string) => {
@@ -178,12 +188,14 @@ export const useTaskDragAndDrop = (
     // Clear drag state
     setDraggedTask(null)
     setDragOverPosition(null)
+    setHoveredDropZone(null)
     setIsDragging(false)
   }
 
   const handleTaskDragEnd = () => {
     setDraggedTask(null)
     setDragOverPosition(null)
+    setHoveredDropZone(null)
     setIsDragging(false)
   }
 
@@ -867,6 +879,7 @@ export const useTaskDragAndDrop = (
     // State
     draggedTask,
     dragOverPosition,
+    hoveredDropZone,
     dayOrders,
     isDragging,
     

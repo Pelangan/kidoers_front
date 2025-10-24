@@ -19,6 +19,7 @@ interface PlannerWeekProps {
   selectedMemberIds: string[]
   draggedTask: { task: Task; day: string; memberId: string; isCopyOperation?: boolean } | null
   dragOverPosition: { day: string; memberId: string; position: 'before' | 'after'; targetTaskId?: string } | null
+  hoveredDropZone: { day: string; memberId: string } | null
   recurringTemplates: RecurringTemplate[]
   familyMembers: Array<{
     id: string
@@ -46,6 +47,7 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
   selectedMemberIds,
   draggedTask,
   dragOverPosition,
+  hoveredDropZone,
   recurringTemplates,
   familyMembers,
   getMemberColors,
@@ -209,7 +211,11 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                   return (
                     <div 
                       key={day} 
-                      className="p-2 border-r border-gray-200 last:border-r-0 hover:bg-gray-50 transition-colors flex-1"
+                      className={`p-2 border-r border-gray-200 last:border-r-0 transition-colors flex-1 ${
+                        hoveredDropZone?.day === day && hoveredDropZone?.memberId === bucket.bucket_member_id
+                          ? 'bg-blue-50 border-blue-200'
+                          : 'hover:bg-gray-50'
+                      }`}
                       onClick={(e) => {
                         // Don't trigger click if we're dragging
                         if (draggedTask) {
@@ -221,14 +227,20 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                         onColumnClick(day, bucket.bucket_type, bucket.bucket_member_id)
                       }}
                       onDragOver={(e) => {
-                        // Allow drag over on the day cell
+                        // Allow drag over on the day cell and set hovered drop zone
                         console.log('[PLANNER-WEEK] Day cell drag over:', { day, memberId: bucket.bucket_member_id, memberName: bucket.bucket_member_name })
                         e.preventDefault()
+                        onTaskDragOver(e, day, bucket.bucket_member_id || '', 'after')
+                      }}
+                      onDragLeave={(e) => {
+                        // Clear hovered drop zone when leaving the day cell
+                        console.log('[PLANNER-WEEK] Day cell drag leave:', { day, memberId: bucket.bucket_member_id })
+                        onTaskDragLeave()
                       }}
                     >
                       <div className="space-y-2">
-                        {/* Empty bucket drop zone - always render but hide when not dragging */}
-                        {orderedTasks.length === 0 && (
+                        {/* Empty bucket drop zone - only show when hovering over this area */}
+                        {orderedTasks.length === 0 && hoveredDropZone?.day === day && hoveredDropZone?.memberId === bucket.bucket_member_id && (
                           <div
                             className={`rounded transition-all duration-200 ease-in-out ${
                               draggedTask && dragOverPosition?.day === day && 
@@ -298,46 +310,48 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                           return (
                             <div key={`${task.id}-${day}-${bucket.bucket_type || 'unknown'}-${bucket.bucket_member_id || 'shared'}`}>
                               {/* Drop zone before this task */}
-                              <div
-                                className={`rounded transition-all duration-200 ease-in-out ${
-                                  draggedTask && dragOverPosition?.day === day && 
-                                    dragOverPosition?.memberId === bucket.bucket_member_id &&
-                                    dragOverPosition?.position === 'before' && 
-                                    dragOverPosition?.targetTaskId === task.id
-                                      ? 'max-h-8 bg-blue-400 border-2 border-dashed border-blue-600' 
-                                      : draggedTask 
-                                        ? 'max-h-8 hover:bg-blue-100 hover:border-2 hover:border-dashed hover:border-blue-300'
-                                        : 'max-h-0'
-                                }`}
-                                style={{
-                                  overflow: 'hidden',
-                                  height: draggedTask ? '32px' : '0px',
-                                  zIndex: 10,
-                                  position: 'relative'
-                                }}
-                                onMouseEnter={() => console.log('[PLANNER-WEEK] Mouse entered drop zone (before task):', { day, memberId: bucket.bucket_member_id, taskId: task.id })}
-                                onDragOver={(e) => {
-                                  console.log('[PLANNER-WEEK] Drop zone drag over (before task):', {
-                                    day,
-                                    memberId: bucket.bucket_member_id,
-                                    taskId: task.id,
-                                    taskName: task.name
-                                  })
-                                  onTaskDragOver(e, day, bucket.bucket_member_id || '', 'before', task.id)
-                                }}
-                                onDragLeave={(e) => {
-                                  console.log('[PLANNER-WEEK] Drop zone drag leave (before task)')
-                                  onTaskDragLeave()
-                                }}
-                                onDrop={(e) => {
-                                  console.log('[PLANNER-WEEK] Drop zone drop (before task):', {
-                                    day,
-                                    memberId: bucket.bucket_member_id,
-                                    taskId: task.id
-                                  })
-                                  onTaskDrop(e, day, bucket.bucket_member_id || '')
-                                }}
-                              />
+                              {hoveredDropZone?.day === day && hoveredDropZone?.memberId === bucket.bucket_member_id && (
+                                <div
+                                  className={`rounded transition-all duration-200 ease-in-out ${
+                                    draggedTask && dragOverPosition?.day === day && 
+                                      dragOverPosition?.memberId === bucket.bucket_member_id &&
+                                      dragOverPosition?.position === 'before' && 
+                                      dragOverPosition?.targetTaskId === task.id
+                                        ? 'max-h-8 bg-blue-400 border-2 border-dashed border-blue-600' 
+                                        : draggedTask 
+                                          ? 'max-h-8 hover:bg-blue-100 hover:border-2 hover:border-dashed hover:border-blue-300'
+                                          : 'max-h-0'
+                                  }`}
+                                  style={{
+                                    overflow: 'hidden',
+                                    height: draggedTask ? '32px' : '0px',
+                                    zIndex: 10,
+                                    position: 'relative'
+                                  }}
+                                  onMouseEnter={() => console.log('[PLANNER-WEEK] Mouse entered drop zone (before task):', { day, memberId: bucket.bucket_member_id, taskId: task.id })}
+                                  onDragOver={(e) => {
+                                    console.log('[PLANNER-WEEK] Drop zone drag over (before task):', {
+                                      day,
+                                      memberId: bucket.bucket_member_id,
+                                      taskId: task.id,
+                                      taskName: task.name
+                                    })
+                                    onTaskDragOver(e, day, bucket.bucket_member_id || '', 'before', task.id)
+                                  }}
+                                  onDragLeave={(e) => {
+                                    console.log('[PLANNER-WEEK] Drop zone drag leave (before task)')
+                                    onTaskDragLeave()
+                                  }}
+                                  onDrop={(e) => {
+                                    console.log('[PLANNER-WEEK] Drop zone drop (before task):', {
+                                      day,
+                                      memberId: bucket.bucket_member_id,
+                                      taskId: task.id
+                                    })
+                                    onTaskDrop(e, day, bucket.bucket_member_id || '')
+                                  }}
+                                />
+                              )}
                               
                               <TaskItem
                                 task={task}
@@ -356,7 +370,7 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                               />
                               
                               {/* Drop zone after this task */}
-                              {taskIndex === orderedTasks.length - 1 && (
+                              {taskIndex === orderedTasks.length - 1 && hoveredDropZone?.day === day && hoveredDropZone?.memberId === bucket.bucket_member_id && (
                                 <div
                                   className={`rounded transition-all duration-200 ease-in-out ${
                                     draggedTask && dragOverPosition?.day === day && 
@@ -381,8 +395,8 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                           )
                         })}
 
-                        {/* Bottom drop zone for non-empty buckets - always render but hide when not dragging */}
-                        {orderedTasks.length > 0 && (
+                        {/* Bottom drop zone for non-empty buckets - only show when hovering over this area */}
+                        {orderedTasks.length > 0 && hoveredDropZone?.day === day && hoveredDropZone?.memberId === bucket.bucket_member_id && (
                           <div
                             className={`mt-2 rounded transition-all duration-200 ease-in-out ${
                               draggedTask && dragOverPosition?.day === day && 

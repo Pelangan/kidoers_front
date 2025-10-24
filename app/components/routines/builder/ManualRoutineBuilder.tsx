@@ -233,6 +233,7 @@ export default function ManualRoutineBuilder({
   const {
     draggedTask,
     dragOverPosition,
+    hoveredDropZone,
     isDragging,
     setDraggedTask,
     setDragOverPosition,
@@ -852,6 +853,7 @@ export default function ManualRoutineBuilder({
                   selectedMemberIds={selectedMemberIds}
                   draggedTask={draggedTask}
                   dragOverPosition={dragOverPosition}
+                  hoveredDropZone={hoveredDropZone}
                   recurringTemplates={recurringTemplates}
                   familyMembers={familyMembers}
                   getMemberColors={getMemberColors}
