@@ -810,6 +810,8 @@ export default function ManualRoutineBuilder({
               getMemberColors={getMemberColors}
               viewMode={viewMode}
               setViewMode={setViewMode}
+              onComplete={onComplete}
+              totalTasks={totalTasks}
             />
 
             {/* Calendar Grid */}

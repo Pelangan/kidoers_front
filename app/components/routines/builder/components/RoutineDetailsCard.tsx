@@ -2,11 +2,13 @@
 
 import { Input } from "../../../../../components/ui/input";
 import { Label } from "../../../../../components/ui/label";
+import { Button } from "../../../../../components/ui/button";
 import {
   Card,
   CardContent,
 } from "../../../../../components/ui/card";
 import { FamilyMemberSelector } from "./FamilyMemberSelector";
+import { Save } from "lucide-react";
 import type {
   FamilyMember,
   EnhancedFamilyMember,
@@ -30,6 +32,10 @@ interface RoutineDetailsCardProps {
   // View mode
   viewMode: "calendar" | "group";
   setViewMode: (mode: "calendar" | "group") => void;
+  
+  // Onboarding completion
+  onComplete?: () => void;
+  totalTasks?: number;
 }
 
 export default function RoutineDetailsCard({
@@ -45,6 +51,8 @@ export default function RoutineDetailsCard({
   getMemberColors,
   viewMode,
   setViewMode,
+  onComplete,
+  totalTasks,
 }: RoutineDetailsCardProps) {
   const handleRoutineNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newName = e.target.value;
@@ -93,6 +101,29 @@ export default function RoutineDetailsCard({
                 setViewMode={setViewMode}
               />
             </div>
+
+            {/* Complete Onboarding Button - Only show during onboarding */}
+            {onComplete && (
+              <div className="flex-shrink-0">
+                <Button
+                  onClick={onComplete}
+                  disabled={busy || !routineName.trim()}
+                  className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white text-sm px-3 py-2 h-8"
+                >
+                  {busy ? (
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></div>
+                      <span className="text-xs">Saving...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <Save className="w-3 h-3 mr-1" />
+                      <span className="text-xs">Complete Onboarding</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
 
           {selectedMemberIds.length === 0 && (
