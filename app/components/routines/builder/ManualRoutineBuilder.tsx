@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { DndContext } from '@dnd-kit/core';
 import { useTaskOperations } from "../../../hooks/useTaskOperations";
+import { useDndKitDragAndDrop } from "./hooks/useDndKitDragAndDrop";
 import { useTaskOperations as useTaskOperationsBuilder, type DeleteScope } from "./hooks/useTaskOperations";
 import { useTaskCreation } from "./hooks/useTaskCreation";
 import { useRoutineDataLoader } from "./hooks/useRoutineDataLoader";
@@ -53,8 +55,8 @@ import { useRoutineData } from "./hooks/useRoutineData";
 import { useFamilyMembers } from "./hooks/useFamilyMembers";
 import { useCalendarTasks } from "./hooks/useCalendarTasks";
 import { useTaskModals } from "./hooks/useTaskModals";
-import { useTaskDragAndDrop } from "./hooks/useTaskDragAndDrop";
 import { useTaskOrdering } from "./hooks/useTaskOrdering";
+import { useTaskDragAndDrop } from "./hooks/useTaskDragAndDrop";
 import { useRecurringTaskOperations } from "./hooks/useRecurringTaskOperations";
 import { useTaskEditing } from "./hooks/useTaskEditing";
 import { FamilyMemberSelector } from "./components/FamilyMemberSelector";
@@ -240,15 +242,13 @@ export default function ManualRoutineBuilder({
     setDraggedTask,
     setDragOverPosition,
     setIsDragging,
-    handleTaskDragStart,
-    handleTaskDragOver,
-    handleTaskDragLeave,
-    handleTaskDrop,
-    handleTaskDragEnd,
+    handleDragStart,
+    handleDragOver,
+    handleDragEnd,
     moveTaskToPosition,
     getTasksWithDayOrder,
     loadDayOrders,
-  } = useTaskDragAndDrop(
+  } = useDndKitDragAndDrop(
     calendarTasks,
     updateCalendarTasks,
     extractRoutineTaskIdFromId,
@@ -848,32 +848,33 @@ export default function ManualRoutineBuilder({
               </div>
             ) : (
               selectedMemberIds.length > 0 && (
-                <PlannerWeek
-                  weekData={transformCalendarTasksToWeekData(
-                    calendarTasks,
-                    selectedMemberIds,
-                    familyMembers,
-                  )}
-                  selectedMemberIds={selectedMemberIds}
-                  draggedTask={draggedTask}
-                  dragOverPosition={dragOverPosition}
-                  hoveredDropZone={hoveredDropZone}
-                  isReordering={isReordering}
-                  reorderingDay={reorderingDay}
-                  recurringTemplates={recurringTemplates}
-                  familyMembers={familyMembers}
-                  getMemberColors={getMemberColors}
-                  onColumnClick={handleColumnClickWrapper}
-                  onTaskDragStart={handleTaskDragStart}
-                  onTaskDragEnd={handleTaskDragEnd}
-                  onTaskDragOver={handleTaskDragOver}
-                  onTaskDragLeave={handleTaskDragLeave}
-                  onTaskDrop={handleTaskDrop}
-                  onTaskClick={handleTaskClick}
-                  onRemoveGroup={removeGroupFromCalendar}
-                  getTasksWithDayOrder={getTasksWithDayOrder}
-                  extractMemberIdFromId={extractMemberIdFromId}
-                />
+                <DndContext
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDragEnd={handleDragEnd}
+                >
+                  <PlannerWeek
+                    weekData={transformCalendarTasksToWeekData(
+                      calendarTasks,
+                      selectedMemberIds,
+                      familyMembers,
+                    )}
+                    selectedMemberIds={selectedMemberIds}
+                    draggedTask={draggedTask}
+                    dragOverPosition={dragOverPosition}
+                    hoveredDropZone={hoveredDropZone}
+                    isReordering={isReordering}
+                    reorderingDay={reorderingDay}
+                    recurringTemplates={recurringTemplates}
+                    familyMembers={familyMembers}
+                    getMemberColors={getMemberColors}
+                    onColumnClick={handleColumnClickWrapper}
+                    onTaskClick={handleTaskClick}
+                    onRemoveGroup={removeGroupFromCalendar}
+                    getTasksWithDayOrder={getTasksWithDayOrder}
+                    extractMemberIdFromId={extractMemberIdFromId}
+                  />
+                </DndContext>
               )
             )}
 

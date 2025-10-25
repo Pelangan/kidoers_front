@@ -1,8 +1,11 @@
 import React from 'react'
+import { useDraggable } from '@dnd-kit/core'
+import { CSS } from '@dnd-kit/utilities'
 import { Move, Folder } from 'lucide-react'
 import type { Task, RecurringTemplate } from '../types/routineBuilderTypes'
 import { getTaskDisplayFrequency } from '../utils/taskUtils'
 import { MultiMemberBadge } from './MultiMemberBadge'
+import { useState, useRef } from 'react'
 
 interface TaskItemProps {
   task: Task
@@ -18,8 +21,6 @@ interface TaskItemProps {
     color: string
   }>
   getMemberColors?: (color: string) => { border: string; bg: string; bgColor: string; borderColor: string }
-  onDragStart: (e: React.DragEvent, task: Task, day: string, memberId: string) => void
-  onDragEnd: () => void
   onClick: (e: React.MouseEvent, task: Task, day: string, memberId: string) => void
   // New props for series badge functionality
   allDayTasks?: Task[] // All tasks for this day to count series
@@ -36,13 +37,28 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   recurringTemplates,
   familyMembers = [],
   getMemberColors,
-  onDragStart,
-  onDragEnd,
   onClick,
   allDayTasks = [],
   onSeriesBadgeClick,
   isCopyOperation = false
 }) => {
+  // @dnd-kit draggable setup
+  const { attributes, listeners, setNodeRef, transform, isDragging: isDndDragging } = useDraggable({
+    id: task.id,
+    data: {
+      task,
+      day,
+      memberId,
+      isCopyOperation,
+    },
+  })
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    zIndex: isDndDragging ? 1000 : 'auto',
+    opacity: isDndDragging ? 0.8 : 1,
+  }
+
   console.log('=== TASK ITEM RENDERED ===', { taskName: task.name, day, memberId, isDragging })
   
   // Create assignees data for single-member tasks if not available
@@ -121,32 +137,14 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
   return (
     <div 
-      className={`relative flex items-center space-x-1 p-3 rounded border border-gray-200 ${taskColor.bg} ${taskColor.border} ${
-        isDragging ? 'cursor-grabbing' : 'cursor-pointer'
-      } hover:shadow-lg transition-all duration-300 ease-in-out ${
-        isDragging ? 'opacity-50 task-dragging scale-95' : 'hover:bg-opacity-90'
-      }`}
+      ref={setNodeRef}
       style={{
+        ...style,
         borderLeftColor: taskColor.borderColor || undefined,
-        pointerEvents: 'auto', // Ensure pointer events are enabled
-        userSelect: 'none', // Prevent text selection during drag
-        WebkitTouchCallout: 'none', // Disable touch callout on iOS
-        zIndex: isDragging ? 1 : 'auto', // Lower z-index when dragging to allow drop zones to receive events
-        // Remove any CSS that might interfere with drag image
-        transform: isDragging ? 'none' : undefined,
-        opacity: isDragging ? 0.5 : undefined
-      } as React.CSSProperties}
-      draggable={true}
-      onDragStart={(e) => {
-        onDragStart(e, task, day, memberId)
       }}
-      onDragEnd={(e) => {
-        onDragEnd()
-      }}
-      onClick={(e) => {
-        e.stopPropagation()
-        onClick(e, task, day, memberId)
-      }}
+      className={`relative flex items-center space-x-1 p-3 rounded ${taskColor.bg} ${taskColor.border} ${
+        isDndDragging ? 'cursor-grabbing shadow-2xl scale-105' : 'cursor-pointer'
+      } hover:shadow-lg hover:bg-opacity-90`}
     >
       {/* Copy operation indicator */}
       {isCopyOperation && (
@@ -156,7 +154,13 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       )}
       
       
-      <div className="flex-1">
+      <div 
+        className="flex-1"
+        onClick={(e) => {
+          e.stopPropagation()
+          onClick(e, task, day, memberId)
+        }}
+      >
         <div className="flex items-center justify-between">
           <div className={`text-sm font-medium ${taskColor.text}`}>{task.name}</div>
           <div className="flex items-center space-x-1">
@@ -191,6 +195,29 @@ export const TaskItem: React.FC<TaskItemProps> = ({
             <span>from {task.from_group.name}</span>
           </div>
         )}
+      </div>
+      
+      {/* Drag handle - grip icon on the right */}
+      <div 
+        {...attributes}
+        {...listeners}
+        className="flex-shrink-0 px-0.5 py-1 cursor-grab hover:bg-gray-200 rounded transition-colors"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex flex-col space-y-0.5">
+          <div className="flex space-x-0.5">
+            <div className="w-0.5 h-0.5 bg-gray-500 rounded-full"></div>
+            <div className="w-0.5 h-0.5 bg-gray-500 rounded-full"></div>
+          </div>
+          <div className="flex space-x-0.5">
+            <div className="w-0.5 h-0.5 bg-gray-500 rounded-full"></div>
+            <div className="w-0.5 h-0.5 bg-gray-500 rounded-full"></div>
+          </div>
+          <div className="flex space-x-0.5">
+            <div className="w-0.5 h-0.5 bg-gray-500 rounded-full"></div>
+            <div className="w-0.5 h-0.5 bg-gray-500 rounded-full"></div>
+          </div>
+        </div>
       </div>
     </div>
   )

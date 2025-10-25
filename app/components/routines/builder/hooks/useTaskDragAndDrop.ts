@@ -79,7 +79,18 @@ export const useTaskDragAndDrop = (
       e.dataTransfer.effectAllowed = 'move'
     }
     
-    e.dataTransfer.setData('text/plain', '') // Required for Firefox
+    // Set data for better browser compatibility
+    e.dataTransfer.setData('text/plain', task.id) // Use task ID instead of empty string
+    e.dataTransfer.setData('application/json', JSON.stringify({ taskId: task.id, day, memberId }))
+    
+    // Set drag image to the task element itself for better visual feedback
+    try {
+      if (e.currentTarget instanceof HTMLElement) {
+        e.dataTransfer.setDragImage(e.currentTarget, 0, 0)
+      }
+    } catch (error) {
+      console.warn('[DRAG-ORDER] Could not set drag image:', error)
+    }
     
     // Store the dragged task info
     console.log('[DRAG-ORDER] 📝 Storing dragged task:', { task: task.name, day, memberId, isCopyOperation })

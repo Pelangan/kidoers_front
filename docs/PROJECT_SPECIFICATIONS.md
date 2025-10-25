@@ -916,6 +916,36 @@ interface Reward {
     - Fixed critical bug where task assignments were deleted during drag-drop due to incorrect operation order
     - Fixed duplicate task bug when deleting single day from multi-day task (routine_tasks now keep individual days)
     - Fixed undo functionality for task deletion - now properly restores tasks in backend database (not just UI state)
+
+### Drag and Drop Implementation Fix (January 2025)
+**Issue**: Tasks couldn't be dragged out of their cells and would disappear with scrolling appearing during drag operations.
+
+**Root Cause**: The application had conflicting drag and drop implementations:
+1. **@dnd-kit** implementation that was incomplete (only showing placeholder messages)
+2. **Native HTML5 drag and drop** implementation that was fully functional
+3. **CSS overflow issues** causing scrolling during drag operations
+
+**Solution**: 
+1. **Completed @dnd-kit implementation** by implementing the actual drag and drop logic from the native HTML5 version
+2. **Fixed CSS overflow issues** by changing `overflowY: 'auto'` to `overflowY: 'visible'` on day cells
+3. **Removed native HTML5 drag and drop** to avoid conflicts with @dnd-kit
+4. **Implemented proper @dnd-kit drop zones** using `useDroppable` hook
+
+**Files Modified**:
+- `kidoers_front/app/components/routines/builder/hooks/useDndKitDragAndDrop.ts` - Implemented actual drag and drop logic
+- `kidoers_front/app/components/routines/builder/ManualRoutineBuilder.tsx` - Switched to @dnd-kit implementation
+- `kidoers_front/app/components/routines/builder/components/PlannerWeek.tsx` - Updated to use @dnd-kit drop zones
+- `kidoers_front/app/components/routines/builder/components/TaskItem.tsx` - Updated to use @dnd-kit draggable
+
+**Key Changes**:
+1. **Unified Implementation**: Now uses @dnd-kit for better accessibility, touch support, and cross-browser compatibility
+2. **CSS Fix**: Day cells no longer scroll during drag operations
+3. **Event Handling**: Proper @dnd-kit event handling with `onDragStart`, `onDragOver`, and `onDragEnd`
+4. **Drop Zones**: Implemented using `useDroppable` hook with proper data attributes
+5. **Task Movement**: Full implementation of `moveTaskToPosition` function with backend persistence
+
+**Result**: Tasks can now be dragged smoothly between day columns using @dnd-kit with better accessibility and touch support.
+
 - **Visual Design**: Matches wireframe exactly with proper colors and layout
 
 ## 🔌 API Integration
