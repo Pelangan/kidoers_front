@@ -236,7 +236,7 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
           
           return (
             <div key={`${bucket.bucket_type}-${bucket.bucket_member_id || 'shared'}`} className="border-b border-gray-200 transition-all duration-200 ease-in-out">
-              <div className="flex" style={{ minHeight: `${calculatedHeight}px` }}>
+              <div className="flex" style={{ minHeight: `${calculatedHeight}px`, overflow: 'hidden' }}>
                 {/* Avatar Column */}
                 <div className="p-2 pt-4 border-r border-gray-200 flex items-start justify-center w-16 flex-shrink-0">
                   {bucket.bucket_type === 'shared' ? (
@@ -288,11 +288,10 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                            ? 'bg-gray-100 opacity-75'
                            : 'hover:bg-gray-50'
                        }`}
-                       style={{ 
-                         minHeight: `${calculatedHeight}px`,
-                         height: `${calculatedHeight}px`,
-                         overflowY: 'visible'
-                       }}
+                      style={{ 
+                        minHeight: `${calculatedHeight}px`,
+                        height: `${calculatedHeight}px`
+                      }}
                        onClick={(e) => {
                          // Don't trigger click if we're dragging
                          if (draggedTask) {
