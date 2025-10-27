@@ -36,13 +36,10 @@ const DropZone: React.FC<DropZoneProps> = ({
     },
   })
 
-  // If custom className is provided, use it; otherwise use default styles with hover states
-  const customStyles = className && className.includes('bg-blue-50') ? className : ''
-  
   return (
     <div
       ref={setNodeRef}
-      className={customStyles || `h-3 rounded transition-all duration-200 ease-in-out ${
+      className={className || `h-3 rounded transition-all duration-200 ease-in-out ${
         isOver && isActive
           ? 'bg-blue-400 border-2 border-dashed border-blue-600' 
           : isActive
@@ -71,6 +68,7 @@ interface PlannerWeekProps {
   hoveredDropZone: { day: string; memberId: string } | null
   isReordering: boolean
   reorderingDay: string | null
+  sourceDay: string | null
   recurringTemplates: RecurringTemplate[]
   familyMembers: Array<{
     id: string
@@ -96,6 +94,7 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
   hoveredDropZone,
   isReordering,
   reorderingDay,
+  sourceDay,
   recurringTemplates,
   familyMembers,
   getMemberColors,
@@ -228,7 +227,7 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
         </div>
 
         {/* Bucket Rows */}
-        <div style={{ height: `${gridHeight}px`, overflowY: 'auto' }}>
+        <div style={{ height: `${gridHeight}px`, overflowY: 'auto', position: 'relative' }}>
         {allBuckets.map((bucket, bucketIndex) => {
           const maxTasks = getMaxTasksForBucket(bucket.bucket_type, bucket.bucket_member_id)
           // Use our calculated minimum height, but allow growth for many tasks
@@ -236,7 +235,7 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
           
           return (
             <div key={`${bucket.bucket_type}-${bucket.bucket_member_id || 'shared'}`} className="border-b border-gray-200 transition-all duration-200 ease-in-out">
-              <div className="flex" style={{ minHeight: `${calculatedHeight}px`, overflow: 'hidden' }}>
+              <div className="flex" style={{ minHeight: `${calculatedHeight}px` }}>
                 {/* Avatar Column */}
                 <div className="p-2 pt-4 border-r border-gray-200 flex items-start justify-center w-16 flex-shrink-0">
                   {bucket.bucket_type === 'shared' ? (
@@ -304,24 +303,10 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                        }}
                      >
                       <div className="flex flex-col h-full relative">
-                        {/* Drop zone for empty cells - covers entire cell */}
-                        {orderedTasks.length === 0 && draggedTask && (
-                          <>
-                            <DropZone
-                              id={`drop-empty-${day}-${bucket.bucket_member_id}`}
-                              day={day}
-                              memberId={bucket.bucket_member_id || ''}
-                              position="after"
-                              isActive={!!draggedTask}
-                              className="h-16 bg-blue-50 border-2 border-dashed border-blue-400 rounded-lg m-1"
-                            />
-                          </>
-                        )}
-
                         {/* Tasks Container */}
                         <div className="flex-1 space-y-2">
-                        {/* Drop zone at the top when there are existing tasks */}
-                        {orderedTasks.length > 0 && draggedTask && (
+                        {/* Drop zone at the top when there are existing tasks OR when dragging cross-member */}
+                        {draggedTask && orderedTasks.length > 0 && (
                           <DropZone
                             id={`drop-top-${day}-${bucket.bucket_member_id}`}
                             day={day}
@@ -329,6 +314,18 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                             position="before"
                             targetTaskId={orderedTasks[0].id}
                             isActive={!!draggedTask}
+                          />
+                        )}
+                        
+                        {/* Drop zone for empty cells */}
+                        {draggedTask && orderedTasks.length === 0 && (
+                          <DropZone
+                            id={`drop-empty-${day}-${bucket.bucket_member_id}`}
+                            day={day}
+                            memberId={bucket.bucket_member_id || ''}
+                            position="after"
+                            isActive={!!draggedTask}
+                            className="min-h-32 bg-blue-50 border-2 border-dashed border-blue-400 rounded-lg m-1"
                           />
                         )}
                         
@@ -401,9 +398,9 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                         </div>
 
                         {/* Loading Overlay */}
-                        {isReordering && reorderingDay === day && (
-                          <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10">
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                        {isReordering && (reorderingDay === day || sourceDay === day) && (
+                          <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10 rounded">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                           </div>
                         )}
 

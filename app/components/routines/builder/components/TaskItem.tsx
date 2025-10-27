@@ -43,11 +43,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   isCopyOperation = false
 }) => {
   // @dnd-kit draggable setup
-  // Create a unique ID by combining task.id, day, and memberId to ensure each instance is tracked separately
-  const uniqueDraggableId = `${task.id}-${day}-${memberId}`
-  
   const { attributes, listeners, setNodeRef, transform, isDragging: isDndDragging } = useDraggable({
-    id: uniqueDraggableId,
+    id: task.id,
     data: {
       task,
       day,
@@ -58,7 +55,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
   const style = {
     transform: CSS.Translate.toString(transform),
-    zIndex: isDndDragging ? 1000 : 'auto',
+    zIndex: isDndDragging ? 10000 : 'auto', // Much higher z-index to render above other rows
     opacity: isDndDragging ? 0.8 : 1,
   }
 

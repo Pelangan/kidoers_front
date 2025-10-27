@@ -48,6 +48,7 @@ export const useDndKitDragAndDrop = (
   const [isOptimisticUpdate, setIsOptimisticUpdate] = useState(false)
   const [isReordering, setIsReordering] = useState(false)
   const [reorderingDay, setReorderingDay] = useState<string | null>(null)
+  const [sourceDay, setSourceDay] = useState<string | null>(null)
 
   // Handle drag start
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -159,22 +160,39 @@ export const useDndKitDragAndDrop = (
     }
 
     // Update UI state
+    console.log('[DND-KIT] 🔄 Updating UI state:', {
+      sourceDay,
+      targetDay,
+      sourceMemberId,
+      targetMemberId,
+      isSameDay: sourceDay === targetDay,
+      isSameMember: sourceMemberId === targetMemberId,
+      calculatedTaskOrderLength: calculatedTaskOrder.length
+    })
+    
     if (sourceDay === targetDay && sourceMemberId === targetMemberId) {
-      // Same day - update with calculated order
+      // Same day, same member - simple reordering
+      console.log('[DND-KIT] 📌 Same day/member - simple reordering')
       updateCalendarTasks(prev => {
         const newCalendarTasks = { ...prev }
         newCalendarTasks[sourceDay] = {
           ...newCalendarTasks[sourceDay],
           individualTasks: calculatedTaskOrder
         }
+        console.log('[DND-KIT] ✅ Updated same day/member tasks:', newCalendarTasks[sourceDay].individualTasks.length)
         return newCalendarTasks
       })
     } else {
-      // Cross-day moves
+      // Cross-day or cross-member moves
+      console.log('[DND-KIT] 📌 Cross-day or cross-member move')
       updateCalendarTasks(prev => {
         const newCalendarTasks = { ...prev }
         
-        // Remove from source day
+        // Log before state
+        console.log('[DND-KIT] 📋 Before update - source day tasks:', newCalendarTasks[sourceDay]?.individualTasks.length)
+        console.log('[DND-KIT] 📋 Before update - target day tasks:', newCalendarTasks[targetDay]?.individualTasks.length)
+        
+        // Remove from source day/member
         newCalendarTasks[sourceDay] = {
           ...newCalendarTasks[sourceDay],
           individualTasks: newCalendarTasks[sourceDay].individualTasks.filter((t: Task) => {
@@ -183,11 +201,14 @@ export const useDndKitDragAndDrop = (
           })
         }
         
-        // Add to target day
+        // Add to target day/member
         newCalendarTasks[targetDay] = {
           ...newCalendarTasks[targetDay],
           individualTasks: calculatedTaskOrder
         }
+        
+        console.log('[DND-KIT] 📋 After update - source day tasks:', newCalendarTasks[sourceDay].individualTasks.length)
+        console.log('[DND-KIT] 📋 After update - target day tasks:', newCalendarTasks[targetDay].individualTasks.length)
         
         return newCalendarTasks
       })
@@ -198,7 +219,7 @@ export const useDndKitDragAndDrop = (
       try {
         console.log('[DND-KIT] 💾 Saving new order to backend for day:', targetDay)
         
-        // If it's a cross-day move, update the recurring template's day assignment
+        // If it's a cross-day move, update the task's day assignment
         if (sourceDay !== targetDay) {
           console.log('[DND-KIT] 🔄 Cross-day move detected, updating day assignment')
           
@@ -218,6 +239,46 @@ export const useDndKitDragAndDrop = (
               days_of_week: [targetDay]
             })
             console.log('[DND-KIT] ✅ Individual task day assignment updated in backend')
+          }
+        }
+        
+        // If it's a member transfer, update the task's member assignment
+        if (sourceMemberId !== targetMemberId) {
+          console.log('[DND-KIT] 🔄 Member transfer detected, updating member assignment')
+          
+          try {
+            const { createTaskAssignment, getRoutineAssignments } = await import('../../../../lib/api')
+            
+            // Get current assignments to find the assignment ID for this task
+            const assignments = await getRoutineAssignments(currentRoutineId)
+            const routineTaskId = task.routine_task_id || extractRoutineTaskIdFromId(task.id)
+            
+            // Find the current assignment for the source member
+            const currentAssignment = assignments.find(a => 
+              a.routine_task_id === routineTaskId && 
+              a.member_id === sourceMemberId
+            )
+            
+            if (currentAssignment) {
+              // Delete the old assignment
+              const { deleteTaskAssignment } = await import('../../../../lib/api')
+              await deleteTaskAssignment(currentRoutineId, routineTaskId, currentAssignment.id)
+              console.log('[DND-KIT] ✅ Deleted old assignment for source member')
+              
+              // Create new assignment for target member
+              await createTaskAssignment(currentRoutineId, routineTaskId, targetMemberId, 0)
+              console.log('[DND-KIT] ✅ Created new assignment for target member')
+            } else {
+              console.log('[DND-KIT] ⚠️ Could not find current assignment to transfer')
+            }
+          } catch (error) {
+            console.error('[DND-KIT] ❌ Failed to update member assignment:', error)
+          }
+          
+          // Reload the routine data to get the updated assignments
+          if (reloadRoutineData) {
+            await reloadRoutineData()
+            console.log('[DND-KIT] ✅ Routine data reloaded to reflect member assignment change')
           }
         }
         
@@ -292,9 +353,10 @@ export const useDndKitDragAndDrop = (
     
     // For recurring tasks:
     // - Allow reordering within same day/member
-    // - Open edit modal for cross-day or cross-member moves
-    if (isRecurringTask && (isDayChange || isMemberTransfer)) {
-      console.log('[DND-KIT] ⚠️ Recurring task - preventing cross-day/member move, opening edit modal')
+    // - Allow member transfer (changing task assignment)
+    // - Open edit modal ONLY for cross-day moves
+    if (isRecurringTask && isDayChange) {
+      console.log('[DND-KIT] ⚠️ Recurring task - preventing cross-day move, opening edit modal')
       
       // Open the edit modal if callback is provided
       if (onOpenEditModal) {
@@ -302,12 +364,15 @@ export const useDndKitDragAndDrop = (
       } else {
         toast({
           title: "Recurring task limitation",
-          description: "To move a recurring task to another day or member, please use the Edit Task dialog.",
+          description: "To move a recurring task to another day, please use the Edit Task dialog.",
         })
       }
       
       return
     }
+    
+    // For non-recurring tasks, all moves are allowed
+    // For recurring tasks, allow member transfer but block day changes
     
     // Create drag over position for the move operation
     const dragOverPosition: DragOverPosition = {
@@ -319,7 +384,28 @@ export const useDndKitDragAndDrop = (
     
     // Implement actual drop logic using the existing moveTaskToPosition function
     try {
+      // Set reordering state to show loading spinner on both source and target days
+      setIsReordering(true)
+      setReorderingDay(targetDay)
+      setSourceDay(sourceDay)
+      
+      console.log('[DND-KIT] 🚀 Starting moveTaskToPosition:', {
+        taskName: draggedTaskData.name,
+        sourceDay,
+        sourceMemberId,
+        targetDay,
+        targetMemberId,
+        dragOverPosition
+      })
+      
       await moveTaskToPosition(draggedTaskData, sourceDay, sourceMemberId, targetDay, targetMemberId, dragOverPosition)
+      
+      console.log('[DND-KIT] ✅ moveTaskToPosition completed successfully')
+      
+      // Clear reordering state after successful move
+      setIsReordering(false)
+      setReorderingDay(null)
+      setSourceDay(null)
       
       toast({
         title: "Task moved",
@@ -329,6 +415,12 @@ export const useDndKitDragAndDrop = (
       console.log('[DND-KIT] ✅ Task drop completed successfully')
     } catch (error) {
       console.error('[DND-KIT] ❌ Error during task drop:', error)
+      
+      // Clear reordering state on error
+      setIsReordering(false)
+      setReorderingDay(null)
+      setSourceDay(null)
+      
       toast({
         title: "Error",
         description: "Failed to move task",
@@ -408,6 +500,7 @@ export const useDndKitDragAndDrop = (
     isDragging,
     isReordering,
     reorderingDay,
+    sourceDay,
     
     // Setters
     setDraggedTask,
