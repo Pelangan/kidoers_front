@@ -34,7 +34,8 @@ export const useDndKitDragAndDrop = (
   currentRoutineId: string | null,
   saveDaySpecificOrder: (day: string, memberId: string, tasks: Task[]) => Promise<void>,
   recurringTemplates: RecurringTemplate[] = [],
-  reloadRoutineData?: () => Promise<void>
+  reloadRoutineData?: () => Promise<void>,
+  onOpenEditModal?: (task: Task) => void
 ) => {
   const { toast } = useToast()
   
@@ -278,14 +279,35 @@ export const useDndKitDragAndDrop = (
     const isSameMember = sourceMemberId === targetMemberId
     const isMemberTransfer = !isSameMember
     const isDayChange = !isSameDay
+    const isRecurringTask = !!draggedTaskData.recurring_template_id
     
     console.log('[DND-KIT] Operation type:', {
       isSameDay,
       isSameMember,
       isMemberTransfer,
       isDayChange,
+      isRecurringTask,
       operationType: isCopyOperation ? 'COPY' : isMemberTransfer ? 'MEMBER_TRANSFER' : isDayChange ? 'DAY_CHANGE' : 'REORDER'
     })
+    
+    // For recurring tasks:
+    // - Allow reordering within same day/member
+    // - Open edit modal for cross-day or cross-member moves
+    if (isRecurringTask && (isDayChange || isMemberTransfer)) {
+      console.log('[DND-KIT] ⚠️ Recurring task - preventing cross-day/member move, opening edit modal')
+      
+      // Open the edit modal if callback is provided
+      if (onOpenEditModal) {
+        onOpenEditModal(draggedTaskData)
+      } else {
+        toast({
+          title: "Recurring task limitation",
+          description: "To move a recurring task to another day or member, please use the Edit Task dialog.",
+        })
+      }
+      
+      return
+    }
     
     // Create drag over position for the move operation
     const dragOverPosition: DragOverPosition = {

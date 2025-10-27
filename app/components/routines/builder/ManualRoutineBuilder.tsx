@@ -256,6 +256,12 @@ export default function ManualRoutineBuilder({
     (day: string, memberId: string, tasks: Task[]) => saveDaySpecificOrder(day, memberId, tasks, currentRoutineId!),
     recurringTemplates,
     () => loadExistingRoutineData(currentRoutineId!, enhancedFamilyMembers),
+    (task: Task) => {
+      // Open the edit modal for the task
+      setSelectedTaskForEdit({ task, day: '', memberId: '' })
+      setShowTaskMiniPopup(true)
+      handleEditTask()
+    }
   );
 
   // Use recurring task operations hook
