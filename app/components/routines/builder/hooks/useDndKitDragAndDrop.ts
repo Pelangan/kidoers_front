@@ -196,6 +196,30 @@ export const useDndKitDragAndDrop = (
     if (calculatedTaskOrder.length > 0) {
       try {
         console.log('[DND-KIT] 💾 Saving new order to backend for day:', targetDay)
+        
+        // If it's a cross-day move, update the recurring template's day assignment
+        if (sourceDay !== targetDay) {
+          console.log('[DND-KIT] 🔄 Cross-day move detected, updating day assignment')
+          
+          // For recurring tasks, update the template
+          if (task.recurring_template_id) {
+            console.log('[DND-KIT] 📋 Recurring task detected, updating template:', task.recurring_template_id)
+            const { updateTemplateDays } = await import('../../../../lib/api')
+            await updateTemplateDays(currentRoutineId, task.recurring_template_id, {
+              days_of_week: [targetDay]
+            })
+            console.log('[DND-KIT] ✅ Recurring template day assignment updated in backend')
+          } else {
+            // For non-recurring tasks, update the individual task
+            console.log('[DND-KIT] 📋 Non-recurring task detected, updating individual task')
+            const { patchRoutineTask } = await import('../../../../lib/api')
+            await patchRoutineTask(currentRoutineId, task.routine_task_id || extractRoutineTaskIdFromId(task.id), {
+              days_of_week: [targetDay]
+            })
+            console.log('[DND-KIT] ✅ Individual task day assignment updated in backend')
+          }
+        }
+        
         await saveDaySpecificOrder(targetDay, targetMemberId, calculatedTaskOrder)
         console.log('[DND-KIT] ✅ Day-specific order saved successfully')
         

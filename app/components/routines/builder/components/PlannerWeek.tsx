@@ -36,10 +36,13 @@ const DropZone: React.FC<DropZoneProps> = ({
     },
   })
 
+  // If custom className is provided, use it; otherwise use default styles with hover states
+  const customStyles = className && className.includes('bg-blue-50') ? className : ''
+  
   return (
     <div
       ref={setNodeRef}
-      className={`h-3 rounded transition-all duration-200 ease-in-out ${className} ${
+      className={customStyles || `h-3 rounded transition-all duration-200 ease-in-out ${
         isOver && isActive
           ? 'bg-blue-400 border-2 border-dashed border-blue-600' 
           : isActive
@@ -270,60 +273,50 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                   )}
                 </div>
 
-                {/* Task Content Columns */}
-                {days.map((day) => {
-                  const tasks = getTasksForBucketAndDay(bucket.bucket_type, bucket.bucket_member_id, day)
-                  const orderedTasks = getTasksWithDayOrder(tasks, day, bucket.bucket_member_id || '')
-                  
-                  // Make empty day cells droppable
-                  const { setNodeRef: setEmptyCellRef, isOver: isOverEmptyCell } = useDroppable({
-                    id: `empty-cell-${day}-${bucket.bucket_member_id}`,
-                    data: {
-                      day,
-                      memberId: bucket.bucket_member_id || '',
-                      position: 'after',
-                    },
-                  })
-                  
-                  return (
-                    <div 
-                      key={day} 
-                      ref={orderedTasks.length === 0 ? setEmptyCellRef : undefined}
-                      className={`p-2 border-r border-gray-200 last:border-r-0 transition-all duration-300 ease-in-out flex-1 flex flex-col relative ${
-                        (hoveredDropZone?.day === day && hoveredDropZone?.memberId === bucket.bucket_member_id) || 
-                        (orderedTasks.length === 0 && isOverEmptyCell)
-                          ? 'bg-blue-50 border-blue-200'
-                          : isReordering && reorderingDay === day
-                          ? 'bg-gray-100 opacity-75'
-                          : 'hover:bg-gray-50'
-                      }`}
-                      style={{ 
-                        minHeight: `${calculatedHeight}px`,
-                        height: `${calculatedHeight}px`,
-                        overflowY: 'visible'
-                      }}
-                      onClick={(e) => {
-                        // Don't trigger click if we're dragging
-                        if (draggedTask) {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          return
-                        }
-                        console.log('[PLANNER-WEEK] Day cell clicked:', day, 'bucket:', bucket.bucket_type, bucket.bucket_member_name)
-                        onColumnClick(day, bucket.bucket_type, bucket.bucket_member_id)
-                      }}
-                    >
-                      <div className="flex flex-col h-full">
-                        {/* Empty bucket drop zone - only show when hovering over this area AND no tasks exist */}
-                        {orderedTasks.length === 0 && hoveredDropZone?.day === day && hoveredDropZone?.memberId === bucket.bucket_member_id && (
-                          <DropZone
-                            id={`drop-empty-${day}-${bucket.bucket_member_id}`}
-                            day={day}
-                            memberId={bucket.bucket_member_id || ''}
-                            position="after"
-                            isActive={!!draggedTask}
-                            className="h-16"
-                          />
+                 {/* Task Content Columns */}
+                 {days.map((day) => {
+                   const tasks = getTasksForBucketAndDay(bucket.bucket_type, bucket.bucket_member_id, day)
+                   const orderedTasks = getTasksWithDayOrder(tasks, day, bucket.bucket_member_id || '')
+                   
+                   return (
+                     <div 
+                       key={day} 
+                       className={`p-2 border-r border-gray-200 last:border-r-0 transition-all duration-300 ease-in-out flex-1 flex flex-col relative ${
+                         (hoveredDropZone?.day === day && hoveredDropZone?.memberId === bucket.bucket_member_id)
+                           ? 'bg-blue-50 border-blue-200'
+                           : isReordering && reorderingDay === day
+                           ? 'bg-gray-100 opacity-75'
+                           : 'hover:bg-gray-50'
+                       }`}
+                       style={{ 
+                         minHeight: `${calculatedHeight}px`,
+                         height: `${calculatedHeight}px`,
+                         overflowY: 'visible'
+                       }}
+                       onClick={(e) => {
+                         // Don't trigger click if we're dragging
+                         if (draggedTask) {
+                           e.preventDefault()
+                           e.stopPropagation()
+                           return
+                         }
+                         console.log('[PLANNER-WEEK] Day cell clicked:', day, 'bucket:', bucket.bucket_type, bucket.bucket_member_name)
+                         onColumnClick(day, bucket.bucket_type, bucket.bucket_member_id)
+                       }}
+                     >
+                      <div className="flex flex-col h-full relative">
+                        {/* Drop zone for empty cells - covers entire cell */}
+                        {orderedTasks.length === 0 && draggedTask && (
+                          <>
+                            <DropZone
+                              id={`drop-empty-${day}-${bucket.bucket_member_id}`}
+                              day={day}
+                              memberId={bucket.bucket_member_id || ''}
+                              position="after"
+                              isActive={!!draggedTask}
+                              className="h-16 bg-blue-50 border-2 border-dashed border-blue-400 rounded-lg m-1"
+                            />
+                          </>
                         )}
 
                         {/* Tasks Container */}
