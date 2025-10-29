@@ -190,9 +190,9 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
 
   return (
     <Card className="bg-white border-t border-r border-b border-gray-200">
-      <CardContent className="p-0">
-        {/* Day Headers */}
-        <div className="flex border-b border-gray-200">
+      <CardContent className="p-0 flex flex-col h-full max-h-[calc(100vh-300px)]">
+        {/* Day Headers - Sticky */}
+        <div className="flex border-b border-gray-200 bg-white sticky top-0 z-20 flex-shrink-0">
           {/* Empty cell for avatars */}
           <div className="p-2 bg-gray-50 border-r border-gray-200 w-16 flex-shrink-0"></div>
           {days.map((day) => (
@@ -206,8 +206,8 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
           ))}
         </div>
 
-        {/* Bucket Rows */}
-        <div style={{ height: `${gridHeight}px`, overflowY: 'auto', position: 'relative' }}>
+        {/* Bucket Rows - Scrollable */}
+        <div style={{ position: 'relative', overflowY: 'auto', flex: 1, minHeight: 0 }}>
         {allBuckets.map((bucket, bucketIndex) => {
           const maxTasks = getMaxTasksForBucket(bucket.bucket_type, bucket.bucket_member_id)
           // Use our calculated minimum height, but allow growth for many tasks
@@ -268,8 +268,7 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                            : 'hover:bg-gray-50'
                        }`}
                       style={{ 
-                        minHeight: `${calculatedHeight}px`,
-                        height: `${calculatedHeight}px`
+                        minHeight: `${calculatedHeight}px`
                       }}
                        onClick={(e) => {
                          // Don't trigger click if we're dragging
@@ -281,9 +280,9 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                          onColumnClick(day, bucket.bucket_type, bucket.bucket_member_id)
                        }}
                      >
-                      <div className="flex flex-col h-full relative">
+                      <div className="flex flex-col min-h-full relative">
                         {/* Tasks Container */}
-                        <div className="flex-1 space-y-2">
+                        <div className="space-y-2">
                         {/* Drop zone at the top when there are existing tasks OR when dragging cross-member */}
                         {draggedTask && orderedTasks.length > 0 && (
                           <DropZone
