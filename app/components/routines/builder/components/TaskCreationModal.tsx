@@ -105,16 +105,6 @@ export default function TaskCreationModal({
   onSave,
   onCreateNewGroup,
 }: TaskCreationModalProps) {
-  // Debug daySelection on every render
-  console.log('[TASK-CREATION-MODAL] 🔍 DEBUG: Modal rendering with daySelection:', daySelection);
-  console.log('[TASK-CREATION-MODAL] 🔍 DEBUG: Modal isOpen:', isOpen);
-  console.log('[TASK-CREATION-MODAL] 🔍 DEBUG: selectedTaskForEdit:', selectedTaskForEdit?.task?.name);
-  
-  // Track daySelection changes
-  useEffect(() => {
-    console.log('[TASK-CREATION-MODAL] 🔍 DEBUG: daySelection changed to:', daySelection);
-  }, [daySelection]);
-  
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl bg-white">
@@ -185,21 +175,9 @@ export default function TaskCreationModal({
                   daySelection.mode === "everyday"
                     ? "every-day"
                     : "custom-days";
-                console.log(
-                  "[MODAL-SELECT] 🔍 DEBUG: daySelection.mode:",
-                  daySelection.mode,
-                  "calculated selectValue:",
-                  selectValue,
-                );
                 return selectValue;
               })()}
               onValueChange={(value) => {
-                console.log(
-                  "[MODAL-SELECT] Day selection changed to:",
-                  value,
-                  "Current daySelection:",
-                  daySelection,
-                );
                 if (value === "every-day") {
                   onDaySelectionChange({
                     mode: "everyday",

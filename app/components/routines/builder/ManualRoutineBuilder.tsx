@@ -239,6 +239,7 @@ export default function ManualRoutineBuilder({
     isDragging,
     isReordering,
     reorderingDay,
+    sourceDay,
     setDraggedTask,
     setDragOverPosition,
     setIsDragging,
@@ -871,6 +872,7 @@ export default function ManualRoutineBuilder({
                     hoveredDropZone={hoveredDropZone}
                     isReordering={isReordering}
                     reorderingDay={reorderingDay}
+                    sourceDay={sourceDay}
                     recurringTemplates={recurringTemplates}
                     familyMembers={familyMembers}
                     getMemberColors={getMemberColors}

@@ -175,28 +175,6 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
   }
 
   const allBuckets = getAllBuckets()
-  
-  // Debug: Log all buckets to understand the structure
-  console.log('[PLANNER-WEEK] All buckets:', allBuckets.map((bucket, index) => ({
-    index,
-    bucket_type: bucket.bucket_type,
-    bucket_member_id: bucket.bucket_member_id,
-    bucket_member_name: bucket.bucket_member_name,
-    isFirstRow: index === 0,
-    isSecondRow: index === 1
-  })))
-  
-  // Also log each bucket individually to see the full structure
-  allBuckets.forEach((bucket, index) => {
-    console.log(`[PLANNER-WEEK] Bucket ${index}:`, {
-      index,
-      bucket_type: bucket.bucket_type,
-      bucket_member_id: bucket.bucket_member_id,
-      bucket_member_name: bucket.bucket_member_name,
-      isFirstRow: index === 0,
-      isSecondRow: index === 1
-    })
-  })
 
   // Calculate the maximum number of tasks for each bucket across all days
   const getMaxTasksForBucket = (bucketType: TaskBucketType, bucketMemberId: string | undefined) => {
@@ -298,7 +276,6 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                            e.stopPropagation()
                            return
                          }
-                         console.log('[PLANNER-WEEK] Day cell clicked:', day, 'bucket:', bucket.bucket_type, bucket.bucket_member_name)
                          onColumnClick(day, bucket.bucket_type, bucket.bucket_member_id)
                        }}
                      >
@@ -333,25 +310,6 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                           // Use the bucket member ID directly since we're already in the correct member's bucket
                           const memberId = bucket.bucket_member_id || ''
                           const isDragged = draggedTask?.task.id === task.id
-                          
-                          // Debug logging to understand the task structure
-                          console.log('[PLANNER-WEEK] Task details:', {
-                            taskId: task.id,
-                            taskName: task.name,
-                            bucketMemberId: bucket.bucket_member_id,
-                            bucketMemberName: bucket.bucket_member_name,
-                            taskMemberId: task.memberId,
-                            taskAssignees: task.assignees,
-                            memberId,
-                            isDragged,
-                            draggedTaskId: draggedTask?.task.id,
-                            draggedTaskName: draggedTask?.task.name,
-                            bucketIndex,
-                            taskIndex,
-                            isFirstRow: bucketIndex === 0,
-                            isSecondRow: bucketIndex === 1
-                          })
-                          
 
                           return (
                             <div key={`${task.id}-${day}-${bucket.bucket_type || 'unknown'}-${bucket.bucket_member_id || 'shared'}`}>

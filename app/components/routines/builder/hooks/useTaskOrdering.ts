@@ -22,76 +22,19 @@ export const useTaskOrdering = () => {
     tasks: Task[],
     currentRoutineId: string,
   ) => {
-    console.log(
-      "[DRAG-ORDER] 🚀 saveDaySpecificOrder called!",
-      {
-        day,
-        memberId,
-        taskCount: tasks.length,
-        tasks: tasks.map((t) => ({ id: t.id, name: t.name })),
-        currentRoutineId,
-      },
-    );
-
     if (!currentRoutineId) {
-      console.log(
-        "[DRAG-ORDER] ❌ No routine ID for saving day-specific order",
-      );
       return;
     }
 
     try {
-      console.log("[DRAG-ORDER] 💾 Saving day-specific order for:", {
-        day,
-        memberId,
-        tasks: tasks.map((t) => t.name),
-      });
-
       const taskOrders = tasks.map((task, index) => {
-        // Use routine_task_id if available, otherwise extract from id
         const routineTaskId =
           task.routine_task_id || extractRoutineTaskIdFromId(task.id);
-        console.log("[DRAG-ORDER] 🔍 ID extraction:", {
-          originalId: task.id,
-          routine_task_id: task.routine_task_id,
-          extractedId: extractRoutineTaskIdFromId(task.id),
-          finalId: routineTaskId,
-          taskName: task.name,
-          hasRoutineTaskId: !!task.routine_task_id,
-        });
         return {
           routine_task_id: routineTaskId,
           order_index: index,
         };
       });
-
-      console.log("[DRAG-ORDER] 🔍 Task order mapping:", {
-        originalTaskIds: tasks.map((t) => t.id),
-        extractedRoutineTaskIds: taskOrders.map((to) => to.routine_task_id),
-        taskNames: tasks.map((t) => t.name),
-        taskRoutineTaskIds: tasks.map((t) => t.routine_task_id),
-        taskOrdersWithIndex: taskOrders.map((to, idx) => ({
-          routine_task_id: to.routine_task_id,
-          order_index: to.order_index,
-          taskName: tasks[idx]?.name,
-          taskId: tasks[idx]?.id,
-          hasRoutineTaskId: !!tasks[idx]?.routine_task_id,
-        })),
-      });
-
-      console.log(
-        "[DRAG-ORDER] 🔍 Detailed task analysis:",
-        tasks.map((t, idx) => ({
-          index: idx,
-          taskId: t.id,
-          taskName: t.name,
-          routineTaskId: t.routine_task_id,
-          extractedId: extractRoutineTaskIdFromId(t.id),
-          finalRoutineTaskId:
-            t.routine_task_id || extractRoutineTaskIdFromId(t.id),
-          memberId: t.memberId,
-        })),
-      );
 
       const bulkUpdate: BulkDayOrderUpdate = {
         member_id: memberId,
@@ -99,39 +42,10 @@ export const useTaskOrdering = () => {
         task_orders: taskOrders,
       };
 
-      console.log("[DRAG-ORDER] 🚀 Sending bulk update to backend:", {
-        routineId: currentRoutineId,
-        bulkUpdate: {
-          member_id: bulkUpdate.member_id,
-          day_of_week: bulkUpdate.day_of_week,
-          task_orders: bulkUpdate.task_orders.map((to) => ({
-            routine_task_id: to.routine_task_id,
-            order_index: to.order_index,
-          })),
-        },
-      });
-
       const updatedOrders = await bulkUpdateDayOrders(
         currentRoutineId,
         bulkUpdate,
       );
-      console.log("[DRAG-ORDER] ✅ Day-specific order saved:", updatedOrders);
-      console.log(
-        "[DRAG-ORDER] 📊 Backend returned orders:",
-        updatedOrders.map((o) => ({
-          id: o.id,
-          routine_task_id: o.routine_task_id,
-          order_index: o.order_index,
-          day_of_week: o.day_of_week,
-        })),
-      );
-
-      console.log("[DRAG-ORDER] 🔍 Expected vs Actual orders:", {
-        expectedCount: taskOrders.length,
-        actualCount: updatedOrders.length,
-        expectedOrderIndexes: taskOrders.map((to) => to.order_index),
-        actualOrderIndexes: updatedOrders.map((o) => o.order_index),
-      });
 
       // Update local day orders state
       setDayOrders((prev) => {
@@ -144,11 +58,7 @@ export const useTaskOrdering = () => {
         return [...filtered, ...updatedOrders];
       });
     } catch (error) {
-      console.error(
-        "[DRAG-ORDER] ❌ Failed to save day-specific order:",
-        error,
-      );
-      // TODO: Show user-friendly error message
+      console.error("Failed to save day-specific order:", error);
     }
   };
 

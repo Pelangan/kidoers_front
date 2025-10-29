@@ -80,25 +80,11 @@ export const getTotalTasksForDay = (
     // For multi-member tasks, check if the selected member is in the assignees
     if (task.member_count && task.member_count > 1 && task.assignees) {
       const isAssignedToCurrentMember = task.assignees.some(assignee => assignee.id === selectedMemberId);
-      console.log('[FILTER-DEBUG] Multi-member task filtering:', {
-        taskName: task.name,
-        taskId: task.id,
-        memberCount: task.member_count,
-        selectedMemberId: selectedMemberId,
-        isAssignedToCurrentMember: isAssignedToCurrentMember
-      });
       return isAssignedToCurrentMember;
     }
     
     // For single-member tasks, filter by member ID
     const matches = task.memberId === selectedMemberId
-    console.log('[FILTER-DEBUG] Single-member task filtering:', {
-      taskName: task.name,
-      taskId: task.id,
-      taskMemberId: task.memberId,
-      selectedMemberId: selectedMemberId,
-      matches: matches
-    });
     return matches
   })
   

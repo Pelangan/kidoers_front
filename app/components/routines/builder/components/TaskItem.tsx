@@ -58,8 +58,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     zIndex: isDndDragging ? 10000 : 'auto', // Much higher z-index to render above other rows
     opacity: isDndDragging ? 0.8 : 1,
   }
-
-  console.log('=== TASK ITEM RENDERED ===', { taskName: task.name, day, memberId, isDragging })
   
   // Create assignees data for single-member tasks if not available
   const getAssignees = () => {

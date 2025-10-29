@@ -155,7 +155,6 @@ export const useTaskCreation = ({
 
   // Full handleApplyToSelection function implementation
   const handleApplyToSelection = useCallback(async (applyToId?: string) => {
-    console.log("[KIDOERS-ROUTINE] 🚀 handleApplyToSelection called");
     
     // This function needs access to more state and functions that are not available in this hook
     // The implementation should be moved back to the main component

@@ -26,10 +26,8 @@ export const useCalendarTasks = (
 
   // UI-only function for adding tasks to calendar (no backend calls)
   const addTaskToCalendarUI = (memberId: string, task: Task, applyTo: string, day: string, fromGroup?: TaskGroup) => {
-    console.log('[KIDOERS-ROUTINE] addTaskToCalendarUI called:', { memberId, task: task.name, applyTo, day, fromGroup })
 
     const newTaskId = `${task.id}-${memberId}-${day}-${Date.now()}`
-    console.log('[KIDOERS-ROUTINE] Creating new task with ID:', newTaskId)
 
     // Add task to calendar for the specified day
     setCalendarTasks(prev => {
@@ -50,12 +48,10 @@ export const useCalendarTasks = (
           }]
         }
       }
-      console.log('[KIDOERS-ROUTINE] Updated calendar state:', newState)
       return newState
     })
     
     // Day orders are now saved immediately when dragging, no need to track unsaved changes
-    console.log('[KIDOERS-ROUTINE] Task added to calendar successfully')
   }
 
   const addTaskToCalendar = async (memberId: string, task: Task, applyTo: string, day: string, applyToOptions: any[]) => {

@@ -95,22 +95,13 @@ export const useDndKitDragAndDrop = (
       return
     }
 
-    console.log('[DND-KIT] 🚀 moveTaskToPosition called!', {
-      taskName: task.name,
-      sourceDay,
-      targetDay,
-      sourceMemberId,
-      targetMemberId,
-      dragOverPosition,
-      currentRoutineId,
-      sourceDayTasks: calendarTasks[sourceDay]?.individualTasks?.length || 0,
-      targetDayTasks: calendarTasks[targetDay]?.individualTasks?.length || 0
-    })
 
     // Calculate the new order
     const sourceDayTasks = calendarTasks[sourceDay]
     const targetDayTasks = calendarTasks[targetDay]
     let calculatedTaskOrder: Task[] = []
+    // Extract routine task ID at function level so it's accessible in all branches
+    const routineTaskIdToMove = task.routine_task_id || extractRoutineTaskIdFromId(task.id)
     
     if (sourceDay === targetDay && sourceMemberId === targetMemberId) {
       // Same day reordering
@@ -119,10 +110,8 @@ export const useDndKitDragAndDrop = (
         return taskMemberId === sourceMemberId
       })
       
-      // Remove the dragged task from the list
       const filteredTasks = memberTasks.filter((t: Task) => t.id !== task.id)
       
-      // Insert at new position
       if (dragOverPosition?.targetTaskId) {
         const targetIndex = filteredTasks.findIndex((t: Task) => t.id === dragOverPosition.targetTaskId)
         if (targetIndex !== -1) {
@@ -137,9 +126,26 @@ export const useDndKitDragAndDrop = (
       
       calculatedTaskOrder = filteredTasks
     } else {
-      // Cross-day reordering
-      const updatedTask = { ...task, memberId: targetMemberId }
+      // Cross-day or cross-member reordering
+      // Clear assignees for single-member move - this ensures the task only appears in target member's bucket
+      const updatedTask = { 
+        ...task, 
+        memberId: targetMemberId,
+        assignees: undefined // Clear assignees since we're doing a single-member assignment
+      }
       let newTargetTasks = [...targetDayTasks.individualTasks]
+      
+      // Remove any existing task with the same routine_task_id (to avoid duplicates in same-day cross-member moves)
+      const tasksBeforeFilter = newTargetTasks.length
+      newTargetTasks = newTargetTasks.filter((t: Task) => {
+        const tRoutineTaskId = t.routine_task_id || extractRoutineTaskIdFromId(t.id)
+        return tRoutineTaskId !== routineTaskIdToMove
+      })
+      const tasksAfterFilter = newTargetTasks.length
+      
+      if (tasksBeforeFilter > tasksAfterFilter) {
+        console.log('[DND-KIT] 🗑️ Removed existing duplicate task from target, filtered count:', tasksBeforeFilter, '->', tasksAfterFilter)
+      }
       
       if (dragOverPosition?.targetTaskId) {
         const targetIndex = newTargetTasks.findIndex((t: Task) => t.id === dragOverPosition.targetTaskId)
@@ -153,53 +159,172 @@ export const useDndKitDragAndDrop = (
         newTargetTasks.push(updatedTask)
       }
       
+      // Filter to get tasks for target member, matching by routine_task_id for the moved task
       calculatedTaskOrder = newTargetTasks.filter((t: Task) => {
-        const taskMemberId = t.memberId || extractRoutineTaskIdFromId(t.id)
+        const tRoutineTaskId = t.routine_task_id || extractRoutineTaskIdFromId(t.id)
+        const isMovedTask = tRoutineTaskId === routineTaskIdToMove
+        const taskMemberId = isMovedTask ? targetMemberId : (t.memberId || extractRoutineTaskIdFromId(t.id))
         return taskMemberId === targetMemberId
+      })
+      
+      // Ensure all tasks in calculatedTaskOrder have the correct memberId, especially the moved task
+      calculatedTaskOrder = calculatedTaskOrder.map((t: Task) => {
+        const tRoutineTaskId = t.routine_task_id || extractRoutineTaskIdFromId(t.id)
+        if (tRoutineTaskId === routineTaskIdToMove) {
+          // Clear assignees array and set memberId for single-member assignment
+          // This ensures the task only appears in the target member's bucket
+          return { 
+            ...t, 
+            memberId: targetMemberId,
+            assignees: undefined // Clear assignees since we're doing a single-member move
+          }
+        }
+        return t
       })
     }
 
     // Update UI state
-    console.log('[DND-KIT] 🔄 Updating UI state:', {
-      sourceDay,
-      targetDay,
-      sourceMemberId,
-      targetMemberId,
-      isSameDay: sourceDay === targetDay,
-      isSameMember: sourceMemberId === targetMemberId,
-      calculatedTaskOrderLength: calculatedTaskOrder.length
-    })
-    
     if (sourceDay === targetDay && sourceMemberId === targetMemberId) {
       // Same day, same member - simple reordering
-      console.log('[DND-KIT] 📌 Same day/member - simple reordering')
       updateCalendarTasks(prev => {
         const newCalendarTasks = { ...prev }
         newCalendarTasks[sourceDay] = {
           ...newCalendarTasks[sourceDay],
           individualTasks: calculatedTaskOrder
         }
-        console.log('[DND-KIT] ✅ Updated same day/member tasks:', newCalendarTasks[sourceDay].individualTasks.length)
         return newCalendarTasks
       })
     } else {
       // Cross-day or cross-member moves
-      console.log('[DND-KIT] 📌 Cross-day or cross-member move')
       updateCalendarTasks(prev => {
         const newCalendarTasks = { ...prev }
         
-        // Log before state
-        console.log('[DND-KIT] 📋 Before update - source day tasks:', newCalendarTasks[sourceDay]?.individualTasks.length)
-        console.log('[DND-KIT] 📋 Before update - target day tasks:', newCalendarTasks[targetDay]?.individualTasks.length)
+        // Debug: Log before filtering
+        const tasksBeforeFilter = newCalendarTasks[sourceDay].individualTasks
+        console.log('[DND-KIT] 🔍 Before filtering - Source day tasks:', {
+          totalTasks: tasksBeforeFilter.length,
+          tasksByMember: tasksBeforeFilter.reduce((acc: Record<string, number>, t: Task) => {
+            const memberId = t.memberId || extractRoutineTaskIdFromId(t.id)
+            acc[memberId] = (acc[memberId] || 0) + 1
+            return acc
+          }, {} as Record<string, number>),
+          taskToRemove: {
+            id: task.id,
+            routine_task_id: task.routine_task_id,
+            memberId: task.memberId || extractRoutineTaskIdFromId(task.id)
+          }
+        })
         
         // Remove from source day/member
+        const sourceTasksBefore = newCalendarTasks[sourceDay].individualTasks.length
+        
+        // Create a fresh array to avoid reference issues
+        const filteredSourceTasks = newCalendarTasks[sourceDay].individualTasks.filter((t: Task) => {
+          // Check both memberId and assignees for matching
+          const taskMemberId = t.memberId || extractRoutineTaskIdFromId(t.id)
+          const taskAssignees = t.assignees?.map((a: any) => a.id) || []
+          const isAssignedToSourceMember = taskMemberId === sourceMemberId || taskAssignees.includes(sourceMemberId)
+          
+          // Use routine_task_id for matching since calendar tasks have day suffixes in their IDs
+          const matchingByRoutineTaskId = task.routine_task_id && t.routine_task_id && t.routine_task_id === task.routine_task_id
+          const matchingByBaseId = !task.routine_task_id && t.id.startsWith(task.id)
+          const taskMatches = isAssignedToSourceMember && (matchingByRoutineTaskId || matchingByBaseId)
+          
+          if (taskMatches) {
+            console.log('[DND-KIT] ✅ REMOVING task from source:', t.name, 'memberId:', taskMemberId)
+          }
+          
+          // Debug log all tasks being checked
+          console.log('[DND-KIT] 🔍 Checking task:', {
+            taskId: t.id,
+            taskName: t.name,
+            taskMemberId,
+            taskMemberIdFromProp: t.memberId,
+            taskRoutineTaskId: t.routine_task_id,
+            sourceMemberId,
+            matchingByRoutineTaskId,
+            matchingByBaseId: matchingByBaseId,
+            taskMatches,
+            dragTaskId: task.id,
+            dragTaskRoutineTaskId: task.routine_task_id,
+            dragTaskMemberId: task.memberId,
+            comparison: {
+              task_routineId: t.routine_task_id,
+              drag_routineId: task.routine_task_id,
+              routineIdMatch: t.routine_task_id === task.routine_task_id,
+              task_idStartsWith: t.id.startsWith(task.id),
+              task_idFull: t.id,
+              drag_idFull: task.id
+            }
+          })
+          
+          return !taskMatches
+        })
+        
+        const sourceTasksAfter = filteredSourceTasks.length
+        console.log('[DND-KIT] 📊 Source tasks after filtering:', sourceTasksBefore, '->', sourceTasksAfter)
+        
+        // Update source day with filtered tasks
         newCalendarTasks[sourceDay] = {
           ...newCalendarTasks[sourceDay],
-          individualTasks: newCalendarTasks[sourceDay].individualTasks.filter((t: Task) => {
+          individualTasks: filteredSourceTasks
+        }
+        
+        // If same-day cross-member, source and target are the same day, so we need to combine them
+        if (sourceDay === targetDay && sourceMemberId !== targetMemberId) {
+          console.log('[DND-KIT] 🔄 Same-day cross-member move - combining source and target tasks')
+          
+          // Use the already-filtered source tasks (which have the removed task taken out)
+          // Only keep tasks that are NOT for the target member
+          const tasksFromOtherMembers = filteredSourceTasks.filter((t: Task) => {
             const taskMemberId = t.memberId || extractRoutineTaskIdFromId(t.id)
-            return !(taskMemberId === sourceMemberId && t.routine_task_id === task.routine_task_id)
+            return taskMemberId !== targetMemberId // Exclude tasks for target member (they'll be replaced by calculatedTaskOrder)
+          })
+          
+          // Ensure all tasks in calculatedTaskOrder have explicit memberId set
+          const calculatedTaskOrderWithMemberIds = calculatedTaskOrder.map((t: Task) => {
+            const tRoutineTaskId = t.routine_task_id || extractRoutineTaskIdFromId(t.id)
+            const isMovedTask = tRoutineTaskId === routineTaskIdToMove
+            if (isMovedTask) {
+              // Ensure moved task has correct memberId and cleared assignees
+              return { 
+                ...t, 
+                memberId: targetMemberId,
+                assignees: undefined // Clear assignees for single-member move
+              }
+            }
+            // Ensure all other tasks have explicit memberId
+            return { ...t, memberId: t.memberId || extractRoutineTaskIdFromId(t.id) }
+          })
+          
+          // Combine: other members' tasks + newly placed target tasks
+          calculatedTaskOrder = [
+            ...tasksFromOtherMembers,
+            ...calculatedTaskOrderWithMemberIds // Add the newly placed tasks for target member
+          ]
+          
+          console.log('[DND-KIT] 📊 After merge:', {
+            tasksFromOtherMembers: tasksFromOtherMembers.length,
+            calculatedTaskOrderLength: calculatedTaskOrder.length,
+            breakdown: calculatedTaskOrder.map((t: Task) => ({
+              name: t.name,
+              memberId: t.memberId,
+              routine_task_id: t.routine_task_id,
+              id: t.id
+            }))
           })
         }
+        
+        console.log('[DND-KIT] 📊 Calculated task order:', {
+          length: calculatedTaskOrder.length,
+          tasks: calculatedTaskOrder.map((t: Task) => ({
+            name: t.name,
+            id: t.id,
+            memberId: t.memberId,
+            assignees: t.assignees?.map((a: any) => a.id),
+            routine_task_id: t.routine_task_id
+          }))
+        })
         
         // Add to target day/member
         newCalendarTasks[targetDay] = {
@@ -207,8 +332,31 @@ export const useDndKitDragAndDrop = (
           individualTasks: calculatedTaskOrder
         }
         
-        console.log('[DND-KIT] 📋 After update - source day tasks:', newCalendarTasks[sourceDay].individualTasks.length)
-        console.log('[DND-KIT] 📋 After update - target day tasks:', newCalendarTasks[targetDay].individualTasks.length)
+        console.log('[DND-KIT] ✅ UI updated:', {
+          sourceDay,
+          targetDay,
+          sourceMemberId,
+          targetMemberId,
+          sourceTasks: newCalendarTasks[sourceDay].individualTasks.length,
+          targetTasks: newCalendarTasks[targetDay].individualTasks.length,
+          sourceTasksByMember: newCalendarTasks[sourceDay].individualTasks.reduce((acc: Record<string, number>, t: Task) => {
+            const mId = t.memberId || 'unknown'
+            acc[mId] = (acc[mId] || 0) + 1
+            return acc
+          }, {}),
+          targetTasksByMember: newCalendarTasks[targetDay].individualTasks.reduce((acc: Record<string, number>, t: Task) => {
+            const mId = t.memberId || 'unknown'
+            acc[mId] = (acc[mId] || 0) + 1
+            return acc
+          }, {}),
+          targetTaskDetails: newCalendarTasks[targetDay].individualTasks.map((t: Task) => ({
+            name: t.name,
+            memberId: t.memberId,
+            assignees: t.assignees?.map((a: any) => a.id),
+            id: t.id,
+            routine_task_id: t.routine_task_id
+          }))
+        })
         
         return newCalendarTasks
       })
@@ -217,88 +365,95 @@ export const useDndKitDragAndDrop = (
     // Save the new order to backend
     if (calculatedTaskOrder.length > 0) {
       try {
-        console.log('[DND-KIT] 💾 Saving new order to backend for day:', targetDay)
-        
         // If it's a cross-day move, update the task's day assignment
         if (sourceDay !== targetDay) {
-          console.log('[DND-KIT] 🔄 Cross-day move detected, updating day assignment')
-          
-          // For recurring tasks, update the template
+          // For recurring tasks, add the target day to the existing pattern instead of replacing
           if (task.recurring_template_id) {
-            console.log('[DND-KIT] 📋 Recurring task detected, updating template:', task.recurring_template_id)
+            const template = recurringTemplates.find(t => t.id === task.recurring_template_id)
+            const currentDays = template?.days_of_week || []
+            const updatedDays = currentDays.includes(targetDay)
+              ? currentDays
+              : [...currentDays, targetDay]
+            
             const { updateTemplateDays } = await import('../../../../lib/api')
             await updateTemplateDays(currentRoutineId, task.recurring_template_id, {
-              days_of_week: [targetDay]
+              days_of_week: updatedDays
             })
-            console.log('[DND-KIT] ✅ Recurring template day assignment updated in backend')
           } else {
-            // For non-recurring tasks, update the individual task
-            console.log('[DND-KIT] 📋 Non-recurring task detected, updating individual task')
             const { patchRoutineTask } = await import('../../../../lib/api')
             await patchRoutineTask(currentRoutineId, task.routine_task_id || extractRoutineTaskIdFromId(task.id), {
               days_of_week: [targetDay]
             })
-            console.log('[DND-KIT] ✅ Individual task day assignment updated in backend')
           }
         }
         
         // If it's a member transfer, update the task's member assignment
         if (sourceMemberId !== targetMemberId) {
-          console.log('[DND-KIT] 🔄 Member transfer detected, updating member assignment')
-          
           try {
-            const { createTaskAssignment, getRoutineAssignments } = await import('../../../../lib/api')
-            
-            // Get current assignments to find the assignment ID for this task
+            const { createTaskAssignment, getRoutineAssignments, deleteTaskAssignment } = await import('../../../../lib/api')
             const assignments = await getRoutineAssignments(currentRoutineId)
             const routineTaskId = task.routine_task_id || extractRoutineTaskIdFromId(task.id)
             
-            // Find the current assignment for the source member
             const currentAssignment = assignments.find(a => 
               a.routine_task_id === routineTaskId && 
               a.member_id === sourceMemberId
             )
             
             if (currentAssignment) {
-              // Delete the old assignment
-              const { deleteTaskAssignment } = await import('../../../../lib/api')
-              await deleteTaskAssignment(currentRoutineId, routineTaskId, currentAssignment.id)
-              console.log('[DND-KIT] ✅ Deleted old assignment for source member')
+              const isSameDay = sourceDay === targetDay
+              const isRecurring = !!task.recurring_template_id
               
-              // Create new assignment for target member
+              await deleteTaskAssignment(currentRoutineId, routineTaskId, currentAssignment.id)
               await createTaskAssignment(currentRoutineId, routineTaskId, targetMemberId, 0)
-              console.log('[DND-KIT] ✅ Created new assignment for target member')
-            } else {
-              console.log('[DND-KIT] ⚠️ Could not find current assignment to transfer')
+              
+              // For same-day cross-member moves, ensure UI is updated even if we skip reload
+              if (isSameDay && reloadRoutineData) {
+                // For same-day moves, we've already updated UI optimistically, but reload to ensure consistency
+                // Only skip reload for recurring tasks to prevent showing task on all template days
+                if (!isRecurring) {
+                  await reloadRoutineData()
+                } else {
+                  // For recurring same-day moves, just force a UI update to ensure memberId is correct
+                  updateCalendarTasks(prev => {
+                    const updated = { ...prev }
+                    if (updated[targetDay]) {
+                      updated[targetDay] = {
+                        ...updated[targetDay],
+                        individualTasks: updated[targetDay].individualTasks.map((t: Task) => {
+                          const tRoutineTaskId = t.routine_task_id || extractRoutineTaskIdFromId(t.id)
+                          if (tRoutineTaskId === routineTaskId) {
+                            return { 
+                              ...t, 
+                              memberId: targetMemberId,
+                              assignees: undefined // Clear assignees for single-member assignment
+                            }
+                          }
+                          return t
+                        })
+                      }
+                    }
+                    return updated
+                  })
+                }
+              } else if (reloadRoutineData) {
+                await reloadRoutineData()
+              }
             }
           } catch (error) {
             console.error('[DND-KIT] ❌ Failed to update member assignment:', error)
           }
-          
-          // Reload the routine data to get the updated assignments
-          if (reloadRoutineData) {
-            await reloadRoutineData()
-            console.log('[DND-KIT] ✅ Routine data reloaded to reflect member assignment change')
-          }
         }
         
         await saveDaySpecificOrder(targetDay, targetMemberId, calculatedTaskOrder)
-        console.log('[DND-KIT] ✅ Day-specific order saved successfully')
-        
-        // Update the local day orders instead of reloading all data
-        loadDayOrders()
-        console.log('[DND-KIT] ✅ Day orders updated locally')
       } catch (error) {
         console.error('[DND-KIT] ❌ Failed to save day-specific order:', error)
       }
     }
-  }, [currentRoutineId, calendarTasks, extractRoutineTaskIdFromId, updateCalendarTasks, saveDaySpecificOrder, reloadRoutineData])
+  }, [currentRoutineId, calendarTasks, extractRoutineTaskIdFromId, updateCalendarTasks, saveDaySpecificOrder, reloadRoutineData, recurringTemplates])
 
   // Handle drag end
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     const { active, over } = event
-    
-    console.log('[DND-KIT] 🎯 Drag end:', { active: active.id, over: over?.id })
     
     // Clear drag state
     setDraggedTask(null)
@@ -307,7 +462,6 @@ export const useDndKitDragAndDrop = (
     setIsDragging(false)
     
     if (!over) {
-      console.log('[DND-KIT] No drop target')
       return
     }
     
@@ -315,64 +469,17 @@ export const useDndKitDragAndDrop = (
     const overData = over.data.current
     
     if (!activeData || !overData) {
-      console.log('[DND-KIT] Missing data in active or over element')
       return
     }
     
     const { task: draggedTaskData, day: sourceDay, memberId: sourceMemberId, isCopyOperation } = activeData
     const { day: targetDay, memberId: targetMemberId, position, targetTaskId } = overData
     
-    console.log('[DND-KIT] 🎯 Drop event:', {
-      sourceDay,
-      sourceMemberId,
-      targetDay,
-      targetMemberId,
-      position,
-      targetTaskId,
-      isCopyOperation,
+    console.log('[DND-KIT] 🎯 Drop:', {
       taskName: draggedTaskData.name,
-      overId: over.id,
-      activeId: active.id
+      source: `${sourceDay}/${sourceMemberId}`,
+      target: `${targetDay}/${targetMemberId}`
     })
-    
-    // Determine operation type
-    const isSameDay = sourceDay === targetDay
-    const isSameMember = sourceMemberId === targetMemberId
-    const isMemberTransfer = !isSameMember
-    const isDayChange = !isSameDay
-    const isRecurringTask = !!draggedTaskData.recurring_template_id
-    
-    console.log('[DND-KIT] Operation type:', {
-      isSameDay,
-      isSameMember,
-      isMemberTransfer,
-      isDayChange,
-      isRecurringTask,
-      operationType: isCopyOperation ? 'COPY' : isMemberTransfer ? 'MEMBER_TRANSFER' : isDayChange ? 'DAY_CHANGE' : 'REORDER'
-    })
-    
-    // For recurring tasks:
-    // - Allow reordering within same day/member
-    // - Allow member transfer (changing task assignment)
-    // - Open edit modal ONLY for cross-day moves
-    if (isRecurringTask && isDayChange) {
-      console.log('[DND-KIT] ⚠️ Recurring task - preventing cross-day move, opening edit modal')
-      
-      // Open the edit modal if callback is provided
-      if (onOpenEditModal) {
-        onOpenEditModal(draggedTaskData)
-      } else {
-        toast({
-          title: "Recurring task limitation",
-          description: "To move a recurring task to another day, please use the Edit Task dialog.",
-        })
-      }
-      
-      return
-    }
-    
-    // For non-recurring tasks, all moves are allowed
-    // For recurring tasks, allow member transfer but block day changes
     
     // Create drag over position for the move operation
     const dragOverPosition: DragOverPosition = {
@@ -384,25 +491,12 @@ export const useDndKitDragAndDrop = (
     
     // Implement actual drop logic using the existing moveTaskToPosition function
     try {
-      // Set reordering state to show loading spinner on both source and target days
       setIsReordering(true)
       setReorderingDay(targetDay)
       setSourceDay(sourceDay)
       
-      console.log('[DND-KIT] 🚀 Starting moveTaskToPosition:', {
-        taskName: draggedTaskData.name,
-        sourceDay,
-        sourceMemberId,
-        targetDay,
-        targetMemberId,
-        dragOverPosition
-      })
-      
       await moveTaskToPosition(draggedTaskData, sourceDay, sourceMemberId, targetDay, targetMemberId, dragOverPosition)
       
-      console.log('[DND-KIT] ✅ moveTaskToPosition completed successfully')
-      
-      // Clear reordering state after successful move
       setIsReordering(false)
       setReorderingDay(null)
       setSourceDay(null)
@@ -411,12 +505,9 @@ export const useDndKitDragAndDrop = (
         title: "Task moved",
         description: `Moved ${draggedTaskData.name} to ${targetDay}`,
       })
-      
-      console.log('[DND-KIT] ✅ Task drop completed successfully')
     } catch (error) {
       console.error('[DND-KIT] ❌ Error during task drop:', error)
       
-      // Clear reordering state on error
       setIsReordering(false)
       setReorderingDay(null)
       setSourceDay(null)

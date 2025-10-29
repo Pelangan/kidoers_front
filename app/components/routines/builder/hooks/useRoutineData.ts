@@ -29,29 +29,23 @@ export const useRoutineData = (familyId: string | null, isEditMode: boolean, onC
   const ensureRoutineExists = async () => {
     // If routine already exists, return it immediately
     if (routine) {
-      console.log('[KIDOERS-ROUTINE] Routine already exists, returning:', routine.id);
       return routine;
     }
     
     if (!familyId) {
-      console.log('[KIDOERS-ROUTINE] No family ID, returning null');
       return null;
     }
     
     // If routine creation is already in progress, return the existing promise
     if (routineCreationPromise.current) {
-      console.log('[KIDOERS-ROUTINE] Routine creation already in progress, waiting for existing promise...');
       return routineCreationPromise.current;
     }
     
     // Create new routine creation promise
-    console.log('[KIDOERS-ROUTINE] Starting routine creation...');
     routineCreationPromise.current = (async () => {
       try {
         setIsCreatingRoutine(true);
-        console.log('[KIDOERS-ROUTINE] Creating routine draft lazily...');
         const created = await createRoutineDraft(familyId, routineName);
-        console.log('[KIDOERS-ROUTINE] Routine draft created:', created);
         const routineData: RoutineData = {
           id: created.id,
           family_id: created.family_id,
@@ -60,7 +54,6 @@ export const useRoutineData = (familyId: string | null, isEditMode: boolean, onC
         };
         setRoutine(routineData);
         setCurrentRoutineId(routineData.id);
-        console.log('[KIDOERS-ROUTINE] Set currentRoutineId to:', routineData.id);
         return routineData;
       } catch (e: any) {
         console.error('[KIDOERS-ROUTINE] ','Error creating routine:', e);
@@ -88,7 +81,6 @@ export const useRoutineData = (familyId: string | null, isEditMode: boolean, onC
       
       // Create the schedule
       await createRoutineSchedule(routineData.id, scheduleData)
-      console.log('[KIDOERS-ROUTINE] Routine schedule saved successfully:', scheduleData)
     } catch (err) {
       console.error('[KIDOERS-ROUTINE] ','Error saving routine details:', err)
       throw err
@@ -96,7 +88,6 @@ export const useRoutineData = (familyId: string | null, isEditMode: boolean, onC
   }
 
   const handleSaveRoutine = async () => {
-    console.log('[KIDOERS-ROUTINE] ManualRoutineBuilder: handleSaveRoutine called, isEditMode:', isEditMode, 'onComplete:', !!onComplete);
     
     try {
       // Ensure routine exists (create if needed)
@@ -107,12 +98,9 @@ export const useRoutineData = (familyId: string | null, isEditMode: boolean, onC
       
       // Update routine name if changed
       if (routineData.name !== routineName.trim()) {
-        console.log('[KIDOERS-ROUTINE] 📝 Updating routine name:', routineName.trim());
         await patchRoutine(routineData.id, { name: routineName.trim() });
-        console.log('[KIDOERS-ROUTINE] ✅ Routine name updated');
       }
       
-      console.log('[KIDOERS-ROUTINE] ✅ Routine name updated, proceeding to finalize routine');
       
       // Publish the routine
       await patchRoutine(routineData.id, { status: "active" })
@@ -132,7 +120,6 @@ export const useRoutineData = (familyId: string | null, isEditMode: boolean, onC
         }
         
         await createRoutineSchedule(routineData.id, scheduleData)
-        console.log('[KIDOERS-ROUTINE] Routine schedule created successfully')
       } catch (scheduleError) {
         console.error('[KIDOERS-ROUTINE] ','Failed to create routine schedule:', scheduleError)
         // Don't fail the whole process if schedule creation fails
@@ -157,14 +144,11 @@ export const useRoutineData = (familyId: string | null, isEditMode: boolean, onC
       
       // If we have an onComplete callback and we're not in edit mode (onboarding flow), mark onboarding as completed
       if (onComplete && !isEditMode) {
-        console.log('[KIDOERS-ROUTINE] ManualRoutineBuilder: Calling onComplete (onboarding flow)');
         onComplete()
       } else if (!isEditMode) {
-        console.log('[KIDOERS-ROUTINE] ManualRoutineBuilder: Navigating to dashboard (standalone mode)');
         // Otherwise, navigate to dashboard (standalone mode)
         router.push('/dashboard')
       } else {
-        console.log('[KIDOERS-ROUTINE] ManualRoutineBuilder: In edit mode, staying in routine builder');
       }
       // If isEditMode is true, stay in the routine builder (don't call onComplete or navigate)
     } catch (error) {

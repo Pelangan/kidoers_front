@@ -62,12 +62,7 @@ export const useFamilyMembers = (familyId: string | null) => {
     if (!familyId) return
 
     try {
-      console.log('[KIDOERS-ROUTINE] 📞 ManualRoutineBuilder: Calling getFamilyMembers()')
       const members = await apiService.getFamilyMembers(familyId)
-      
-      console.log('[KIDOERS-ROUTINE] ✅ ManualRoutineBuilder: API data loaded:', { 
-        membersCount: members?.length || 0
-      })
 
       // Convert API response to FamilyMember type and set family members
       // Assign specific colors based on member order
@@ -96,11 +91,6 @@ export const useFamilyMembers = (familyId: string | null) => {
       
       setFamilyMembers(convertedMembers)
       
-      // Debug: Log assigned colors
-      console.log('[KIDOERS-ROUTINE] 🎨 Assigned colors to family members:', 
-        convertedMembers.map(m => ({ name: m.name, color: m.color }))
-      )
-      
       // Enhance family members with the structure needed for the routine builder
       const enhanced = convertedMembers.map((member) => {
         const colors = getMemberColors(member.color)
@@ -121,17 +111,15 @@ export const useFamilyMembers = (familyId: string | null) => {
         }
       })
       setEnhancedFamilyMembers(enhanced)
-      console.log('[KIDOERS-ROUTINE] Enhanced family members loaded:', enhanced)
       
       // Set the first family member as selected by default
       if (enhanced.length > 0 && selectedMemberIds.length === 0) {
         setSelectedMemberIds([enhanced[0].id])
-        console.log('[KIDOERS-ROUTINE] Set default selected member:', enhanced[0].id, enhanced[0].name)
       }
 
       return enhanced
     } catch (error) {
-      console.error('[KIDOERS-ROUTINE] Error loading family members:', error)
+      console.error('Error loading family members:', error)
       throw error
     }
   }

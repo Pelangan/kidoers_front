@@ -33,18 +33,10 @@ export const transformCalendarTasksToWeekData = (
     color: string;
   }>,
 ) => {
-  console.log("[BUCKET-TRANSFORM] 🚀 Transforming calendarTasks to weekData:", {
-    calendarTasksKeys: Object.keys(calendarTasks),
-    selectedMemberIds,
-    familyMembersCount: familyMembers.length,
-  });
-
   // Fast path for single member - skip complex transformation
   if (selectedMemberIds.length === 1) {
     const selectedMemberId = selectedMemberIds[0];
     const member = familyMembers.find(m => m.id === selectedMemberId);
-    
-    console.log("[BUCKET-TRANSFORM] ⚡ Fast path for single member:", selectedMemberId);
     
     const weekData = DAYS_OF_WEEK.map((day) => {
       const dayTasks = calendarTasks[day]?.individualTasks || [];
@@ -79,23 +71,12 @@ export const transformCalendarTasksToWeekData = (
       };
     });
 
-    console.log("[BUCKET-TRANSFORM] ⚡ Fast path completed");
     return weekData;
   }
 
   // Complex transformation for multiple members
-  console.log("[BUCKET-TRANSFORM] 🔄 Complex transformation for multiple members");
   const weekData = DAYS_OF_WEEK.map((day) => {
     const dayTasks = calendarTasks[day]?.individualTasks || [];
-    console.log(`[BUCKET-TRANSFORM] 📅 Processing ${day}:`, {
-      taskCount: dayTasks.length,
-      tasks: dayTasks.map((t) => ({
-        id: t.id,
-        name: t.name,
-        memberId: t.memberId,
-        assignees: t.assignees?.length || 0,
-      })),
-    });
 
     // Group tasks by bucket type
     const sharedTasks: Task[] = [];
@@ -110,18 +91,11 @@ export const transformCalendarTasksToWeekData = (
     const seenTaskIds = new Set<string>();
     const uniqueTasks = dayTasks.filter((task) => {
       if (seenTaskIds.has(task.id)) {
-        console.log(
-          `[BUCKET-TRANSFORM] ⚠️ Duplicate task filtered out: ${task.id} - ${task.name}`,
-        );
         return false;
       }
       seenTaskIds.add(task.id);
       return true;
     });
-
-    console.log(
-      `[BUCKET-TRANSFORM] 📊 After deduplication: ${uniqueTasks.length} unique tasks (was ${dayTasks.length})`,
-    );
 
     // Categorize tasks into member buckets only
     uniqueTasks.forEach((task) => {
@@ -132,12 +106,6 @@ export const transformCalendarTasksToWeekData = (
       const assignedSelectedMembers = assignedMembers.filter((id: string) =>
         selectedMemberIds.includes(id),
       );
-
-      console.log(`[BUCKET-TRANSFORM] 🎯 Task "${task.name}":`, {
-        assignedMembers,
-        assignedSelectedMembers,
-        willGoToMember: assignedSelectedMembers.length === 1,
-      });
 
       if (assignedSelectedMembers.length === 1) {
         // Single-member task goes to member's bucket
@@ -167,23 +135,11 @@ export const transformCalendarTasksToWeekData = (
       }
     });
 
-    console.log(`[BUCKET-TRANSFORM] ✅ ${day} buckets:`, {
-      bucketCount: buckets.length,
-      buckets: buckets.map((b) => ({
-        type: b.bucket_type,
-        memberId: b.bucket_member_id,
-        memberName: b.bucket_member_name,
-        taskCount: b.tasks.length,
-        taskIds: b.tasks.map((t) => t.id),
-      })),
-    });
-
     return {
       day_of_week: day,
       buckets,
     };
   });
 
-  console.log("[BUCKET-TRANSFORM] 🎉 Final weekData:", weekData);
   return weekData;
 };
