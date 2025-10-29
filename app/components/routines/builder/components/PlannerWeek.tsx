@@ -217,39 +217,47 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
             <div key={`${bucket.bucket_type}-${bucket.bucket_member_id || 'shared'}`} className="border-b border-gray-200 transition-all duration-200 ease-in-out">
               <div className="flex" style={{ minHeight: `${calculatedHeight}px` }}>
                 {/* Avatar Column */}
-                <div className="p-2 pt-4 border-r border-gray-200 flex items-start justify-center w-16 flex-shrink-0">
-                  {bucket.bucket_type === 'shared' ? (
-                    <div className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center">
-                      <div className="text-center leading-tight">
-                        <div className="text-yellow-800 text-xs font-bold">Shared</div>
-                        <div className="text-yellow-800 text-xs font-bold">Tasks</div>
+                <div className="p-2 border-r border-gray-200 flex items-center justify-center w-20 flex-shrink-0">
+                  <div className="flex flex-col items-center justify-center">
+                    {/* Member Name */}
+                    <div className="text-xs text-gray-600 mb-1 text-center leading-tight max-w-[4.5rem] truncate">
+                      {bucket.bucket_type === 'shared' 
+                        ? 'Shared' 
+                        : (familyMembers.find(m => m.id === bucket.bucket_member_id)?.name || '')}
+                    </div>
+                    {/* Avatar */}
+                    {bucket.bucket_type === 'shared' ? (
+                      <div className="w-12 h-12 rounded-full bg-yellow-400 flex items-center justify-center ring-2 ring-yellow-200">
+                        <div className="text-center leading-tight text-yellow-900 text-xs font-semibold">
+                          ST
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="w-8 h-8 rounded-full overflow-hidden">
-                      {(() => {
-                        const member = familyMembers.find(m => m.id === bucket.bucket_member_id)
-                        if (member?.avatar_url) {
-                          return (
-                            <img 
-                              src={member.avatar_url} 
-                              alt={member.name}
-                              className="w-full h-full object-cover"
-                            />
-                          )
-                        } else {
-                          return (
-                            <div 
-                              className="w-full h-full flex items-center justify-center text-white text-sm font-bold"
-                              style={{ backgroundColor: member?.color || '#6b7280' }}
-                            >
-                              {member?.name?.charAt(0).toUpperCase() || '?'}
-                            </div>
-                          )
-                        }
-                      })()}
-                    </div>
-                  )}
+                    ) : (
+                      <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-gray-300">
+                        {(() => {
+                          const member = familyMembers.find(m => m.id === bucket.bucket_member_id)
+                          if (member?.avatar_url) {
+                            return (
+                              <img 
+                                src={member.avatar_url} 
+                                alt={member.name}
+                                className="w-full h-full object-cover"
+                              />
+                            )
+                          } else {
+                            return (
+                              <div 
+                                className="w-full h-full flex items-center justify-center text-white text-base font-bold"
+                                style={{ backgroundColor: member?.color || '#6b7280' }}
+                              >
+                                {member?.name?.charAt(0).toUpperCase() || '?'}
+                              </div>
+                            )
+                          }
+                        })()}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                  {/* Task Content Columns */}
