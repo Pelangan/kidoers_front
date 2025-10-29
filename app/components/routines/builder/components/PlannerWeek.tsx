@@ -84,6 +84,7 @@ interface PlannerWeekProps {
   getTasksWithDayOrder: (tasks: Task[], day: string, memberId: string) => Task[]
   extractMemberIdFromId: (id: string, selectedMemberId: string) => string
   onSeriesBadgeClick?: (seriesId: string, day: string) => void // Handler for series badge click
+  isTaskPending?: (task: Task) => boolean // Check if a task is currently saving
 }
 
 export const PlannerWeek: React.FC<PlannerWeekProps> = ({
@@ -104,6 +105,7 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
   getTasksWithDayOrder,
   extractMemberIdFromId,
   onSeriesBadgeClick,
+  isTaskPending,
 }) => {
   // Height calculation for responsive grid
   const [gridHeight, setGridHeight] = useState(600)
@@ -337,6 +339,7 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                                 allDayTasks={tasks}
                                 onSeriesBadgeClick={onSeriesBadgeClick}
                                 isCopyOperation={draggedTask?.isCopyOperation || false}
+                                pending={isTaskPending ? isTaskPending(task) : false}
                               />
                               
                               {/* Drop zone after this task - only show for the last task when dragging a different task */}
@@ -355,13 +358,7 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                         })}
                         </div>
 
-                        {/* Loading Overlay */}
-                        {isReordering && (reorderingDay === day || sourceDay === day) && (
-                          <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10 rounded">
-                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                          </div>
-                        )}
-
+                        {/* Loading Overlay - Removed: Using global saving indicator instead */}
                       </div>
                     </div>
                   )

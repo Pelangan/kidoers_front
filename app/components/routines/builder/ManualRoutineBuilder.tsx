@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { DndContext } from '@dnd-kit/core';
 import { useTaskOperations } from "../../../hooks/useTaskOperations";
 import { useDndKitDragAndDrop } from "./hooks/useDndKitDragAndDrop";
+import { SavingProvider } from "./ui/SavingContext";
+import { GlobalSavingIndicator, SavingAnnouncements } from "./ui/GlobalSavingIndicator";
 import { useTaskOperations as useTaskOperationsBuilder, type DeleteScope } from "./hooks/useTaskOperations";
 import { useTaskCreation } from "./hooks/useTaskCreation";
 import { useRoutineDataLoader } from "./hooks/useRoutineDataLoader";
@@ -71,7 +73,8 @@ import { transformCalendarTasksToWeekData, DAYS_OF_WEEK } from "./utils/calendar
 import { User, Baby, UserCheck, Users } from "lucide-react";
 
 
-export default function ManualRoutineBuilder({
+// Inner component that uses hooks (must be inside SavingProvider)
+function ManualRoutineBuilderContent({
   familyId: propFamilyId,
   onComplete,
   isEditMode = false,
@@ -249,6 +252,7 @@ export default function ManualRoutineBuilder({
     moveTaskToPosition,
     getTasksWithDayOrder,
     loadDayOrders,
+    isTaskPending,
   } = useDndKitDragAndDrop(
     calendarTasks,
     updateCalendarTasks,
@@ -791,6 +795,10 @@ export default function ManualRoutineBuilder({
       data-testid="routine-builder"
       className={`${onComplete ? "min-h-0" : "min-h-screen"} bg-gray-50 flex flex-col`}
     >
+      {/* ARIA Live Region for screen readers */}
+      <div id="saving-announcements" aria-live="polite" aria-atomic="true" className="sr-only" />
+      <SavingAnnouncements />
+      <GlobalSavingIndicator />
       <div className="flex flex-1 overflow-hidden">
         {/* Main Content */}
         <div className="flex-1 p-6 overflow-auto">
@@ -881,6 +889,7 @@ export default function ManualRoutineBuilder({
                     onRemoveGroup={removeGroupFromCalendar}
                     getTasksWithDayOrder={getTasksWithDayOrder}
                     extractMemberIdFromId={extractMemberIdFromId}
+                    isTaskPending={isTaskPending}
                   />
                 </DndContext>
               )
@@ -951,5 +960,14 @@ export default function ManualRoutineBuilder({
 
       </div>
     </div>
+  );
+}
+
+// Outer component that provides SavingContext
+export default function ManualRoutineBuilder(props: ManualRoutineBuilderProps) {
+  return (
+    <SavingProvider>
+      <ManualRoutineBuilderContent {...props} />
+    </SavingProvider>
   );
 }

@@ -27,6 +27,8 @@ interface TaskItemProps {
   onSeriesBadgeClick?: (seriesId: string, day: string) => void // Handler for series badge click
   // New prop for copy operation indication
   isCopyOperation?: boolean
+  // Pending state for save operations
+  pending?: boolean
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({
@@ -40,7 +42,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onClick,
   allDayTasks = [],
   onSeriesBadgeClick,
-  isCopyOperation = false
+  isCopyOperation = false,
+  pending = false
 }) => {
   // @dnd-kit draggable setup
   const { attributes, listeners, setNodeRef, transform, isDragging: isDndDragging } = useDraggable({
@@ -141,9 +144,18 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         borderLeftColor: taskColor.borderColor || undefined,
       }}
       className={`relative flex items-center space-x-1 p-3 rounded ${taskColor.bg} ${taskColor.border} ${
-        isDndDragging ? 'cursor-grabbing shadow-2xl scale-105' : 'cursor-pointer'
+        isDndDragging ? 'cursor-grabbing shadow-2xl scale-105' : pending ? 'cursor-progress pointer-events-none opacity-90' : 'cursor-pointer'
       } hover:shadow-lg hover:bg-opacity-90`}
     >
+      {/* Pending badge - shows while save is in-flight */}
+      {pending && (
+        <div 
+          className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full shadow-sm z-10 border border-white animate-pulse"
+          aria-label="Saving..."
+          role="status"
+        />
+      )}
+      
       {/* Copy operation indicator */}
       {isCopyOperation && (
         <div className="absolute -top-1 -right-1 bg-green-500 text-white text-xs font-bold px-1 py-0.5 rounded shadow-lg z-10">

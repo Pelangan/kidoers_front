@@ -1,6 +1,9 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { DragEndEvent, DragOverEvent, DragStartEvent } from '@dnd-kit/core'
 import { useToast } from '../../../../hooks/use-toast'
+import { useSaving } from '../ui/SavingContext'
+import { ToastAction } from '../../../../../components/ui/toast'
+import React from 'react'
 import type { Task, DaySpecificOrder, RecurringTemplate } from '../types/routineBuilderTypes'
 
 interface CalendarTasks {
@@ -38,6 +41,23 @@ export const useDndKitDragAndDrop = (
   onOpenEditModal?: (task: Task) => void
 ) => {
   const { toast } = useToast()
+  const { begin, isPending } = useSaving()
+  // Track pending tasks and rollback state
+  const [pendingTaskIds, setPendingTaskIds] = useState<Set<string>>(new Set())
+  const rollbackStateRef = useRef<Record<string, CalendarTasks> | null>(null)
+  const debounceTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
+  
+  // Helper to get operation key for a task
+  const getOpKey = useCallback((task: Task) => {
+    const routineTaskId = task.routine_task_id || extractRoutineTaskIdFromId(task.id)
+    return `task-move-${routineTaskId}`
+  }, [extractRoutineTaskIdFromId])
+  
+  // Helper to check if a task is pending
+  const isTaskPending = useCallback((task: Task) => {
+    const opKey = getOpKey(task)
+    return isPending(opKey) || pendingTaskIds.has(task.id)
+  }, [isPending, getOpKey, pendingTaskIds])
   
   // Drag and drop state
   const [draggedTask, setDraggedTask] = useState<DraggedTask | null>(null)
@@ -465,7 +485,15 @@ export const useDndKitDragAndDrop = (
     }
   }, [currentRoutineId, calendarTasks, extractRoutineTaskIdFromId, updateCalendarTasks, saveDaySpecificOrder, reloadRoutineData, recurringTemplates])
 
-  // Handle drag end
+  // Rollback function to restore previous state
+  const rollbackOptimistic = useCallback(() => {
+    if (rollbackStateRef.current) {
+      updateCalendarTasks(() => rollbackStateRef.current!)
+      rollbackStateRef.current = null
+    }
+  }, [updateCalendarTasks])
+
+  // Handle drag end with optimistic updates and saving tracker
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     const { active, over } = event
     
@@ -489,11 +517,26 @@ export const useDndKitDragAndDrop = (
     const { task: draggedTaskData, day: sourceDay, memberId: sourceMemberId, isCopyOperation } = activeData
     const { day: targetDay, memberId: targetMemberId, position, targetTaskId } = overData
     
+    const routineTaskId = draggedTaskData.routine_task_id || extractRoutineTaskIdFromId(draggedTaskData.id)
+    const opKey = getOpKey(draggedTaskData)
+    
+    // Check if this task is already pending (prevent double drags)
+    if (isPending(opKey)) {
+      console.log('[DND-KIT] ⚠️ Task is already saving, ignoring drag')
+      return
+    }
+    
     console.log('[DND-KIT] 🎯 Drop:', {
       taskName: draggedTaskData.name,
       source: `${sourceDay}/${sourceMemberId}`,
       target: `${targetDay}/${targetMemberId}`
     })
+    
+    // Save current state for rollback
+    rollbackStateRef.current = JSON.parse(JSON.stringify(calendarTasks))
+    
+    // Mark task as pending
+    setPendingTaskIds(prev => new Set([...prev, draggedTaskData.id]))
     
     // Create drag over position for the move operation
     const dragOverPosition: DragOverPosition = {
@@ -503,36 +546,135 @@ export const useDndKitDragAndDrop = (
       targetTaskId
     }
     
-    // Implement actual drop logic using the existing moveTaskToPosition function
+    // Start tracking save operation
+    const done = begin(opKey)
+    setIsReordering(true)
+    setReorderingDay(targetDay)
+    setSourceDay(sourceDay)
+    
+    // Announce to screen readers
+    const announceElement = document.getElementById('saving-announcements')
+    if (announceElement) {
+      announceElement.textContent = 'Saving changes'
+    }
+    
+    // For same-day same-member reorders, use debouncing
+    const isReorderOnly = sourceDay === targetDay && sourceMemberId === targetMemberId
+    const debounceKey = isReorderOnly ? `${sourceDay}-${sourceMemberId}` : null
+    
     try {
-      setIsReordering(true)
-      setReorderingDay(targetDay)
-      setSourceDay(sourceDay)
+      const performSave = async () => {
+        await moveTaskToPosition(draggedTaskData, sourceDay, sourceMemberId, targetDay, targetMemberId, dragOverPosition)
+      }
       
-      await moveTaskToPosition(draggedTaskData, sourceDay, sourceMemberId, targetDay, targetMemberId, dragOverPosition)
+      if (debounceKey && debounceTimersRef.current.has(debounceKey)) {
+        // Clear existing timer and set new one
+        clearTimeout(debounceTimersRef.current.get(debounceKey)!)
+      }
+      
+      if (isReorderOnly && debounceKey) {
+        // Debounce reorders in same column
+        await new Promise<void>((resolve) => {
+          const timer = setTimeout(async () => {
+            await performSave()
+            debounceTimersRef.current.delete(debounceKey)
+            resolve()
+          }, 400)
+          debounceTimersRef.current.set(debounceKey, timer)
+        })
+      } else {
+        // Immediate save for cross-day/cross-member moves
+        await performSave()
+      }
+      
+      // Success - update ARIA and clear pending
+      if (announceElement) {
+        announceElement.textContent = 'Saved successfully'
+        setTimeout(() => {
+          announceElement.textContent = ''
+        }, 1000)
+      }
       
       setIsReordering(false)
       setReorderingDay(null)
       setSourceDay(null)
-      
-      toast({
-        title: "Task moved",
-        description: `Moved ${draggedTaskData.name} to ${targetDay}`,
+      setPendingTaskIds(prev => {
+        const next = new Set(prev)
+        next.delete(draggedTaskData.id)
+        return next
       })
+      rollbackStateRef.current = null
+      
     } catch (error) {
       console.error('[DND-KIT] ❌ Error during task drop:', error)
       
+      // Rollback optimistic update
+      rollbackOptimistic()
+      
+      // Clear pending state
       setIsReordering(false)
       setReorderingDay(null)
       setSourceDay(null)
+      setPendingTaskIds(prev => {
+        const next = new Set(prev)
+        next.delete(draggedTaskData.id)
+        return next
+      })
+      
+      // Update ARIA
+      if (announceElement) {
+        announceElement.textContent = 'Save failed'
+      }
+      
+      // Show error toast with retry
+      const retryDragOverPosition: DragOverPosition = {
+        day: targetDay,
+        memberId: targetMemberId,
+        position,
+        targetTaskId
+      }
+      
+      const retryAction = React.createElement(ToastAction, {
+        altText: "Try again",
+        onClick: async () => {
+          // Retry the operation
+          const retryDone = begin(opKey)
+          setPendingTaskIds(prev => new Set([...prev, draggedTaskData.id]))
+          try {
+            await moveTaskToPosition(draggedTaskData, sourceDay, sourceMemberId, targetDay, targetMemberId, retryDragOverPosition)
+            setPendingTaskIds(prev => {
+              const next = new Set(prev)
+              next.delete(draggedTaskData.id)
+              return next
+            })
+          } catch (retryError) {
+            console.error('[DND-KIT] ❌ Retry failed:', retryError)
+            setPendingTaskIds(prev => {
+              const next = new Set(prev)
+              next.delete(draggedTaskData.id)
+              return next
+            })
+            toast({
+              title: "Error",
+              description: "Failed to save again. Please try manually.",
+              variant: "destructive",
+            })
+          } finally {
+            retryDone()
+          }
+        }
+      }, "Try again")
       
       toast({
         title: "Error",
-        description: "Failed to move task",
+        description: "Couldn't save changes. Reverted.",
         variant: "destructive",
+        action: retryAction as any,
       })
+    } finally {
+      done()
     }
-  }, [toast, moveTaskToPosition])
+  }, [toast, moveTaskToPosition, begin, isPending, getOpKey, extractRoutineTaskIdFromId, calendarTasks, updateCalendarTasks, rollbackOptimistic])
 
   // Placeholder functions for compatibility
   const handleTaskDragStart = useCallback((e: any, task: Task, day: string, memberId: string) => {
@@ -626,6 +768,9 @@ export const useDndKitDragAndDrop = (
     handleTaskDragEnd,
     moveTaskToPosition,
     getTasksWithDayOrder,
-    loadDayOrders
+    loadDayOrders,
+    
+    // Pending state helpers
+    isTaskPending
   }
 }
