@@ -367,19 +367,33 @@ export const useDndKitDragAndDrop = (
       try {
         // If it's a cross-day move, update the task's day assignment
         if (sourceDay !== targetDay) {
-          // For recurring tasks, add the target day to the existing pattern instead of replacing
+          // For recurring tasks, REPLACE all days with just the target day
+          // This is a "move" operation, not an "add" - we don't want to preserve other days
+          // that might have accumulated from previous moves or other operations
           if (task.recurring_template_id) {
             const template = recurringTemplates.find(t => t.id === task.recurring_template_id)
             const currentDays = template?.days_of_week || []
-            const updatedDays = currentDays.includes(targetDay)
-              ? currentDays
-              : [...currentDays, targetDay]
+            
+            // When dragging a task, we're moving THIS instance to a new day
+            // So we should set the template to ONLY have the target day
+            // This prevents duplicate tasks from appearing on days that were previously in the template
+            const finalDays = [targetDay]
+            
+            console.log('[DND-KIT] 🔄 Updating recurring template days (MOVE operation):', {
+              templateId: task.recurring_template_id,
+              sourceDay,
+              targetDay,
+              currentDays,
+              finalDays,
+              note: 'Replacing all days with target day only - this is a move, not an add'
+            })
             
             const { updateTemplateDays } = await import('../../../../lib/api')
             await updateTemplateDays(currentRoutineId, task.recurring_template_id, {
-              days_of_week: updatedDays
+              days_of_week: finalDays
             })
           } else {
+            // For non-recurring tasks, just set the day to the target
             const { patchRoutineTask } = await import('../../../../lib/api')
             await patchRoutineTask(currentRoutineId, task.routine_task_id || extractRoutineTaskIdFromId(task.id), {
               days_of_week: [targetDay]
