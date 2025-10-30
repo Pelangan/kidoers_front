@@ -1,7 +1,7 @@
-import React from 'react'
+import React, { useMemo, useRef, useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Check } from 'lucide-react'
+import { ChevronDown, Check, Search } from 'lucide-react'
 import { generateAvatarUrl } from '../../../ui/AvatarSelector'
 import type { EnhancedFamilyMember } from '/Users/cristian/Development/kidoers/kidoers_workspace/kidoers_front/app/components/routines/builder/types/routineBuilderTypes'
 
@@ -22,130 +22,131 @@ export const FamilyMemberSelector: React.FC<FamilyMemberSelectorProps> = ({
   viewMode,
   setViewMode
 }) => {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<'all'|'kids'|'parents'>('all')
+  const containerRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null)
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      const target = e.target as Node
+      const clickedInsideTrigger = containerRef.current?.contains(target)
+      const clickedInsideDropdown = dropdownRef.current?.contains(target)
+      if (open && !clickedInsideTrigger && !clickedInsideDropdown) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+
+  useEffect(() => {
+    if (open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      setMenuPosition({ top: rect.bottom + window.scrollY + 8, left: rect.left + window.scrollX })
+    }
+  }, [open])
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return enhancedFamilyMembers
+      .filter(m => filter === 'all' || (filter === 'kids' ? m.type === 'child' : m.type === 'parent'))
+      .filter(m => !q || m.name.toLowerCase().includes(q))
+  }, [enhancedFamilyMembers, query, filter])
+
+  const toggleMember = (id: string) => {
+    const isSelected = selectedMemberIds.includes(id)
+    if (isSelected) {
+      if (selectedMemberIds.length === 1) return // keep at least one selected
+      setSelectedMemberIds(selectedMemberIds.filter(x => x !== id))
+    } else {
+      setSelectedMemberIds([...selectedMemberIds, id])
+    }
+  }
+
+  const summaryLabel = useMemo(() => {
+    if (selectedMemberIds.length === enhancedFamilyMembers.length) return 'All members'
+    const names = enhancedFamilyMembers
+      .filter(m => selectedMemberIds.includes(m.id))
+      .map(m => m.name)
+    return names.slice(0, 2).join(', ') + (names.length > 2 ? `, +${names.length - 2}` : '')
+  }, [selectedMemberIds, enhancedFamilyMembers])
+
   return (
-    <div className="flex items-center justify-between gap-10 py-0 px-16 bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 rounded-3xl shadow-sm border border-white/50 min-w-fit">
-      <div className="flex items-center gap-10">
-        {!enhancedFamilyMembers || enhancedFamilyMembers.length === 0 ? (
-          <div className="text-sm text-gray-500">Loading family members...</div>
-        ) : (
-          enhancedFamilyMembers.map((member) => {
-        const colors = getMemberColors(member.color)
-        const avatarUrl = member.avatar_url || generateAvatarUrl(
-          member.avatar_seed || member.name.toLowerCase().replace(/\s+/g, '-'),
-          member.avatar_style || 'adventurer',
-          member.avatar_options || {}
-        )
+    <div ref={containerRef} className="flex items-end gap-6">
+      {/* Visible members button */}
+      <div className="relative flex items-center gap-3">
+        <Button ref={buttonRef} variant="outline" size="sm" onClick={() => setOpen(!open)} className="rounded-full px-4">
+          <span className="text-sm">Visible members:&nbsp;{summaryLabel}</span>
+          <ChevronDown className="w-4 h-4 ml-2" />
+        </Button>
 
-        // Use the custom colors from getMemberColors function
-        const memberColors = getMemberColors(member.color)
-
-        const isSelected = selectedMemberIds.includes(member.id)
-        
-        const handleMemberClick = () => {
-          if (isSelected) {
-            // Prevent unchecking if this is the last selected member
-            if (selectedMemberIds.length === 1) {
-              return // Don't allow unchecking the last member
-            }
-            // Remove member from selection
-            setSelectedMemberIds(selectedMemberIds.filter(id => id !== member.id))
-          } else {
-            // Add member to selection
-            setSelectedMemberIds([...selectedMemberIds, member.id])
-          }
-        }
-
-        const isLastSelected = isSelected && selectedMemberIds.length === 1
-        
-        return (
+        {open && menuPosition && (
           <div
-            key={member.id}
-            className={`flex items-center gap-3 transition-all duration-300 ${
-              isLastSelected 
-                ? 'cursor-not-allowed opacity-75' 
-                : 'cursor-pointer group'
-            }`}
-            onClick={handleMemberClick}
-            title={isLastSelected ? 'At least one family member must be selected' : undefined}
+            ref={dropdownRef}
+            className="fixed z-[100] w-[360px] bg-white border border-gray-200 rounded-xl shadow-xl p-3"
+            style={{ top: menuPosition.top, left: menuPosition.left }}
           >
-            <div className="relative">
-              <div
-                className={`h-12 w-12 rounded-full overflow-hidden border-2 shadow-lg transition-all duration-300 ${
-                  isLastSelected 
-                    ? '' 
-                    : 'group-hover:scale-105'
-                } ${
-                  isSelected
-                    ? `ring-2 ring-offset-2 scale-110`
-                    : isLastSelected 
-                      ? '' 
-                      : `group-hover:ring-1 group-hover:ring-offset-1 group-hover:shadow-md`
-                }`}
-                style={{
-                  borderColor: isSelected ? memberColors.borderColor : '#ffffff',
-                  boxShadow: isSelected 
-                    ? `0 0 0 2px ${memberColors.borderColor}` 
-                    : '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-                }}
-                onMouseEnter={(e) => {
-                  if (!isSelected && !isLastSelected) {
-                    e.currentTarget.style.borderColor = memberColors.borderColor
-                    e.currentTarget.style.boxShadow = `0 0 0 1px ${memberColors.borderColor}`
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isSelected && !isLastSelected) {
-                    e.currentTarget.style.borderColor = '#ffffff'
-                    e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-                  }
-                }}
-              >
-                <img
-                  src={avatarUrl}
-                  alt={`${member.name}'s avatar`}
-                  className="h-full w-full object-cover scale-110"
+            <div className="text-sm font-semibold px-1">Select visible members</div>
+            <div className="flex items-center gap-2 mt-2 px-1">
+              <div className="relative flex-1">
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search members..."
+                  className="w-full border rounded-lg px-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                <Search className="w-4 h-4 absolute left-2 top-2.5 text-gray-400" />
               </div>
+            </div>
 
-              {isSelected && (
-                <div className="absolute -top-1 -right-1 bg-white rounded-full p-1 shadow-lg ring-1 ring-white">
-                  <div 
-                    className="rounded-full p-1"
-                    style={{ backgroundColor: memberColors.borderColor }}
+            <div className="flex items-center gap-2 px-1 mt-2">
+              <Button variant={filter==='all'?'default':'outline'} size="sm" onClick={() => setFilter('all')}>All</Button>
+              <Button variant={filter==='kids'?'default':'outline'} size="sm" onClick={() => setFilter('kids')}>Only Kids</Button>
+              <Button variant={filter==='parents'?'default':'outline'} size="sm" onClick={() => setFilter('parents')}>Only Parents</Button>
+            </div>
+
+            <div className="my-3 h-px bg-gray-200" />
+
+            <div className="max-h-[70vh] overflow-auto pr-1">
+              {filtered.map(m => {
+                const selected = selectedMemberIds.includes(m.id)
+                const colors = getMemberColors(m.color)
+                const avatarUrl = m.avatar_url || generateAvatarUrl(
+                  m.avatar_seed || m.name.toLowerCase().replace(/\s+/g, '-'),
+                  m.avatar_style || 'adventurer',
+                  m.avatar_options || {}
+                )
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => toggleMember(m.id)}
+                    className="w-full flex items-center justify-between px-2 py-2 rounded-lg hover:bg-gray-50"
                   >
-                    <Check className="h-3 w-3 text-white stroke-[2]" />
-                  </div>
-                </div>
-              )}
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded border ${selected? 'bg-blue-600 border-blue-600':'bg-white border-gray-300'}`}> 
+                        {selected && <Check className="w-4 h-4 text-white" />}
+                      </div>
+                      <div className="w-8 h-8 rounded-full overflow-hidden" style={{ boxShadow: `0 0 0 2px ${colors.borderColor}` }}>
+                        <img src={avatarUrl} alt={m.name} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="text-sm text-gray-800">{m.name}</div>
+                    </div>
+                    <div className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 capitalize">{m.type}</div>
+                  </button>
+                )
+              })}
             </div>
 
-            <div className="flex flex-col">
-              <p
-                className={`text-sm font-semibold transition-all duration-300 ${
-                  isSelected
-                    ? "text-gray-900 scale-105"
-                    : isLastSelected
-                      ? "text-gray-600"
-                      : "text-gray-600 group-hover:text-gray-800"
-                }`}
-              >
-                {member.name}
-              </p>
-              <p className="text-xs text-gray-500 capitalize">{member.type}</p>
-              {isSelected && (
-                <div
-                  className="h-1 w-10 rounded-full mt-1 shadow-sm"
-                  style={{ backgroundColor: memberColors.borderColor }}
-                />
-              )}
-            </div>
+            <div className="mt-3 text-xs text-gray-500 px-1">Selected: {selectedMemberIds.length} / Total: {enhancedFamilyMembers.length}</div>
           </div>
-        )
-      })
         )}
       </div>
 
-      {/* View Mode Toggle - Moved to the right */}
+      {/* View Mode Toggle - on the right */}
       {selectedMemberIds.length > 0 && (
         <div className="flex-shrink-0">
           <Label className="text-sm font-medium text-gray-700">View Mode</Label>

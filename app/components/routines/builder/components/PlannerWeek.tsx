@@ -193,8 +193,8 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
       <CardContent className="p-0 flex flex-col h-full max-h-[calc(100vh-300px)]">
         {/* Day Headers - Sticky */}
         <div className="flex border-b border-gray-200 bg-white sticky top-0 z-20 flex-shrink-0">
-          {/* Empty cell for avatars */}
-          <div className="p-2 bg-gray-50 border-r border-gray-200 w-16 flex-shrink-0"></div>
+          {/* Empty cell matching avatar/name column width */}
+          <div className="p-2 bg-gray-50 border-r border-gray-200 w-44 flex-shrink-0"></div>
           {days.map((day) => (
             <div 
               key={day}
@@ -216,48 +216,52 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
           return (
             <div key={`${bucket.bucket_type}-${bucket.bucket_member_id || 'shared'}`} className="border-b border-gray-200 transition-all duration-200 ease-in-out">
               <div className="flex" style={{ minHeight: `${calculatedHeight}px` }}>
-                {/* Avatar Column */}
-                <div className="p-2 border-r border-gray-200 flex items-center justify-center w-20 flex-shrink-0">
-                  <div className="flex flex-col items-center justify-center">
-                    {/* Member Name */}
-                    <div className="text-xs text-gray-600 mb-1 text-center leading-tight max-w-[4.5rem] truncate">
-                      {bucket.bucket_type === 'shared' 
-                        ? 'Shared' 
-                        : (familyMembers.find(m => m.id === bucket.bucket_member_id)?.name || '')}
-                    </div>
-                    {/* Avatar */}
-                    {bucket.bucket_type === 'shared' ? (
+                {/* Avatar/Name Column */}
+                <div className="px-3 py-2 border-r border-gray-200 flex items-center w-44 flex-shrink-0">
+                  {bucket.bucket_type === 'shared' ? (
+                    <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-full bg-yellow-400 flex items-center justify-center ring-2 ring-yellow-200">
-                        <div className="text-center leading-tight text-yellow-900 text-xs font-semibold">
-                          ST
-                        </div>
+                        <span className="text-yellow-900 text-sm font-bold">S</span>
                       </div>
-                    ) : (
-                      <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-gray-300">
-                        {(() => {
-                          const member = familyMembers.find(m => m.id === bucket.bucket_member_id)
-                          if (member?.avatar_url) {
-                            return (
-                              <img 
-                                src={member.avatar_url} 
-                                alt={member.name}
-                                className="w-full h-full object-cover"
-                              />
-                            )
-                          } else {
-                            return (
-                              <div 
-                                className="w-full h-full flex items-center justify-center text-white text-base font-bold"
-                                style={{ backgroundColor: member?.color || '#6b7280' }}
-                              >
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-gray-900 truncate">Shared</div>
+                        <span className="inline-block mt-0.5 text-[10px] px-2 py-0.5 rounded-full bg-yellow-50 text-yellow-800 border border-yellow-200">Tasks</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 min-w-0">
+                      {(() => {
+                        const member = familyMembers.find(m => m.id === bucket.bucket_member_id)
+                        const avatar = member?.avatar_url
+                        const ringColor = getMemberColors 
+                          ? getMemberColors(member?.color || '#6b7280').borderColor 
+                          : (member?.color || '#6b7280')
+                        return (
+                          <div 
+                            className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0"
+                            style={{ boxShadow: `0 0 0 2px ${ringColor}` }}
+                          >
+                            {avatar ? (
+                              <img src={avatar} alt={member?.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-white text-base font-bold" style={{ backgroundColor: member?.color || '#6b7280' }}>
                                 {member?.name?.charAt(0).toUpperCase() || '?'}
                               </div>
-                            )
-                          }
-                        })()}
-                      </div>
-                    )}
-                  </div>
+                            )}
+                          </div>
+                        )
+                      })()}
+                      {(() => {
+                        const member = familyMembers.find(m => m.id === bucket.bucket_member_id)
+                        return (
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium text-gray-900 truncate">{member?.name || ''}</div>
+                            <span className="inline-block mt-0.5 text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 capitalize">{(member as any)?.type || (member as any)?.role || ''}</span>
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  )}
                 </div>
 
                  {/* Task Content Columns */}

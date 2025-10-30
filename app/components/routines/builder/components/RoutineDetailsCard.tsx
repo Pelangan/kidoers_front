@@ -70,9 +70,9 @@ export default function RoutineDetailsCard({
     <Card className="bg-white border border-gray-200">
       <CardContent className="pt-4">
         <div className="space-y-4">
-          <div className="flex items-end justify-between gap-4">
-            <div className="flex items-end gap-4">
-              <div className="flex-1 max-w-md">
+          <div className="flex items-end justify-between gap-6">
+            {/* Left: Planner name - give it space */}
+            <div className="w-[28rem]">
                 <Label htmlFor="routineName">Planner Name</Label>
                 <div className="relative">
                   <Input
@@ -90,7 +90,8 @@ export default function RoutineDetailsCard({
                   </p>
                 )}
               </div>
-
+            {/* Right: Visible members + actions */}
+            <div className="flex items-end gap-4">
               {/* Family Member Selector */}
               <FamilyMemberSelector
                 enhancedFamilyMembers={enhancedFamilyMembers}
@@ -100,30 +101,30 @@ export default function RoutineDetailsCard({
                 viewMode={viewMode}
                 setViewMode={setViewMode}
               />
-            </div>
 
-            {/* Complete Onboarding Button - Only show during onboarding */}
-            {onComplete && (
-              <div className="flex-shrink-0">
-                <Button
-                  onClick={onComplete}
-                  disabled={busy || !routineName.trim()}
-                  className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white text-sm px-3 py-2 h-8"
-                >
-                  {busy ? (
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></div>
-                      <span className="text-xs">Saving...</span>
-                    </div>
-                  ) : (
-                    <>
-                      <Save className="w-3 h-3 mr-1" />
-                      <span className="text-xs">Complete Onboarding</span>
-                    </>
-                  )}
-                </Button>
-              </div>
-            )}
+              {/* Complete Onboarding Button - Only show during onboarding */}
+              {onComplete && (
+                <div className="flex-shrink-0">
+                  <Button
+                    onClick={onComplete}
+                    disabled={busy || !routineName.trim()}
+                    className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white text-sm px-3 py-2 h-8"
+                  >
+                    {busy ? (
+                      <div className="flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></div>
+                        <span className="text-xs">Saving...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <Save className="w-3 h-3 mr-1" />
+                        <span className="text-xs">Complete Onboarding</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
 
           {selectedMemberIds.length === 0 && (
