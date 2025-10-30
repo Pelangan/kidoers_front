@@ -146,6 +146,12 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       className={`relative flex items-center space-x-1 p-3 rounded ${taskColor.bg} ${taskColor.border} ${
         isDndDragging ? 'cursor-grabbing shadow-2xl scale-105' : pending ? 'cursor-progress pointer-events-none opacity-90' : 'cursor-pointer'
       } hover:shadow-lg hover:bg-opacity-90`}
+      onClick={(e) => {
+        // Allow click anywhere on the card (except the drag handle which stops propagation)
+        if (pending) return
+        e.stopPropagation()
+        onClick(e as any, task, day, memberId)
+      }}
     >
       {/* Pending badge - shows while save is in-flight */}
       {pending && (
@@ -166,10 +172,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       
       <div 
         className="flex-1"
-        onClick={(e) => {
-          e.stopPropagation()
-          onClick(e, task, day, memberId)
-        }}
       >
         <div className="flex items-center justify-between">
           <div className={`text-sm font-medium ${taskColor.text}`}>{task.name}</div>

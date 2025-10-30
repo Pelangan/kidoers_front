@@ -346,10 +346,18 @@ export const useDndKitDragAndDrop = (
           }))
         })
         
-        // Add to target day/member
+        // Add to target day/member while preserving other members' tasks
+        const existingTarget = newCalendarTasks[targetDay]?.individualTasks || []
+        const otherMembersOnTarget = existingTarget.filter((t: Task) => {
+          const mId = t.memberId || extractRoutineTaskIdFromId(t.id)
+          return mId !== targetMemberId
+        })
         newCalendarTasks[targetDay] = {
           ...newCalendarTasks[targetDay],
-          individualTasks: calculatedTaskOrder
+          individualTasks: [
+            ...otherMembersOnTarget,
+            ...calculatedTaskOrder
+          ]
         }
         
         console.log('[DND-KIT] ✅ UI updated:', {
@@ -393,21 +401,23 @@ export const useDndKitDragAndDrop = (
           if (task.recurring_template_id) {
             const template = recurringTemplates.find(t => t.id === task.recurring_template_id)
             const currentDays = template?.days_of_week || []
-            
-            // When dragging a task, we're moving THIS instance to a new day
-            // So we should set the template to ONLY have the target day
-            // This prevents duplicate tasks from appearing on days that were previously in the template
-            const finalDays = [targetDay]
-            
+            const isMulti = (currentDays?.length || 0) > 1
+
+            // For multi-day recurring: replace only the source day with target day (keep others)
+            // For single-day: replace with [targetDay]
+            const finalDays = isMulti
+              ? Array.from(new Set([...(currentDays.filter(d => d !== sourceDay)), targetDay]))
+              : [targetDay]
+
             console.log('[DND-KIT] 🔄 Updating recurring template days (MOVE operation):', {
               templateId: task.recurring_template_id,
               sourceDay,
               targetDay,
               currentDays,
               finalDays,
-              note: 'Replacing all days with target day only - this is a move, not an add'
+              note: isMulti ? 'Multi-day: swap source->target' : 'Single-day: replace days with target'
             })
-            
+
             const { updateTemplateDays } = await import('../../../../lib/api')
             await updateTemplateDays(currentRoutineId, task.recurring_template_id, {
               days_of_week: finalDays
@@ -450,22 +460,23 @@ export const useDndKitDragAndDrop = (
                   // For recurring same-day moves, just force a UI update to ensure memberId is correct
                   updateCalendarTasks(prev => {
                     const updated = { ...prev }
-                    if (updated[targetDay]) {
-                      updated[targetDay] = {
-                        ...updated[targetDay],
-                        individualTasks: updated[targetDay].individualTasks.map((t: Task) => {
+                    // Update all days for this routine task to the new member
+                    Object.keys(updated).forEach(d => {
+                      updated[d] = {
+                        ...updated[d],
+                        individualTasks: updated[d].individualTasks.map((t: Task) => {
                           const tRoutineTaskId = t.routine_task_id || extractRoutineTaskIdFromId(t.id)
                           if (tRoutineTaskId === routineTaskId) {
-                            return { 
-                              ...t, 
+                            return {
+                              ...t,
                               memberId: targetMemberId,
-                              assignees: undefined // Clear assignees for single-member assignment
+                              assignees: undefined
                             }
                           }
                           return t
                         })
                       }
-                    }
+                    })
                     return updated
                   })
                 }
@@ -518,6 +529,10 @@ export const useDndKitDragAndDrop = (
     const { day: targetDay, memberId: targetMemberId, position, targetTaskId } = overData
     
     const routineTaskId = draggedTaskData.routine_task_id || extractRoutineTaskIdFromId(draggedTaskData.id)
+    const template = draggedTaskData.recurring_template_id
+      ? recurringTemplates.find(t => t.id === draggedTaskData.recurring_template_id)
+      : undefined
+    const isMultiDayRecurring = !!template && (template.days_of_week?.length || 0) > 1
     const opKey = getOpKey(draggedTaskData)
     
     // Check if this task is already pending (prevent double drags)
@@ -532,6 +547,20 @@ export const useDndKitDragAndDrop = (
       target: `${targetDay}/${targetMemberId}`
     })
     
+    // Pre-flight rule: if multi-day recurring and dropping into a day that already
+    // has an instance of the same task for the same member, open edit modal and abort
+    if (isMultiDayRecurring && sourceDay !== targetDay) {
+      const targetHasSame = (calendarTasks[targetDay]?.individualTasks || []).some((t: Task) => {
+        const tRoutineTaskId = t.routine_task_id || extractRoutineTaskIdFromId(t.id)
+        const tMemberId = t.memberId || extractRoutineTaskIdFromId(t.id)
+        return tRoutineTaskId === routineTaskId && tMemberId === targetMemberId
+      })
+      if (targetHasSame) {
+        if (onOpenEditModal) onOpenEditModal(draggedTaskData)
+        return
+      }
+    }
+
     // Save current state for rollback
     rollbackStateRef.current = JSON.parse(JSON.stringify(calendarTasks))
     
