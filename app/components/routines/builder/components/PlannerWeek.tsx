@@ -85,6 +85,7 @@ interface PlannerWeekProps {
   extractMemberIdFromId: (id: string, selectedMemberId: string) => string
   onSeriesBadgeClick?: (seriesId: string, day: string) => void // Handler for series badge click
   isTaskPending?: (task: Task) => boolean // Check if a task is currently saving
+  isAnyDragging?: boolean // Global drag state from DndContext
 }
 
 export const PlannerWeek: React.FC<PlannerWeekProps> = ({
@@ -106,6 +107,7 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
   extractMemberIdFromId,
   onSeriesBadgeClick,
   isTaskPending,
+  isAnyDragging = false,
 }) => {
   // Height calculation for responsive grid
   const [gridHeight, setGridHeight] = useState(600)
@@ -358,7 +360,7 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                                 task={task}
                                 day={day}
                                 memberId={memberId}
-                                isDragging={isDragged}
+                                isDragging={isAnyDragging || isDragged}
                                 recurringTemplates={recurringTemplates}
                                 familyMembers={familyMembers}
                                 getMemberColors={getMemberColors}

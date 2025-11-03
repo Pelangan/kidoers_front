@@ -1,7 +1,7 @@
 import React from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { Move, Folder } from 'lucide-react'
+import { Folder } from 'lucide-react'
 import type { Task, RecurringTemplate } from '../types/routineBuilderTypes'
 import { getTaskDisplayFrequency } from '../utils/taskUtils'
 import { MultiMemberBadge } from './MultiMemberBadge'
@@ -72,6 +72,20 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     transform: CSS.Translate.toString(transform),
     zIndex: isDndDragging ? 10000 : 'auto', // Much higher z-index to render above other rows
     opacity: isDndDragging ? 0.8 : 1,
+  }
+
+  // Simple click handler - only show popup if not dragging
+  const handleClick = (e: React.MouseEvent) => {
+    if (pending) return
+    
+    // Do not open the popup if a drag is active (local or global)
+    if (isDndDragging || isDragging) {
+      e.preventDefault()
+      e.stopPropagation()
+      return
+    }
+    
+    onClick(e, task, day, memberId)
   }
   
   // Create assignees data for single-member tasks if not available
@@ -158,12 +172,9 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       className={`relative flex items-center space-x-1 p-3 rounded ${taskColor.bg} ${taskColor.border} ${
         isDndDragging ? 'cursor-grabbing shadow-2xl scale-105' : pending ? 'cursor-progress pointer-events-none opacity-90' : 'cursor-pointer'
       } hover:shadow-lg hover:bg-opacity-90`}
-      onClick={(e) => {
-        // Allow click anywhere on the card (except the drag handle which stops propagation)
-        if (pending) return
-        e.stopPropagation()
-        onClick(e as any, task, day, memberId)
-      }}
+      {...attributes}
+      {...listeners}
+      onClick={handleClick}
     >
       {/* Pending badge - shows while save is in-flight */}
       {pending && (
@@ -220,29 +231,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           </div>
         )}
       </div>
-      
-      {/* Drag handle - grip icon on the right */}
-      <div 
-        {...attributes}
-        {...listeners}
-        className="flex-shrink-0 px-0.5 py-1 cursor-grab hover:bg-gray-200 rounded transition-colors"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex flex-col space-y-0.5">
-          <div className="flex space-x-0.5">
-            <div className="w-0.5 h-0.5 bg-gray-500 rounded-full"></div>
-            <div className="w-0.5 h-0.5 bg-gray-500 rounded-full"></div>
-          </div>
-          <div className="flex space-x-0.5">
-            <div className="w-0.5 h-0.5 bg-gray-500 rounded-full"></div>
-            <div className="w-0.5 h-0.5 bg-gray-500 rounded-full"></div>
-          </div>
-          <div className="flex space-x-0.5">
-            <div className="w-0.5 h-0.5 bg-gray-500 rounded-full"></div>
-            <div className="w-0.5 h-0.5 bg-gray-500 rounded-full"></div>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }
+

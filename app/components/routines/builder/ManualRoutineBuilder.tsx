@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { flushSync } from "react-dom";
-import { DndContext } from '@dnd-kit/core';
+import { DndContext, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { useTaskOperations } from "../../../hooks/useTaskOperations";
 import { useDndKitDragAndDrop } from "./hooks/useDndKitDragAndDrop";
 import { SavingProvider } from "./ui/SavingContext";
@@ -235,6 +235,15 @@ function ManualRoutineBuilderContent({
     moveTaskToNewDay,
   } = useTaskOrdering();
 
+  // Global drag state for click detection
+  const [isAnyDragging, setIsAnyDragging] = useState(false);
+
+  // Configure sensors with activation constraints
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 120, tolerance: 6 } })
+  );
+
   // Use task drag and drop hook
   const {
     draggedTask,
@@ -271,6 +280,12 @@ function ManualRoutineBuilderContent({
     setRecurringTemplates
   );
 
+  // Wrapper for handleDragStart to track global drag state
+  const handleDragStartWrapper = (event: any) => {
+    setIsAnyDragging(true);
+    handleDragStart(event);
+  };
+
   // Wrapper for handleDragEnd to update selectedTaskForEdit when task is moved
   const handleDragEnd = async (event: any) => {
     // Capture drag info before the async operation
@@ -278,6 +293,11 @@ function ManualRoutineBuilderContent({
     const overData = event.over?.data?.current;
     
     await originalHandleDragEnd(event);
+    
+    // Clear global drag state after a short delay to prevent ghost clicks
+    setTimeout(() => {
+      setIsAnyDragging(false);
+    }, 80);
     
     // After drag completes, update recurringTemplates and selectedTaskForEdit if needed
     // reloadRoutineData is called in moveTaskToPosition, so we update after it completes
@@ -951,9 +971,15 @@ function ManualRoutineBuilderContent({
             ) : (
               selectedMemberIds.length > 0 && (
                 <DndContext
-                  onDragStart={handleDragStart}
+                  sensors={sensors}
+                  onDragStart={handleDragStartWrapper}
                   onDragOver={handleDragOver}
                   onDragEnd={handleDragEnd}
+                  onDragCancel={() => {
+                    setTimeout(() => {
+                      setIsAnyDragging(false);
+                    }, 80);
+                  }}
                 >
                   <PlannerWeek
                     weekData={transformCalendarTasksToWeekData(
@@ -977,6 +1003,7 @@ function ManualRoutineBuilderContent({
                     getTasksWithDayOrder={getTasksWithDayOrder}
                     extractMemberIdFromId={extractMemberIdFromId}
                     isTaskPending={isTaskPending}
+                    isAnyDragging={isAnyDragging}
                   />
                 </DndContext>
               )
