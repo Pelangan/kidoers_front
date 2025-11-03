@@ -277,7 +277,8 @@ function ManualRoutineBuilderContent({
       setShowTaskMiniPopup(true)
       handleEditTask()
     },
-    setRecurringTemplates
+    setRecurringTemplates,
+    getMemberNameById
   );
 
   // Wrapper for handleDragStart to track global drag state

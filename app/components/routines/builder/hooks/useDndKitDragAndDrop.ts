@@ -39,7 +39,8 @@ export const useDndKitDragAndDrop = (
   recurringTemplates: RecurringTemplate[] = [],
   reloadRoutineData?: () => Promise<void>,
   onOpenEditModal?: (task: Task) => void,
-  setRecurringTemplates?: (updater: (prev: RecurringTemplate[]) => RecurringTemplate[]) => void
+  setRecurringTemplates?: (updater: (prev: RecurringTemplate[]) => RecurringTemplate[]) => void,
+  getMemberNameById?: (id: string) => string
 ) => {
   const { toast } = useToast()
   const { begin, isPending } = useSaving()
@@ -639,6 +640,31 @@ export const useDndKitDragAndDrop = (
         setTimeout(() => {
           announceElement.textContent = ''
         }, 1000)
+      }
+      
+      // Show success toast for member transfers
+      if (sourceMemberId !== targetMemberId) {
+        const sourceMemberName = getMemberNameById ? getMemberNameById(sourceMemberId) : 'member'
+        const targetMemberName = getMemberNameById ? getMemberNameById(targetMemberId) : 'member'
+        toast({
+          title: "Task reassigned",
+          description: `Moved "${draggedTaskData.name}" from ${sourceMemberName} to ${targetMemberName}`,
+        })
+      } else if (sourceDay !== targetDay) {
+        // Show success toast for day changes
+        const dayNames: Record<string, string> = {
+          monday: 'Monday',
+          tuesday: 'Tuesday',
+          wednesday: 'Wednesday',
+          thursday: 'Thursday',
+          friday: 'Friday',
+          saturday: 'Saturday',
+          sunday: 'Sunday'
+        }
+        toast({
+          title: "Task moved",
+          description: `Moved "${draggedTaskData.name}" to ${dayNames[targetDay] || targetDay}`,
+        })
       }
       
       setIsReordering(false)
