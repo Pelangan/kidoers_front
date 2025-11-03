@@ -46,11 +46,17 @@ export const TaskGroup: React.FC<TaskGroupProps> = ({
         </Button>
       </div>
       
-      {group.tasks.map((task: Task) => (
+      {group.tasks.map((task: Task) => {
+        // For multi-day tasks, only mark as dragged if it's the same day and member
+        const isDragged = draggedTask 
+          ? (draggedTask.task.id === task.id && draggedTask.day === day && draggedTask.memberId === memberId)
+          : false
+        
+        return (
         <div 
           key={`${task.id}-${memberId}-${day}`} 
           className={`ml-3 relative flex items-center space-x-1 p-2 bg-purple-50 rounded border-l-4 border-purple-500 border border-gray-200 cursor-pointer ${
-            draggedTask?.task.id === task.id ? 'opacity-50 task-dragging' : ''
+            isDragged ? 'opacity-50 task-dragging' : ''
           }`}
           draggable={true}
           onDragStart={(e) => onDragStart(e, task, day, memberId)}
@@ -61,7 +67,8 @@ export const TaskGroup: React.FC<TaskGroupProps> = ({
             <div className="text-xs text-purple-600">from {group.name}</div>
           </div>
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

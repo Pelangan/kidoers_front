@@ -916,6 +916,11 @@ interface Reward {
     - Fixed critical bug where task assignments were deleted during drag-drop due to incorrect operation order
     - Fixed duplicate task bug when deleting single day from multi-day task (routine_tasks now keep individual days)
     - Fixed undo functionality for task deletion - now properly restores tasks in backend database (not just UI state)
+  - **Multi-Day Task Drag Fix (January 2025)**:
+    - Fixed issue where dragging one instance of a multi-day task would move all instances together
+    - Multi-day tasks now use unique draggable IDs per instance (`${task.id}-${day}-${memberId}`)
+    - Each instance can now be dragged independently without affecting other instances
+    - Visual feedback (opacity) only shows on the specific instance being dragged
 
 ### Drag and Drop Implementation Fix (January 2025)
 **Issue**: Tasks couldn't be dragged out of their cells and would disappear with scrolling appearing during drag operations.

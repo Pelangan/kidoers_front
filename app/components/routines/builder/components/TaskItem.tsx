@@ -46,8 +46,16 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   pending = false
 }) => {
   // @dnd-kit draggable setup
+  // For multi-day tasks, create a unique ID per instance (day + memberId combination)
+  // This allows dragging individual instances independently
+  const template = task.recurring_template_id 
+    ? recurringTemplates.find(t => t.id === task.recurring_template_id)
+    : null
+  const isMultiDayTask = template && (template.days_of_week?.length || 0) > 1
+  const draggableId = isMultiDayTask ? `${task.id}-${day}-${memberId}` : task.id
+  
   const { attributes, listeners, setNodeRef, transform, isDragging: isDndDragging } = useDraggable({
-    id: task.id,
+    id: draggableId,
     data: {
       task,
       day,

@@ -248,7 +248,7 @@ function ManualRoutineBuilderContent({
     setIsDragging,
     handleDragStart,
     handleDragOver,
-    handleDragEnd,
+    handleDragEnd: originalHandleDragEnd,
     moveTaskToPosition,
     getTasksWithDayOrder,
     loadDayOrders,
@@ -268,6 +268,82 @@ function ManualRoutineBuilderContent({
       handleEditTask()
     }
   );
+
+  // Wrapper for handleDragEnd to update selectedTaskForEdit when task is moved
+  const handleDragEnd = async (event: any) => {
+    // Capture drag info before the async operation
+    const activeData = event.active?.data?.current;
+    const overData = event.over?.data?.current;
+    
+    await originalHandleDragEnd(event);
+    
+    // After drag completes, update selectedTaskForEdit if the moved task matches
+    if (selectedTaskForEdit && activeData && overData) {
+      const { task: draggedTask, day: sourceDay, memberId: sourceMemberId } = activeData;
+      const { day: targetDay, memberId: targetMemberId } = overData;
+      
+      // Check if the moved task matches the selected task
+      const routineTaskId = draggedTask.routine_task_id || extractRoutineTaskIdFromId(draggedTask.id);
+      const selectedRoutineTaskId = selectedTaskForEdit.task.routine_task_id || extractRoutineTaskIdFromId(selectedTaskForEdit.task.id);
+      
+      // Check if this is the same task instance (same routine_task_id, day, and memberId)
+      const isSameInstance = routineTaskId === selectedRoutineTaskId && 
+                             sourceDay === selectedTaskForEdit.day && 
+                             sourceMemberId === selectedTaskForEdit.memberId;
+      
+      // If it's a cross-day move and the task instance matches, update selectedTaskForEdit
+      if (sourceDay !== targetDay && isSameInstance) {
+        // Update recurringTemplates state immediately so the popup shows correct days
+        if (draggedTask.recurring_template_id) {
+          setRecurringTemplates(prevTemplates => {
+            const template = prevTemplates.find(t => t.id === draggedTask.recurring_template_id);
+            if (template) {
+              const currentDays = template.days_of_week || [];
+              const isMulti = currentDays.length > 1;
+              
+              // Calculate new days_of_week (same logic as in moveTaskToPosition)
+              const newDays = isMulti
+                ? Array.from(new Set([...(currentDays.filter(d => d !== sourceDay)), targetDay]))
+                : [targetDay];
+              
+              console.log('[TASK-MINI-POPUP] 🔄 Updating recurringTemplates after drag:', {
+                templateId: draggedTask.recurring_template_id,
+                oldDays: currentDays,
+                newDays: newDays,
+                sourceDay,
+                targetDay
+              });
+              
+              return prevTemplates.map(t => {
+                if (t.id === draggedTask.recurring_template_id) {
+                  return {
+                    ...t,
+                    days_of_week: newDays
+                  };
+                }
+                return t;
+              });
+            }
+            return prevTemplates;
+          });
+        }
+        
+        // Use the dragged task object and update day/memberId
+        // The task object itself should be fine, we just need to update the context (day and memberId)
+        console.log('[TASK-MINI-POPUP] 🔄 Updating selectedTaskForEdit after drag:', {
+          oldDay: selectedTaskForEdit.day,
+          newDay: targetDay,
+          oldMemberId: selectedTaskForEdit.memberId,
+          newMemberId: targetMemberId
+        });
+        setSelectedTaskForEdit({ 
+          task: draggedTask, 
+          day: targetDay, 
+          memberId: targetMemberId 
+        });
+      }
+    }
+  };
 
   // Use recurring task operations hook
   const { handleRemoveDayFromRecurringTask } = useRecurringTaskOperations();

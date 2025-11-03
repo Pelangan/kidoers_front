@@ -326,7 +326,11 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                         {orderedTasks.map((task, taskIndex) => {
                           // Use the bucket member ID directly since we're already in the correct member's bucket
                           const memberId = bucket.bucket_member_id || ''
-                          const isDragged = draggedTask?.task.id === task.id
+                          // For multi-day tasks, only mark as dragged if it's the same day and member
+                          // For single-day tasks, use task.id comparison
+                          const isDragged = draggedTask 
+                            ? (draggedTask.task.id === task.id && draggedTask.day === day && draggedTask.memberId === memberId)
+                            : false
 
                           return (
                             <div key={`${task.id}-${day}-${bucket.bucket_type || 'unknown'}-${bucket.bucket_member_id || 'shared'}`}>
