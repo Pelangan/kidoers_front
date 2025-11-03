@@ -6,6 +6,7 @@ import {
   getRoutineFullData,
   updateTemplateDays,
 } from '../../../../lib/api'
+import { useSaving } from '../ui/SavingContext'
 import type {
   Task,
   EnhancedFamilyMember,
@@ -110,6 +111,7 @@ export const useTaskOperations = ({
   showUndoToast,
   loadExistingRoutineData,
 }: UseTaskOperationsProps) => {
+  const { begin } = useSaving()
   
   // Remove specific day from template (for "This event only")
   const removeDayFromTemplate = useCallback(async (card: PlannerCard) => {
@@ -176,6 +178,15 @@ export const useTaskOperations = ({
       return;
     }
 
+    // Store original state for undo
+    const originalCalendarTasks = JSON.parse(JSON.stringify(calendarTasks));
+    const originalTemplates = JSON.parse(JSON.stringify(recurringTemplates));
+    const taskToDelete = selectedTaskForEdit;
+    
+    // Start tracking save operation for spinner
+    const operationId = `delete-${card.id}-${Date.now()}`;
+    const done = begin(operationId);
+
     try {
       switch (choice) {
         case 'instance':
@@ -198,11 +209,72 @@ export const useTaskOperations = ({
       setShowTaskMiniPopup(false);
       setMiniPopupPosition(null);
       setSelectedTaskForEdit(null);
+      
+      // Create undo function
+      const undoFunction = async () => {
+        try {
+          console.log('[KIDOERS-ROUTINE] 🔄 Undoing task deletion...');
+          
+          // Restore original state
+          setCalendarTasks(originalCalendarTasks);
+          setRecurringTemplates(originalTemplates);
+          
+          // If we have task data, recreate it in the backend
+          if (taskToDelete?.task && currentRoutineId) {
+            const template = originalTemplates.find(t => t.id === taskToDelete.task.recurring_template_id);
+            const taskDays = template?.days_of_week || [taskToDelete.day];
+            const memberIds = taskToDelete.task.assignees?.map(a => a.id) || [taskToDelete.memberId];
+            
+            const bulkPayload = {
+              task_template: {
+                name: taskToDelete.task.name,
+                description: taskToDelete.task.description || undefined,
+                points: taskToDelete.task.points,
+                duration_mins: taskToDelete.task.estimatedMinutes,
+                time_of_day: taskToDelete.task.time_of_day || undefined,
+                is_system: false,
+              },
+              assignments: memberIds.map((memberId) => ({
+                member_id: memberId,
+                days_of_week: taskDays,
+                order_index: 0,
+              })),
+              create_recurring_template: !!taskToDelete.task.recurring_template_id,
+            };
+            
+            await bulkCreateIndividualTasks(currentRoutineId, bulkPayload);
+            
+            // Reload data to ensure consistency
+            await loadExistingRoutineData(currentRoutineId, enhancedFamilyMembers);
+          }
+          
+          console.log('[KIDOERS-ROUTINE] ✅ Task deletion undone');
+        } catch (error) {
+          console.error('[KIDOERS-ROUTINE] ❌ Error undoing deletion:', error);
+          throw error;
+        }
+      };
+      
+      // Show undo toast
+      showUndoToast(
+        {
+          id: operationId,
+          type: 'delete',
+          taskData: taskToDelete,
+          originalCalendarTasks,
+          undoFunction,
+        },
+        choice === 'instance' ? 'Task occurrence deleted' : 'Task series deleted'
+      );
+      
+      // Mark operation as complete
+      done();
     } catch (error) {
       console.error('[KIDOERS-ROUTINE] ❌ Error in handleDeleteChoice:', error);
       setError('Failed to delete task. Please try again.');
+      done(); // Still mark as done even on error
     }
-  }, [currentRoutineId, enhancedFamilyMembers, loadExistingRoutineData, setError, removeDayFromTemplate, setShowTaskMiniPopup, setMiniPopupPosition, setSelectedTaskForEdit]);
+  }, [currentRoutineId, enhancedFamilyMembers, loadExistingRoutineData, setError, removeDayFromTemplate, setShowTaskMiniPopup, setMiniPopupPosition, setSelectedTaskForEdit, calendarTasks, setCalendarTasks, setRecurringTemplates, selectedTaskForEdit, showUndoToast, begin, deleteSeries, bulkCreateIndividualTasks]);
 
   // Handle delete individual task - check if it's recurring first
   const handleDeleteIndividualTask = useCallback(async () => {
