@@ -331,9 +331,15 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                           const isDragged = draggedTask 
                             ? (draggedTask.task.id === task.id && draggedTask.day === day && draggedTask.memberId === memberId)
                             : false
+                          
+                          // Get template days for key to force re-render when days change
+                          const template = task.recurring_template_id 
+                            ? recurringTemplates.find(t => t.id === task.recurring_template_id)
+                            : null
+                          const templateDaysKey = template?.days_of_week?.join(',') || ''
 
                           return (
-                            <div key={`${task.id}-${day}-${bucket.bucket_type || 'unknown'}-${bucket.bucket_member_id || 'shared'}`}>
+                            <div key={`${task.id}-${day}-${bucket.bucket_type || 'unknown'}-${bucket.bucket_member_id || 'shared'}-${templateDaysKey}`}>
                               {/* Drop zone before this task - show when hovering this cell or any valid target */}
                               {draggedTask && draggedTask.task.id !== task.id && taskIndex > 0 && 
                                (hoveredDropZone?.day === day && hoveredDropZone?.memberId === bucket.bucket_member_id ||

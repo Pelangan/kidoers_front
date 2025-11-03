@@ -5,7 +5,6 @@ import { Move, Folder } from 'lucide-react'
 import type { Task, RecurringTemplate } from '../types/routineBuilderTypes'
 import { getTaskDisplayFrequency } from '../utils/taskUtils'
 import { MultiMemberBadge } from './MultiMemberBadge'
-import { useState, useRef } from 'react'
 
 interface TaskItemProps {
   task: Task
@@ -51,7 +50,12 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const template = task.recurring_template_id 
     ? recurringTemplates.find(t => t.id === task.recurring_template_id)
     : null
-  const isMultiDayTask = template && (template.days_of_week?.length || 0) > 1
+  
+  // Check if task is multi-day - use template's days_of_week if available,
+  // otherwise check if task has multiple days (fallback for when template isn't loaded yet)
+  const daysOfWeek = template?.days_of_week || []
+  const isMultiDayTask = daysOfWeek.length > 1
+  
   const draggableId = isMultiDayTask ? `${task.id}-${day}-${memberId}` : task.id
   
   const { attributes, listeners, setNodeRef, transform, isDragging: isDndDragging } = useDraggable({
@@ -164,7 +168,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       {/* Pending badge - shows while save is in-flight */}
       {pending && (
         <div 
-          className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full shadow-sm z-10 border border-white animate-pulse"
+          className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full shadow-sm z-20 border border-white animate-pulse"
           aria-label="Saving..."
           role="status"
         />
@@ -172,7 +176,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       
       {/* Copy operation indicator */}
       {isCopyOperation && (
-        <div className="absolute -top-1 -right-1 bg-green-500 text-white text-xs font-bold px-1 py-0.5 rounded shadow-lg z-10">
+        <div className="absolute -top-1 -right-1 bg-green-500 text-white text-xs font-bold px-1 py-0.5 rounded shadow-lg z-20">
           Copy
         </div>
       )}

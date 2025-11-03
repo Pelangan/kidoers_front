@@ -38,7 +38,8 @@ export const useDndKitDragAndDrop = (
   saveDaySpecificOrder: (day: string, memberId: string, tasks: Task[]) => Promise<void>,
   recurringTemplates: RecurringTemplate[] = [],
   reloadRoutineData?: () => Promise<void>,
-  onOpenEditModal?: (task: Task) => void
+  onOpenEditModal?: (task: Task) => void,
+  setRecurringTemplates?: (updater: (prev: RecurringTemplate[]) => RecurringTemplate[]) => void
 ) => {
   const { toast } = useToast()
   const { begin, isPending } = useSaving()
@@ -422,6 +423,22 @@ export const useDndKitDragAndDrop = (
             await updateTemplateDays(currentRoutineId, task.recurring_template_id, {
               days_of_week: finalDays
             })
+            
+            // Update recurringTemplates state immediately to reflect the change
+            // This ensures the icon appears without refresh
+            if (setRecurringTemplates) {
+              setRecurringTemplates(prevTemplates => {
+                return prevTemplates.map(t => {
+                  if (t.id === task.recurring_template_id) {
+                    return {
+                      ...t,
+                      days_of_week: [...finalDays] // Create new array reference
+                    };
+                  }
+                  return t;
+                });
+              });
+            }
           } else {
             // For non-recurring tasks, just set the day to the target
             const { patchRoutineTask } = await import('../../../../lib/api')
@@ -494,7 +511,7 @@ export const useDndKitDragAndDrop = (
         console.error('[DND-KIT] ❌ Failed to save day-specific order:', error)
       }
     }
-  }, [currentRoutineId, calendarTasks, extractRoutineTaskIdFromId, updateCalendarTasks, saveDaySpecificOrder, reloadRoutineData, recurringTemplates])
+  }, [currentRoutineId, calendarTasks, extractRoutineTaskIdFromId, updateCalendarTasks, saveDaySpecificOrder, reloadRoutineData, recurringTemplates, setRecurringTemplates])
 
   // Rollback function to restore previous state
   const rollbackOptimistic = useCallback(() => {
