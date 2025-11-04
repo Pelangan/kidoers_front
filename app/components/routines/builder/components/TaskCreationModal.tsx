@@ -59,6 +59,8 @@ interface TaskCreationModalProps {
   // Task data
   editableTaskName: string;
   onTaskNameChange: (name: string) => void;
+  editablePoints: number;
+  onPointsChange: (points: number) => void;
   
   // Day selection
   daySelection: DaySelection;
@@ -91,6 +93,8 @@ export default function TaskCreationModal({
   onOpenChange,
   editableTaskName,
   onTaskNameChange,
+  editablePoints,
+  onPointsChange,
   daySelection,
   onDaySelectionChange,
   taskAssignmentMemberIds,
@@ -122,6 +126,47 @@ export default function TaskCreationModal({
               placeholder="(No title)"
               className="w-full border-0 border-b-2 border-gray-300 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none rounded-none bg-transparent px-0"
             />
+          </div>
+
+          {/* Points */}
+          <div className="space-y-2">
+            <div className="flex items-center space-x-3">
+              <svg
+                className="w-5 h-5 text-gray-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"
+                />
+              </svg>
+              <Label className="text-sm font-medium text-gray-700">
+                Points
+              </Label>
+            </div>
+            <Input
+              type="number"
+              min="1"
+              max="100"
+              value={editablePoints}
+              onChange={(e) => {
+                const value = parseInt(e.target.value, 10);
+                if (!isNaN(value) && value >= 1 && value <= 100) {
+                  onPointsChange(value);
+                } else if (e.target.value === '') {
+                  onPointsChange(1);
+                }
+              }}
+              className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="5"
+            />
+            <div className="text-xs text-gray-500 italic">
+              Points awarded for completing this task
+            </div>
           </div>
 
           {/* Date and Time */}

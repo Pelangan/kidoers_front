@@ -29,6 +29,7 @@ export const useTaskEditing = () => {
     setTaskAssignmentMemberIds: (ids: string[]) => void,
     setDaySelection: (selection: DaySelection) => void,
     setEditableTaskName: (name: string) => void,
+    setEditablePoints: (points: number) => void,
     setSelectedWhoOption: (option: string) => void,
     setSelectedRoutineGroup: (groupId: string) => void,
     setShowTaskMiniPopup: (show: boolean) => void,
@@ -185,6 +186,12 @@ export const useTaskEditing = () => {
         frequencyType = templateData.template_frequency_type || "weekly";
         hasException = templateData.has_exception_for_date || false;
 
+        // Load points from API response
+        if (templateData.points !== undefined) {
+          setEditablePoints(templateData.points);
+          console.log("[TASK-EDIT] ✅ Loaded points from API:", templateData.points);
+        }
+
         console.log("[TASK-EDIT] ✅ Using fresh template data:", {
           templateDays,
           frequencyType,
@@ -270,6 +277,8 @@ export const useTaskEditing = () => {
     // Don't call closeTaskMiniPopup() as it clears selectedTaskForEdit
 
     setEditableTaskName(selectedTaskForEdit.task.name);
+    // Set points from task if available, otherwise use default
+    setEditablePoints(selectedTaskForEdit.task.points || 5);
     setSelectedWhoOption("none");
     setSelectedRoutineGroup("none");
 

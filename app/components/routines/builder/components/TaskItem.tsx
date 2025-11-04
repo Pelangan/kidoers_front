@@ -167,9 +167,13 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       ref={setNodeRef}
       style={{
         ...style,
-        borderLeftColor: taskColor.borderColor || undefined,
+        ...(taskColor.borderColor && {
+          borderLeftColor: taskColor.borderColor,
+          borderLeftWidth: '4px',
+          borderLeftStyle: 'solid',
+        }),
       }}
-      className={`relative flex items-center space-x-1 p-3 rounded ${taskColor.bg} ${taskColor.border} ${
+      className={`relative flex items-center space-x-1 p-3 rounded ${taskColor.bg} ${taskColor.border} border-t border-r border-b border-gray-200 ${
         isDndDragging ? 'cursor-grabbing shadow-2xl scale-105' : pending ? 'cursor-progress pointer-events-none opacity-90' : 'cursor-pointer'
       } hover:shadow-lg hover:bg-opacity-90`}
       {...attributes}
@@ -197,7 +201,15 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         className="flex-1"
       >
         <div className="flex items-center justify-between">
-          <div className={`text-sm font-medium ${taskColor.text}`}>{task.name}</div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <div className={`text-sm font-medium ${taskColor.text}`}>{task.name}</div>
+              {/* Points display - aligned to the right */}
+              <div className="text-xs text-gray-600 ml-2">
+                {task.points}pts
+              </div>
+            </div>
+          </div>
           <div className="flex items-center space-x-1">
             {/* Only show avatar badge for multi-member tasks */}
             {(task.member_count && task.member_count > 1) && (

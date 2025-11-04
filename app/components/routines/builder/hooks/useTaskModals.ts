@@ -12,6 +12,7 @@ export const useTaskModals = () => {
 
   // Form state
   const [editableTaskName, setEditableTaskName] = useState('')
+  const [editablePoints, setEditablePoints] = useState<number>(5)
   const [selectedTaskForEdit, setSelectedTaskForEdit] = useState<{ task: Task, day: string, memberId: string } | null>(null)
   const [miniPopupPosition, setMiniPopupPosition] = useState<{ x: number, y: number } | null>(null)
   const [deleteScope, setDeleteScope] = useState<DeleteScope>('instance')
@@ -43,6 +44,7 @@ export const useTaskModals = () => {
   const openTaskModal = (task: Task, day: string, memberId: string) => {
     setSelectedTaskForEdit({ task, day, memberId })
     setEditableTaskName(task.name)
+    setEditablePoints(task.points || 5)
     setShowApplyToPopup(true)
     setSelectedWhoOption('none')
   }
@@ -95,6 +97,7 @@ export const useTaskModals = () => {
   const resetFormState = () => {
     console.log('[USE-TASK-MODALS] 🔍 DEBUG: resetFormState called - resetting daySelection to everyday');
     setEditableTaskName('')
+    setEditablePoints(5)
     setSelectedWhoOption('none')
     setSelectedRoutineGroup('none')
     setTaskAssignmentMemberIds([])
@@ -123,6 +126,7 @@ export const useTaskModals = () => {
     
     // Form state
     editableTaskName,
+    editablePoints,
     selectedTaskForEdit,
     miniPopupPosition,
     deleteScope,
@@ -142,6 +146,7 @@ export const useTaskModals = () => {
     setShowRoutineDetails,
     setShowCreateGroupModal,
     setEditableTaskName,
+    setEditablePoints,
     setSelectedTaskForEdit,
     setMiniPopupPosition,
     setDeleteScope,

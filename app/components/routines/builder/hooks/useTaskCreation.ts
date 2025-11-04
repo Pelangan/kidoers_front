@@ -94,11 +94,12 @@ export const useTaskCreation = ({
     }
 
     // Create a new task with no title placeholder
+    // Note: Points will be set from state when the modal is opened
     const newTask: Task = {
       id: `temp-${Date.now()}`,
       name: "(No title)",
       description: "",
-      points: 5, // Default points
+      points: 5, // Default points - will be overridden by state
       estimatedMinutes: 30, // Default duration
       time_of_day: "morning", // Default time
       is_saved: false,

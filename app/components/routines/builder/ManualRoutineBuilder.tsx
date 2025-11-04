@@ -133,6 +133,8 @@ function ManualRoutineBuilderContent({
     setShowRoutineDetails,
     setShowCreateGroupModal,
     setEditableTaskName,
+    editablePoints,
+    setEditablePoints,
     setSelectedTaskForEdit,
     setMiniPopupPosition,
     setDeleteScope,
@@ -395,6 +397,7 @@ function ManualRoutineBuilderContent({
       setTaskAssignmentMemberIds,
       setDaySelection,
       setEditableTaskName,
+      setEditablePoints,
       setSelectedWhoOption,
       setSelectedRoutineGroup,
       setShowTaskMiniPopup,
@@ -521,7 +524,7 @@ function ManualRoutineBuilderContent({
             task_template: {
               name: editableTaskName || task.name,
               description: task.description || undefined,
-              points: task.points,
+              points: editablePoints,
               duration_mins: task.estimatedMinutes,
               time_of_day: task.time_of_day || undefined,
               from_task_template_id: task.is_system ? task.id : undefined
@@ -670,16 +673,17 @@ function ManualRoutineBuilderContent({
             const taskId = extractTaskId(selectedTaskForEdit.task.id);
             await patchRoutineTask(routineData.id, taskId, {
               name: editableTaskName || selectedTaskForEdit.task.name,
+              points: editablePoints,
             });
 
-            // Update UI name in place
+            // Update UI name and points in place
             const updated = { ...calendarTasks };
             Object.keys(updated).forEach((day) => {
               updated[day] = {
                 ...updated[day],
                 individualTasks: (updated[day].individualTasks || []).map((t) =>
                   t.id === selectedTaskForEdit.task.id
-                    ? { ...t, name: editableTaskName || selectedTaskForEdit.task.name }
+                    ? { ...t, name: editableTaskName || selectedTaskForEdit.task.name, points: editablePoints }
                     : t,
                 ),
               };
@@ -710,7 +714,7 @@ function ManualRoutineBuilderContent({
           task_template: {
             name: editableTaskName || task.name,
             description: task.description || undefined,
-            points: task.points,
+            points: editablePoints,
             duration_mins: task.estimatedMinutes,
             time_of_day: task.time_of_day || undefined,
             from_task_template_id: task.is_system ? task.id : undefined
@@ -1027,6 +1031,8 @@ function ManualRoutineBuilderContent({
           onOpenChange={setShowApplyToPopup}
           editableTaskName={editableTaskName}
           onTaskNameChange={setEditableTaskName}
+          editablePoints={editablePoints}
+          onPointsChange={setEditablePoints}
           daySelection={daySelection}
           onDaySelectionChange={setDaySelection}
           taskAssignmentMemberIds={taskAssignmentMemberIds}
