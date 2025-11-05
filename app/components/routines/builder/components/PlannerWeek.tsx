@@ -82,7 +82,8 @@ interface PlannerWeekProps {
   onColumnClick: (day: string, bucketType?: TaskBucketType, bucketMemberId?: string) => void
   onTaskClick: (e: React.MouseEvent, task: Task, day: string, memberId: string) => void
   onRemoveGroup: (day: string, groupId: string) => void
-  getTasksWithDayOrder: (tasks: Task[], day: string, memberId: string) => Task[]
+  getTasksWithDayOrder: (tasks: Task[], day: string, memberId: string, routineFilter?: 'ALL' | 'UNASSIGNED' | string) => Task[]
+  routineFilter?: 'ALL' | 'UNASSIGNED' | string // Routine filter to determine ordering strategy
   extractMemberIdFromId: (id: string, selectedMemberId: string) => string
   onSeriesBadgeClick?: (seriesId: string, day: string) => void // Handler for series badge click
   isTaskPending?: (task: Task) => boolean // Check if a task is currently saving
@@ -110,6 +111,7 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
   onSeriesBadgeClick,
   isTaskPending,
   isAnyDragging = false,
+  routineFilter = 'ALL',
 }) => {
   // Height calculation for responsive grid
   const [gridHeight, setGridHeight] = useState(600)
@@ -271,7 +273,7 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                  {/* Task Content Columns */}
                  {days.map((day) => {
                    const tasks = getTasksForBucketAndDay(bucket.bucket_type, bucket.bucket_member_id, day)
-                   const orderedTasks = getTasksWithDayOrder(tasks, day, bucket.bucket_member_id || '')
+                   const orderedTasks = getTasksWithDayOrder(tasks, day, bucket.bucket_member_id || '', routineFilter)
                    
                    return (
                      <div 
@@ -299,10 +301,9 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                       <div className="flex flex-col min-h-full relative">
                         {/* Tasks Container */}
                         <div className={`space-y-2 ${orderedTasks.length > 0 ? 'pb-[100px]' : 'pb-[40px]'}`}>
-                        {/* Drop zone at the top when there are existing tasks - show when hovering this cell or any valid target */}
+                        {/* Drop zone at the top when there are existing tasks - show when dragging */}
                         {draggedTask && orderedTasks.length > 0 && 
-                         (hoveredDropZone?.day === day && hoveredDropZone?.memberId === bucket.bucket_member_id ||
-                          (draggedTask.day !== day || draggedTask.memberId !== bucket.bucket_member_id)) && (
+                         draggedTask.task.id !== orderedTasks[0].id && (
                           <DropZone
                             id={`drop-top-${day}-${bucket.bucket_member_id}`}
                             day={day}
@@ -313,10 +314,8 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                           />
                         )}
                         
-                        {/* Drop zone for empty cells - show when hovering this cell or any valid target */}
-                        {draggedTask && orderedTasks.length === 0 && 
-                         (hoveredDropZone?.day === day && hoveredDropZone?.memberId === bucket.bucket_member_id ||
-                          (draggedTask.day !== day || draggedTask.memberId !== bucket.bucket_member_id)) && (
+                        {/* Drop zone for empty cells - show when dragging */}
+                        {draggedTask && orderedTasks.length === 0 && (
                           <DropZone
                             id={`drop-empty-${day}-${bucket.bucket_member_id}`}
                             day={day}
@@ -344,10 +343,8 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
 
                           return (
                             <div key={`${task.id}-${day}-${bucket.bucket_type || 'unknown'}-${bucket.bucket_member_id || 'shared'}-${templateDaysKey}`}>
-                              {/* Drop zone before this task - show when hovering this cell or any valid target */}
-                              {draggedTask && draggedTask.task.id !== task.id && taskIndex > 0 && 
-                               (hoveredDropZone?.day === day && hoveredDropZone?.memberId === bucket.bucket_member_id ||
-                                (draggedTask.day !== day || draggedTask.memberId !== bucket.bucket_member_id)) && (
+                              {/* Drop zone before this task - show when dragging (except for the task being dragged) */}
+                              {draggedTask && draggedTask.task.id !== task.id && taskIndex > 0 && (
                                 <DropZone
                                   id={`drop-before-${day}-${bucket.bucket_member_id}-${task.id}`}
                                   day={day}
@@ -374,10 +371,8 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                                 pending={isTaskPending ? isTaskPending(task) : false}
                               />
                               
-                              {/* Drop zone after this task - show when hovering this cell or any valid target */}
-                              {draggedTask && draggedTask.task.id !== task.id && taskIndex === orderedTasks.length - 1 &&
-                               (hoveredDropZone?.day === day && hoveredDropZone?.memberId === bucket.bucket_member_id ||
-                                (draggedTask.day !== day || draggedTask.memberId !== bucket.bucket_member_id)) && (
+                              {/* Drop zone after this task - show when dragging (except for the task being dragged) */}
+                              {draggedTask && draggedTask.task.id !== task.id && taskIndex === orderedTasks.length - 1 && (
                                 <DropZone
                                   id={`drop-after-${day}-${bucket.bucket_member_id}-${task.id}`}
                                   day={day}

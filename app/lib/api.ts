@@ -49,6 +49,7 @@ export interface User {
 export interface DaySpecificOrder {
   id: string
   routine_id: string
+  group_id?: string | null  // Added: routine task group ID for scoped ordering
   member_id: string
   day_of_week: string
   routine_task_id: string

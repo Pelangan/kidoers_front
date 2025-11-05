@@ -275,7 +275,7 @@ function ManualRoutineBuilderContent({
     updateCalendarTasks,
     extractRoutineTaskIdFromId,
     currentRoutineId,
-    (day: string, memberId: string, tasks: Task[]) => saveDaySpecificOrder(day, memberId, tasks, currentRoutineId!),
+    (day: string, memberId: string, tasks: Task[]) => saveDaySpecificOrder(day, memberId, tasks, currentRoutineId!, selectedRoutineFilter),
     recurringTemplates,
     () => loadExistingRoutineData(currentRoutineId!, enhancedFamilyMembers),
     (task: Task) => {
@@ -1072,6 +1072,7 @@ function ManualRoutineBuilderContent({
                     extractMemberIdFromId={extractMemberIdFromId}
                     isTaskPending={isTaskPending}
                     isAnyDragging={isAnyDragging}
+                    routineFilter={selectedRoutineFilter}
                   />
                 </DndContext>
               )

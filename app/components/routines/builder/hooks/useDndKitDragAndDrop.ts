@@ -127,26 +127,119 @@ export const useDndKitDragAndDrop = (
     
     if (sourceDay === targetDay && sourceMemberId === targetMemberId) {
       // Same day reordering
-      const memberTasks = sourceDayTasks.individualTasks.filter((t: Task) => {
+      // IMPORTANT: Get ALL tasks for this member/day, including tasks from groups
+      // This ensures we can reorder across different routine groups
+      const allTasksForDay = [
+        ...(sourceDayTasks.individualTasks || []),
+        ...(sourceDayTasks.groups?.flatMap((g: any) => g.tasks || []) || [])
+      ]
+      
+      const memberTasks = allTasksForDay.filter((t: Task) => {
         const taskMemberId = t.memberId || extractRoutineTaskIdFromId(t.id)
         return taskMemberId === sourceMemberId
       })
       
-      const filteredTasks = memberTasks.filter((t: Task) => t.id !== task.id)
+      // Filter out the task being dragged using routine_task_id for reliable matching
+      const filteredTasks = memberTasks.filter((t: Task) => {
+        const tRoutineTaskId = t.routine_task_id || extractRoutineTaskIdFromId(t.id)
+        const dragRoutineTaskId = routineTaskIdToMove
+        // Also check by ID as fallback for tasks without routine_task_id
+        return tRoutineTaskId !== dragRoutineTaskId && t.id !== task.id
+      })
+      
+      console.log('[DND-KIT] 🔄 Same-day reordering:', {
+        allTasksForDayCount: allTasksForDay.length,
+        memberTasksCount: memberTasks.length,
+        filteredTasksCount: filteredTasks.length,
+        dragTaskId: task.id,
+        dragTaskName: task.name,
+        dragRoutineTaskId: routineTaskIdToMove,
+        targetTaskId: dragOverPosition?.targetTaskId,
+        position: dragOverPosition?.position,
+        memberTasks: memberTasks.map((t: Task) => ({
+          id: t.id,
+          name: t.name,
+          routine_task_id: t.routine_task_id,
+          group_id: t.group_id
+        }))
+      })
       
       if (dragOverPosition?.targetTaskId) {
-        const targetIndex = filteredTasks.findIndex((t: Task) => t.id === dragOverPosition.targetTaskId)
+        const targetTaskId = dragOverPosition.targetTaskId
+        // Find target task by ID or routine_task_id
+        // Try multiple matching strategies to handle different ID formats
+        let targetIndex = filteredTasks.findIndex((t: Task) => {
+          // Strategy 1: Exact ID match
+          if (t.id === targetTaskId) return true
+          // Strategy 2: Check if IDs match after removing day suffixes
+          const tBaseId = t.id.split('_').slice(0, -1).join('_') || t.id
+          const targetBaseId = targetTaskId.split('_').slice(0, -1).join('_') || targetTaskId
+          if (tBaseId && targetBaseId && tBaseId === targetBaseId && tBaseId !== t.id) return true
+          // Strategy 3: routine_task_id match
+          const tRoutineTaskId = t.routine_task_id || extractRoutineTaskIdFromId(t.id)
+          const targetRoutineTaskId = extractRoutineTaskIdFromId(targetTaskId)
+          if (tRoutineTaskId && targetRoutineTaskId && tRoutineTaskId === targetRoutineTaskId) return true
+          // Strategy 4: Check if targetTaskId starts with task ID (for day-suffixed IDs)
+          if (t.id.startsWith(targetTaskId) || targetTaskId.startsWith(t.id)) return true
+          return false
+        })
+        
+        console.log('[DND-KIT] 🎯 Target search:', {
+          targetTaskId: targetTaskId,
+          targetIndex,
+          filteredTasksIds: filteredTasks.map((t: Task) => ({
+            id: t.id,
+            routine_task_id: t.routine_task_id,
+            name: t.name
+          })),
+          position: dragOverPosition.position
+        })
+        
         if (targetIndex !== -1) {
           const insertIndex = dragOverPosition.position === 'before' ? targetIndex : targetIndex + 1
           filteredTasks.splice(insertIndex, 0, task)
+          console.log('[DND-KIT] ✅ Inserted task at index:', insertIndex, 'Total tasks:', filteredTasks.length, 'Task name:', task.name)
         } else {
+          // If target not found, append to end
           filteredTasks.push(task)
+          console.log('[DND-KIT] ⚠️ Target not found, appended to end. Target ID was:', dragOverPosition.targetTaskId)
         }
       } else {
+        // No target specified, append to end
         filteredTasks.push(task)
+        console.log('[DND-KIT] ⚠️ No target specified, appended to end')
       }
       
-      calculatedTaskOrder = filteredTasks
+      // Deduplicate tasks by routine_task_id to prevent duplicates in the order
+      // Since backend scopes by (routine_id, group_id, day_of_week, bucket_type, member_id),
+      // we need to ensure each task appears only once
+      const uniqueTasks = new Map<string, Task>()
+      filteredTasks.forEach((t: Task) => {
+        const routineTaskId = t.routine_task_id || extractRoutineTaskIdFromId(t.id)
+        // Use routine_task_id as the key (backend will handle group_id scoping)
+        if (!uniqueTasks.has(routineTaskId)) {
+          uniqueTasks.set(routineTaskId, t)
+        } else {
+          console.warn('[DND-KIT] ⚠️ Duplicate task in calculated order:', {
+            routine_task_id: routineTaskId,
+            task_name: t.name,
+            existing_task: uniqueTasks.get(routineTaskId)?.name
+          })
+        }
+      })
+      
+      // Convert back to array preserving order
+      calculatedTaskOrder = Array.from(uniqueTasks.values())
+      
+      console.log('[DND-KIT] 📊 Final task order (deduplicated):', {
+        originalCount: filteredTasks.length,
+        uniqueCount: calculatedTaskOrder.length,
+        tasks: calculatedTaskOrder.map((t: Task) => ({
+          name: t.name,
+          routine_task_id: t.routine_task_id || extractRoutineTaskIdFromId(t.id),
+          group_id: t.group_id
+        }))
+      })
     } else {
       // Cross-day or cross-member reordering
       // Clear assignees for single-member move - this ensures the task only appears in target member's bucket
@@ -554,9 +647,14 @@ export const useDndKitDragAndDrop = (
         await saveDaySpecificOrder(targetDay, targetMemberId, calculatedTaskOrder)
         
         // Reload data after all backend updates complete to ensure UI is in sync
-        // This ensures tasks are removed from source day and only appear in target day
-        if (reloadRoutineData && sourceDay !== targetDay) {
-          console.log('[DND-KIT] 🔄 Reloading data after cross-day move to ensure consistency')
+        // For same-day reordering, we need to reload to get the updated day orders
+        // For cross-day moves, we need to reload to ensure tasks are removed from source day
+        if (reloadRoutineData) {
+          if (sourceDay === targetDay) {
+            console.log('[DND-KIT] 🔄 Reloading data after same-day reordering to get updated day orders')
+          } else {
+            console.log('[DND-KIT] 🔄 Reloading data after cross-day move to ensure consistency')
+          }
           await reloadRoutineData()
         }
       } catch (error) {
@@ -827,12 +925,12 @@ export const useDndKitDragAndDrop = (
     setIsDragging(false)
   }, [])
 
-  const getTasksWithDayOrder = useCallback((tasks: Task[], day: string, memberId: string): Task[] => {
+  const getTasksWithDayOrder = useCallback((tasks: Task[], day: string, memberId: string, routineFilter?: 'ALL' | 'UNASSIGNED' | string): Task[] => {
     if (!dayOrders || !dayOrders.length) {
       return tasks
     }
 
-    // Find day-specific orders for this member/day
+    // Find all day-specific orders for this member/day (regardless of group when filter is "ALL")
     const memberDayOrders = dayOrders.filter(order => {
       return order.member_id === memberId && order.day_of_week === day
     })
@@ -841,20 +939,98 @@ export const useDndKitDragAndDrop = (
       return tasks
     }
 
-    // Sort tasks by their day-specific order
-    return tasks.sort((a, b) => {
-      const routineTaskIdA = a.routine_task_id || extractRoutineTaskIdFromId(a.id)
-      const routineTaskIdB = b.routine_task_id || extractRoutineTaskIdFromId(b.id)
+    // IMPORTANT: When filter is "ALL", we want global ordering (tasks can be mixed across groups)
+    // When filter is a specific group, we want per-group ordering (each group has its own sequence)
+    if (routineFilter === 'ALL') {
+      // Global ordering: sort all tasks by their order_index globally, regardless of group
+      console.log('[DND-KIT] 🌐 Global ordering (filter=ALL):', {
+        tasksCount: tasks.length,
+        ordersCount: memberDayOrders.length,
+        tasks: tasks.map(t => ({
+          name: t.name,
+          routine_task_id: t.routine_task_id || extractRoutineTaskIdFromId(t.id),
+          group_id: t.group_id
+        })),
+        orders: memberDayOrders.map(o => ({
+          routine_task_id: o.routine_task_id,
+          group_id: o.group_id,
+          order_index: o.order_index
+        }))
+      })
       
-      const orderA = memberDayOrders.find(order => order.routine_task_id === routineTaskIdA)
-      const orderB = memberDayOrders.find(order => order.routine_task_id === routineTaskIdB)
+      const sorted = tasks.sort((a, b) => {
+        const routineTaskIdA = a.routine_task_id || extractRoutineTaskIdFromId(a.id)
+        const routineTaskIdB = b.routine_task_id || extractRoutineTaskIdFromId(b.id)
+        
+        const orderA = memberDayOrders.find(order => order.routine_task_id === routineTaskIdA)
+        const orderB = memberDayOrders.find(order => order.routine_task_id === routineTaskIdB)
+        
+        if (!orderA && !orderB) return 0
+        if (!orderA) return 1
+        if (!orderB) return -1
+        
+        // Sort by global order_index (allows mixing groups)
+        const result = orderA.order_index - orderB.order_index
+        console.log('[DND-KIT] 🔄 Comparing:', {
+          taskA: a.name,
+          taskB: b.name,
+          orderA: orderA.order_index,
+          orderB: orderB.order_index,
+          result
+        })
+        return result
+      })
       
-      if (!orderA && !orderB) return 0
-      if (!orderA) return 1
-      if (!orderB) return -1
+      console.log('[DND-KIT] ✅ Sorted tasks (global):', sorted.map(t => ({
+        name: t.name,
+        order_index: memberDayOrders.find(o => o.routine_task_id === (t.routine_task_id || extractRoutineTaskIdFromId(t.id)))?.order_index
+      })))
       
-      return orderA.order_index - orderB.order_index
-    })
+      return sorted
+    } else {
+      // Per-group ordering: group tasks by group_id and sort within each group
+      const tasksByGroup = new Map<string | null, Task[]>()
+      
+      tasks.forEach(task => {
+        const groupId = task.group_id || null
+        if (!tasksByGroup.has(groupId)) {
+          tasksByGroup.set(groupId, [])
+        }
+        tasksByGroup.get(groupId)!.push(task)
+      })
+      
+      // Sort tasks within each group using their day-specific orders
+      const sortedTasks: Task[] = []
+      
+      tasksByGroup.forEach((groupTasks, groupId) => {
+        // Find day-specific orders for this member/day/group
+        const groupOrders = memberDayOrders.filter(order => {
+          const orderGroupId = order.group_id || null
+          return orderGroupId === groupId
+        })
+
+        if (groupOrders.length > 0) {
+          // Sort tasks by their day-specific order within this group
+          groupTasks.sort((a, b) => {
+            const routineTaskIdA = a.routine_task_id || extractRoutineTaskIdFromId(a.id)
+            const routineTaskIdB = b.routine_task_id || extractRoutineTaskIdFromId(b.id)
+            
+            const orderA = groupOrders.find(order => order.routine_task_id === routineTaskIdA)
+            const orderB = groupOrders.find(order => order.routine_task_id === routineTaskIdB)
+            
+            if (!orderA && !orderB) return 0
+            if (!orderA) return 1
+            if (!orderB) return -1
+            
+            return orderA.order_index - orderB.order_index
+          })
+        }
+        
+        sortedTasks.push(...groupTasks)
+      })
+      
+      return sortedTasks
+    }
   }, [dayOrders, extractRoutineTaskIdFromId])
 
   const loadDayOrders = useCallback((dayOrders: DaySpecificOrder[]) => {
