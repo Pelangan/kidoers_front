@@ -23,6 +23,7 @@ export interface Task {
   template_id?: string // Store the original template ID
   recurring_template_id?: string // Optional temporarily for migration
   is_saved?: boolean // Track if this task has been saved to backend
+  group_id?: string | null  // Reference to routine_task_groups (null means unassigned)
   memberId?: string // Store the member ID for filtering
   from_group?: { // Track which group this task came from
     id: string

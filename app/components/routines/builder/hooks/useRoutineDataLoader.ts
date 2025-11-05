@@ -4,6 +4,7 @@ import {
   updateOnboardingStep,
   getOnboardingRoutine,
   getRoutineFullData,
+  getRoutineGroups,
 } from '../../../../lib/api'
 import { apiService } from '../../../../lib/api'
 import type {
@@ -122,18 +123,38 @@ export const useRoutineDataLoader = ({
         });
       }
 
+      // Load groups with color and task_count from API
+      const groupsWithMetadata = await getRoutineGroups(routineId);
+      const groupsMetadataMap = new Map(
+        groupsWithMetadata.map(g => [g.id, { color: g.color || 'blue', task_count: g.task_count }])
+      );
+
       // Transform backend data to frontend format
-      const transformedGroups: TaskGroup[] = fullData.groups.map((group) => ({
-        id: group.id,
-        name: group.name,
-        description: "",
-        tasks: group.tasks.map((task) => ({
-          id: task.id,
-          name: task.name,
-          description: task.description || "",
-          points: task.points,
-          estimatedMinutes: task.duration_mins || 5,
-          time_of_day: task.time_of_day as
+      const transformedGroups: TaskGroup[] = fullData.groups.map((group) => {
+        const metadata = groupsMetadataMap.get(group.id) || { color: 'blue', task_count: 0 };
+        return {
+          id: group.id,
+          name: group.name,
+          description: "",
+          tasks: group.tasks.map((task) => ({
+            id: task.id,
+            name: task.name,
+            description: task.description || "",
+            points: task.points,
+            estimatedMinutes: task.duration_mins || 5,
+            time_of_day: task.time_of_day as
+              | "morning"
+              | "afternoon"
+              | "evening"
+              | "night"
+              | undefined,
+            is_saved: true,
+            template_id: undefined,
+            group_id: task.group_id || null,
+            recurring_template_id: task.recurring_template_id || 'temp-id',
+          })),
+          color: metadata.color,  // Use color from API
+          time_of_day: group.time_of_day as
             | "morning"
             | "afternoon"
             | "evening"
@@ -141,18 +162,8 @@ export const useRoutineDataLoader = ({
             | undefined,
           is_saved: true,
           template_id: undefined,
-          recurring_template_id: task.recurring_template_id || 'temp-id',
-        })),
-        color: "bg-blue-100 border-blue-300",
-        time_of_day: group.time_of_day as
-          | "morning"
-          | "afternoon"
-          | "evening"
-          | "night"
-          | undefined,
-        is_saved: true,
-        template_id: undefined,
-      }));
+        };
+      });
 
       // Set routine groups for the modal
       setRoutineGroups(transformedGroups);
@@ -172,6 +183,7 @@ export const useRoutineDataLoader = ({
           | undefined,
         is_saved: true,
         template_id: undefined,
+        group_id: task.group_id || null,  // Include group_id
         recurring_template_id: task.recurring_template_id || 'temp-id',
       }));
 
@@ -502,11 +514,56 @@ export const useRoutineDataLoader = ({
 
           for (const day of allDays) {
             if (newCalendarTasks[day]) {
-              const tasksForDay = memberGroupTasks.filter((task) => {
-                const template = fullData.recurring_templates?.find((t: any) => t.id === task.recurring_template_id);
-                const taskDays = template?.days_of_week || [];
-                return taskDays.includes(day);
-              });
+              const tasksForDay = memberGroupTasks
+                .filter((task) => {
+                  const template = fullData.recurring_templates?.find((t: any) => t.id === task.recurring_template_id);
+                  const taskDays = template?.days_of_week || [];
+                  return taskDays.includes(day);
+                })
+                .map((task) => {
+                  // Get assignments from the original backend data for this task
+                  const backendTask = fullData.groups
+                    .flatMap((g) => g.tasks)
+                    .find((bt) => bt.id === task.id);
+
+                  if (backendTask?.assignments && backendTask.assignments.length > 0) {
+                    // Create task with assignees structure similar to individual tasks
+                    return {
+                      ...task,
+                      id: `${task.id}_${day}`, // Single ID for the day
+                      memberId: backendTask.assignments[0].member_id, // Use first member as primary
+                      is_saved: true,
+                      routine_task_id: task.id,
+                      member_count: backendTask.assignments.length,
+                      assignees: backendTask.assignments
+                        .map((assignment) => {
+                          const member = enhancedMembers.find(
+                            (m) => m.id === assignment.member_id,
+                          );
+                          return member
+                            ? {
+                                id: assignment.member_id,
+                                name: member.name,
+                                role: member.role,
+                                avatar_url: member.avatar_url || null,
+                                color: member.color,
+                              }
+                            : null;
+                        })
+                        .filter(
+                          (assignee): assignee is NonNullable<typeof assignee> =>
+                            assignee !== null,
+                        ),
+                    };
+                  }
+                  // Fallback: return task as-is if no assignments found
+                  return {
+                    ...task,
+                    id: `${task.id}_${day}`,
+                    is_saved: true,
+                    routine_task_id: task.id,
+                  };
+                });
 
               newCalendarTasks[day].groups.push({
                 ...group,

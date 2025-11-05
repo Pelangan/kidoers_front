@@ -32,6 +32,7 @@ export const transformCalendarTasksToWeekData = (
     avatar_url?: string | null;
     color: string;
   }>,
+  routineFilter?: 'ALL' | 'UNASSIGNED' | string,  // Filter by routine group_id
 ) => {
   // Fast path for single member - skip complex transformation
   if (selectedMemberIds.length === 1) {
@@ -39,14 +40,42 @@ export const transformCalendarTasksToWeekData = (
     const member = familyMembers.find(m => m.id === selectedMemberId);
     
     const weekData = DAYS_OF_WEEK.map((day) => {
-      const dayTasks = calendarTasks[day]?.individualTasks || [];
+      // Get individual tasks
+      const individualTasks = calendarTasks[day]?.individualTasks || [];
       
-      // Deduplication and member filtering for single member
+      // Flatten tasks from groups - tasks with group_id should also appear as individual tasks
+      const groupTasks: Task[] = [];
+      const groups = calendarTasks[day]?.groups || [];
+      groups.forEach((group: any) => {
+        if (group.tasks && Array.isArray(group.tasks)) {
+          groupTasks.push(...group.tasks);
+        }
+      });
+      
+      // Combine individual tasks and group tasks
+      const dayTasks = [...individualTasks, ...groupTasks];
+      
+      // Deduplication and filtering for single member
       const seenTaskIds = new Set<string>();
       const filteredTasks = dayTasks.filter((task) => {
         // Deduplication
         if (seenTaskIds.has(task.id)) return false;
         seenTaskIds.add(task.id);
+        
+        // Routine filter - filter by group_id
+        if (routineFilter && routineFilter !== 'ALL') {
+          if (routineFilter === 'UNASSIGNED') {
+            // Show only tasks with no group_id
+            if (task.group_id !== null && task.group_id !== undefined) {
+              return false;
+            }
+          } else {
+            // Show only tasks with matching group_id
+            if (task.group_id !== routineFilter) {
+              return false;
+            }
+          }
+        }
         
         // Member filtering - only include tasks assigned to the selected member
         const assignedMembers =
@@ -76,7 +105,20 @@ export const transformCalendarTasksToWeekData = (
 
   // Complex transformation for multiple members
   const weekData = DAYS_OF_WEEK.map((day) => {
-    const dayTasks = calendarTasks[day]?.individualTasks || [];
+    // Get individual tasks
+    const individualTasks = calendarTasks[day]?.individualTasks || [];
+    
+    // Flatten tasks from groups - tasks with group_id should also appear as individual tasks
+    const groupTasks: Task[] = [];
+    const groups = calendarTasks[day]?.groups || [];
+    groups.forEach((group: any) => {
+      if (group.tasks && Array.isArray(group.tasks)) {
+        groupTasks.push(...group.tasks);
+      }
+    });
+    
+    // Combine individual tasks and group tasks
+    const dayTasks = [...individualTasks, ...groupTasks];
 
     // Group tasks by bucket type
     const sharedTasks: Task[] = [];
@@ -99,6 +141,21 @@ export const transformCalendarTasksToWeekData = (
 
     // Categorize tasks into member buckets only
     uniqueTasks.forEach((task) => {
+      // Routine filter - filter by group_id
+      if (routineFilter && routineFilter !== 'ALL') {
+        if (routineFilter === 'UNASSIGNED') {
+          // Show only tasks with no group_id
+          if (task.group_id !== null && task.group_id !== undefined) {
+            return;  // Skip this task
+          }
+        } else {
+          // Show only tasks with matching group_id
+          if (task.group_id !== routineFilter) {
+            return;  // Skip this task
+          }
+        }
+      }
+      
       // All tasks go to individual member buckets (no shared buckets)
       const assignedMembers =
         task.assignees?.map((a) => a.id) ||

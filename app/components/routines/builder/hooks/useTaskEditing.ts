@@ -280,7 +280,8 @@ export const useTaskEditing = () => {
     // Set points from task if available, otherwise use default
     setEditablePoints(selectedTaskForEdit.task.points || 5);
     setSelectedWhoOption("none");
-    setSelectedRoutineGroup("none");
+    // Preserve existing group_id when editing, or set to "none" if no group
+    setSelectedRoutineGroup(selectedTaskForEdit.task.group_id || "none");
 
     // Open modal immediately since loading state is now cleared
     console.log(

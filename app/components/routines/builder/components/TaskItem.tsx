@@ -2,9 +2,10 @@ import React from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { Folder } from 'lucide-react'
-import type { Task, RecurringTemplate } from '../types/routineBuilderTypes'
+import type { Task, RecurringTemplate, TaskGroup } from '../types/routineBuilderTypes'
 import { getTaskDisplayFrequency } from '../utils/taskUtils'
 import { MultiMemberBadge } from './MultiMemberBadge'
+import { cn } from '@/lib/utils'
 
 interface TaskItemProps {
   task: Task
@@ -12,6 +13,7 @@ interface TaskItemProps {
   memberId: string
   isDragging: boolean
   recurringTemplates: RecurringTemplate[]
+  routineGroups?: TaskGroup[] // Routine groups for displaying routine chips
   familyMembers?: Array<{
     id: string
     name: string
@@ -36,6 +38,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   memberId,
   isDragging,
   recurringTemplates,
+  routineGroups = [],
   familyMembers = [],
   getMemberColors,
   onClick,
@@ -112,9 +115,10 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const assignees = getAssignees()
 
   // Get member color for task styling
+  // NOTE: Task color is based on member, not routine group. The routine badge has its own color.
   const getTaskColor = () => {
+    // Legacy: If task has from_group, use purple color (for backward compatibility)
     if (task.from_group) {
-      // Group tasks use purple color
       return {
         bg: 'bg-purple-50',
         border: 'border-l-4 border-purple-500',
@@ -236,8 +240,36 @@ export const TaskItem: React.FC<TaskItemProps> = ({
             )}
           </div>
         </div>
-        {task.from_group && (
-          <div className="text-xs flex items-center space-x-1 text-purple-600">
+        
+        {/* Routine chip - show if task has group_id, positioned below task name */}
+        {task.group_id && (() => {
+          const group = routineGroups.find(g => g.id === task.group_id)
+          if (!group) return null
+          
+          const colorMap: Record<string, string> = {
+            blue: 'bg-blue-100 text-blue-700 border-blue-300',
+            orange: 'bg-orange-100 text-orange-700 border-orange-300',
+            green: 'bg-green-100 text-green-700 border-green-300',
+            red: 'bg-red-100 text-red-700 border-red-300',
+            purple: 'bg-purple-100 text-purple-700 border-purple-300',
+            pink: 'bg-pink-100 text-pink-700 border-pink-300',
+            teal: 'bg-teal-100 text-teal-700 border-teal-300',
+            indigo: 'bg-indigo-100 text-indigo-700 border-indigo-300',
+          }
+          
+          const normalizedColor = (group.color || 'blue').toLowerCase()
+          const chipColor = colorMap[normalizedColor] || colorMap.blue
+          
+          return (
+            <div className={cn("text-[10px] px-1.5 py-0.5 rounded border mt-1 inline-block", chipColor)}>
+              {group.name}
+            </div>
+          )
+        })()}
+        
+        {/* Legacy: from_group display (for backward compatibility) */}
+        {!task.group_id && task.from_group && (
+          <div className="text-xs flex items-center space-x-1 text-purple-600 mt-1">
             <Folder className="w-3 h-3" />
             <span>from {task.from_group.name}</span>
           </div>

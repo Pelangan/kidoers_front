@@ -4,8 +4,10 @@ import type {
   Task,
   RecurringTemplate,
   EnhancedFamilyMember,
+  TaskGroup,
 } from "../types/routineBuilderTypes";
 import { getTaskDisplayFrequency } from "../utils/taskUtils";
+import { cn } from "@/lib/utils";
 
 interface TaskMiniPopupProps {
   // Modal state
@@ -23,6 +25,7 @@ interface TaskMiniPopupProps {
   // Context data
   enhancedFamilyMembers: EnhancedFamilyMember[];
   recurringTemplates: RecurringTemplate[];
+  routineGroups?: TaskGroup[]; // Routine groups for displaying routine chips
   
   // Actions
   onEditTask: () => void;
@@ -36,6 +39,7 @@ export default function TaskMiniPopup({
   miniPopupPosition,
   enhancedFamilyMembers,
   recurringTemplates,
+  routineGroups = [],
   onEditTask,
   onDeleteTask,
 }: TaskMiniPopupProps) {
@@ -267,6 +271,47 @@ export default function TaskMiniPopup({
               )}
             </span>
           </div>
+
+          {/* Routine chip - show if task has group_id */}
+          {selectedTaskForEdit.task.group_id && (() => {
+            const group = routineGroups.find(g => g.id === selectedTaskForEdit.task.group_id);
+            if (!group) return null;
+            
+            const colorMap: Record<string, string> = {
+              blue: 'bg-blue-100 text-blue-700 border-blue-300',
+              orange: 'bg-orange-100 text-orange-700 border-orange-300',
+              green: 'bg-green-100 text-green-700 border-green-300',
+              red: 'bg-red-100 text-red-700 border-red-300',
+              purple: 'bg-purple-100 text-purple-700 border-purple-300',
+              pink: 'bg-pink-100 text-pink-700 border-pink-300',
+              teal: 'bg-teal-100 text-teal-700 border-teal-300',
+              indigo: 'bg-indigo-100 text-indigo-700 border-indigo-300',
+            };
+            
+            const normalizedColor = (group.color || 'blue').toLowerCase();
+            const chipColor = colorMap[normalizedColor] || colorMap.blue;
+            
+            return (
+              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                  />
+                </svg>
+                <div className={cn("text-xs px-2 py-0.5 rounded border inline-block", chipColor)}>
+                  {group.name}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>

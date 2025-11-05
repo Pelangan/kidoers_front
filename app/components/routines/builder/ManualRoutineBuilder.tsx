@@ -21,6 +21,7 @@ import {
   bulkCreateIndividualTasks,
   createSeparateTasksForMembers,
   bulkUpdateRecurringTasks,
+  getRoutineGroups,
 } from "../../../lib/api";
 import RoutineDetailsModal from "./RoutineDetailsModal";
 import type {
@@ -70,8 +71,10 @@ import DeleteConfirmModal from "./components/DeleteConfirmModal";
 import RoutineDetailsCard from "./components/RoutineDetailsCard";
 import BackButton from "./components/BackButton";
 import SaveButtonSection from "./components/SaveButtonSection";
+import CreateRoutineDialog from "./components/CreateRoutineDialog";
 import { transformCalendarTasksToWeekData, DAYS_OF_WEEK } from "./utils/calendarTransform";
 import { User, Baby, UserCheck, Users } from "lucide-react";
+import type { RoutineFilterValue } from "./components/RoutineFilter";
 
 
 // Inner component that uses hooks (must be inside SavingProvider)
@@ -159,6 +162,8 @@ function ManualRoutineBuilderContent({
   } = useTaskModals();
   const [routineGroups, setRoutineGroups] = useState<TaskGroup[]>([]);
   const [viewMode, setViewMode] = useState<"calendar" | "group">("calendar");
+  const [selectedRoutineFilter, setSelectedRoutineFilter] = useState<RoutineFilterValue>('ALL');
+  const [showCreateRoutineDialog, setShowCreateRoutineDialog] = useState(false);
 
   // Task operations with undo functionality
   const { showUndoToast } = useTaskOperations();
@@ -534,7 +539,8 @@ function ManualRoutineBuilderContent({
               days_of_week: targetDays,
               order_index: 0
             })),
-            new_days_of_week: targetDays
+            new_days_of_week: targetDays,
+            group_id: selectedRoutineGroup && selectedRoutineGroup !== "none" ? selectedRoutineGroup : undefined
           };
 
           // Call the recurring task update API
@@ -613,13 +619,14 @@ function ManualRoutineBuilderContent({
                   routine_task_id: updatedTask.id,
                   template_id: updatedTask.recurring_template_id || undefined,
                   recurring_template_id: updatedTask.recurring_template_id || undefined,
+                  group_id: updatedTask.group_id || null,  // Include group_id from backend
                   from_group: undefined,
                   estimatedMinutes: updatedTask.duration_mins || 5,
                   time_of_day: updatedTask.time_of_day as "morning" | "afternoon" | "evening" | "night" | undefined
                 };
                 
                 newCalendarTasks[day].individualTasks.push(taskForUI);
-                console.log('[FRONTEND] Added task to UI for day:', day, 'member:', assignment.member_id, 'task name:', taskForUI.name);
+                console.log('[FRONTEND] Added task to UI for day:', day, 'member:', assignment.member_id, 'task name:', taskForUI.name, 'group_id:', taskForUI.group_id);
               }
               
               const afterCount = newCalendarTasks[day].individualTasks.length;
@@ -648,6 +655,10 @@ function ManualRoutineBuilderContent({
             });
           });
 
+          // Refresh task data to get updated group_id from backend
+          console.log('[FRONTEND] ✅ Recurring task updated successfully, refreshing data...');
+          await loadExistingRoutineData(currentRoutineId!, enhancedFamilyMembers);
+
           // Close modal and reset state
           console.log('[FRONTEND] About to close modal and reset state');
           setShowApplyToPopup(false);
@@ -668,27 +679,33 @@ function ManualRoutineBuilderContent({
           !selectedTaskForEdit.task.recurring_template_id &&
           pendingDrop.item.id === selectedTaskForEdit.task.id;
 
+        console.log('[FRONTEND] 🔍 Single task check:', {
+          isEditingSingleTask,
+          hasSelectedTaskForEdit: !!selectedTaskForEdit,
+          hasRecurringTemplateId: !!selectedTaskForEdit?.task.recurring_template_id,
+          pendingDropItemId: pendingDrop.item.id,
+          selectedTaskId: selectedTaskForEdit?.task.id,
+          idsMatch: pendingDrop.item.id === selectedTaskForEdit?.task.id,
+          selectedRoutineGroup,
+        });
+
         if (isEditingSingleTask) {
           try {
             const taskId = extractTaskId(selectedTaskForEdit.task.id);
+            console.log('[FRONTEND] 🔍 Updating single task with group_id:', {
+              taskId,
+              group_id: selectedRoutineGroup && selectedRoutineGroup !== "none" ? selectedRoutineGroup : null,
+            });
+            
             await patchRoutineTask(routineData.id, taskId, {
               name: editableTaskName || selectedTaskForEdit.task.name,
               points: editablePoints,
+              group_id: selectedRoutineGroup && selectedRoutineGroup !== "none" ? selectedRoutineGroup : null,
             });
 
-            // Update UI name and points in place
-            const updated = { ...calendarTasks };
-            Object.keys(updated).forEach((day) => {
-              updated[day] = {
-                ...updated[day],
-                individualTasks: (updated[day].individualTasks || []).map((t) =>
-                  t.id === selectedTaskForEdit.task.id
-                    ? { ...t, name: editableTaskName || selectedTaskForEdit.task.name, points: editablePoints }
-                    : t,
-                ),
-              };
-            });
-            setCalendarTasks(updated);
+            console.log('[FRONTEND] ✅ Task updated successfully, refreshing data...');
+            // Refresh task data to get updated group_id from backend
+            await loadExistingRoutineData(currentRoutineId!, enhancedFamilyMembers);
 
             // Close modal and reset state
             setShowApplyToPopup(false);
@@ -701,7 +718,7 @@ function ManualRoutineBuilderContent({
 
             return; // Exit after successful update
           } catch (err) {
-            console.error('[KIDOERS-ROUTINE] ❌ Failed to update task name:', err);
+            console.error('[KIDOERS-ROUTINE] ❌ Failed to update task:', err);
             // Fall through to creation path only if update fails explicitly
           }
         }
@@ -724,6 +741,7 @@ function ManualRoutineBuilderContent({
             days_of_week: targetDays,
             order_index: 0
           })),
+          group_id: selectedRoutineGroup && selectedRoutineGroup !== "none" ? selectedRoutineGroup : undefined,
           create_recurring_template: true // Always create recurring template
         };
 
@@ -764,6 +782,7 @@ function ManualRoutineBuilderContent({
               is_saved: true,
               // Ensure deletion and ordering logic can find backend ID
               routine_task_id: createdTask.id,
+              group_id: createdTask.group_id || null,  // Include group_id from backend
               estimatedMinutes: createdTask.duration_mins || 30, // Default to 30 minutes if not specified
               time_of_day: createdTask.time_of_day as "morning" | "afternoon" | "evening" | "night" | null,
               recurring_template_id: createdTask.recurring_template_id || 'temp-id'
@@ -834,6 +853,11 @@ function ManualRoutineBuilderContent({
 
   const totalTasks = getTotalTasks();
 
+  // Compute unassigned task count (tasks with group_id === null)
+  const unassignedCount = Object.values(calendarTasks).reduce((count, day) => {
+    return count + day.individualTasks.filter(task => !task.group_id).length;
+  }, 0);
+
   // loadExistingRoutineData moved to useRoutineDataLoader hook
 
   // Routine data loader hook (data loading and initialization) - must come first
@@ -902,6 +926,38 @@ function ManualRoutineBuilderContent({
     loadAllData();
   }, [familyId]); // Removed loadAllData from deps to prevent infinite loop
 
+  // Handle routine creation
+  const handleRoutineCreated = async (group: { id: string; name: string; color: string }) => {
+    if (!currentRoutineId) return;
+
+    try {
+      // Refresh routine groups list
+      const groups = await getRoutineGroups(currentRoutineId);
+      
+      // Transform groups to match TaskGroup format
+      const transformedGroups: TaskGroup[] = groups.map((g) => ({
+        id: g.id,
+        name: g.name,
+        color: g.color || 'blue',
+        description: '', // Groups don't have descriptions
+        tasks: [], // Will be populated by the data loader
+        order_index: g.order_index,
+        time_of_day: (g.time_of_day as "morning" | "afternoon" | "evening" | "night" | null) || null,
+      }));
+      
+      setRoutineGroups(transformedGroups);
+      
+      // Auto-select the newly created routine in the filter
+      setSelectedRoutineFilter(group.id);
+      
+      // Auto-select the newly created routine in the task creation modal
+      setSelectedRoutineGroup(group.id);
+    } catch (err: any) {
+      console.error("[ManualRoutineBuilder] Error refreshing groups after creation:", err);
+      setError("Failed to refresh routine groups. Please refresh the page.");
+    }
+  };
+
   return (
     <div
       data-testid="routine-builder"
@@ -939,8 +995,13 @@ function ManualRoutineBuilderContent({
               getMemberColors={getMemberColors}
               viewMode={viewMode}
               setViewMode={setViewMode}
+              routineGroups={routineGroups}
+              selectedRoutineFilter={selectedRoutineFilter}
+              onSelectRoutineFilter={setSelectedRoutineFilter}
+              unassignedCount={unassignedCount}
               onComplete={onComplete}
               totalTasks={totalTasks}
+              onCreateRoutineClick={() => setShowCreateRoutineDialog(true)}
             />
 
             {/* Calendar Grid */}
@@ -991,6 +1052,7 @@ function ManualRoutineBuilderContent({
                       calendarTasks,
                       selectedMemberIds,
                       familyMembers,
+                      selectedRoutineFilter,
                     )}
                     selectedMemberIds={selectedMemberIds}
                     draggedTask={draggedTask}
@@ -1000,6 +1062,7 @@ function ManualRoutineBuilderContent({
                     reorderingDay={reorderingDay}
                     sourceDay={sourceDay}
                     recurringTemplates={recurringTemplates}
+                    routineGroups={routineGroups}
                     familyMembers={familyMembers}
                     getMemberColors={getMemberColors}
                     onColumnClick={handleColumnClickWrapper}
@@ -1045,7 +1108,7 @@ function ManualRoutineBuilderContent({
           selectedTaskForEdit={selectedTaskForEdit}
           isCreatingTasks={isCreatingTasks}
           onSave={handleApplyToSelection}
-          onCreateNewGroup={() => setShowCreateGroupModal(true)}
+          onCreateNewGroup={() => setShowCreateRoutineDialog(true)}
         />
 
         {/* Task Mini Popup */}
@@ -1056,6 +1119,7 @@ function ManualRoutineBuilderContent({
           miniPopupPosition={miniPopupPosition}
           enhancedFamilyMembers={enhancedFamilyMembers}
           recurringTemplates={recurringTemplates}
+          routineGroups={routineGroups}
           onEditTask={handleEditTask}
           onDeleteTask={handleDeleteIndividualTask}
         />
@@ -1078,6 +1142,16 @@ function ManualRoutineBuilderContent({
           onDeleteScopeChange={setDeleteScope}
           onConfirm={() => handleRecurringTaskDeletion(deleteScope)}
         />
+
+        {/* Create Routine Dialog */}
+        {currentRoutineId && (
+          <CreateRoutineDialog
+            isOpen={showCreateRoutineDialog}
+            onOpenChange={setShowCreateRoutineDialog}
+            routineId={currentRoutineId}
+            onCreated={handleRoutineCreated}
+          />
+        )}
 
       </div>
     </div>

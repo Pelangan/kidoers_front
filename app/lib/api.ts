@@ -608,7 +608,9 @@ export async function getRoutineGroups(routineId: string) {
     routine_id: string;
     name: string;
     time_of_day: string | null;
+    color: string | null;
     order_index: number;
+    task_count: number;
   }[]>(`/routines/${routineId}/groups`, {
     method: "GET",
   });
@@ -728,6 +730,7 @@ export async function createSeparateTasksForMembers(routineId: string, payload: 
   }>;
   create_recurring_template?: boolean;
   existing_recurring_template_id?: string;
+  group_id?: string;  // ID of the routine group to assign tasks to (optional)
 }) {
   return apiService.makeRequest<{
     routine_id: string;
@@ -779,17 +782,35 @@ export async function bulkDeleteTasks(routineId: string, payload: {
 
 
 // Groups & tasks within routine
-export async function addRoutineGroup(routineId: string, payload: { name?: string; time_of_day?: "morning"|"afternoon"|"evening"|"night"; from_group_template_id?: string; order_index?: number }) {
+export async function addRoutineGroup(routineId: string, payload: { 
+  name?: string; 
+  time_of_day?: "morning"|"afternoon"|"evening"|"night"|"any"; 
+  color?: string;  // Color for UI display (blue, orange, green, red, purple, pink, teal, indigo)
+  from_group_template_id?: string; 
+  days_of_week?: string[];
+  order_index?: number;
+}) {
   return apiService.makeRequest<{
     id: string;
     routine_id: string;
     name: string;
     time_of_day: string | null;
+    color: string | null;
     order_index: number;
+    task_count: number;
   }>(`/routines/${routineId}/groups`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+// Alias for createRoutineGroup (for consistency with naming)
+export async function createRoutineGroup(routineId: string, payload: {
+  name: string;
+  time_of_day?: "morning"|"afternoon"|"evening"|"night"|"any";
+  color?: string;
+}) {
+  return addRoutineGroup(routineId, payload);
 }
 
 export async function addRoutineTask(routineId: string, payload: {
@@ -837,6 +858,7 @@ export async function patchRoutineTask(routineId: string, taskId: string, payloa
   duration_mins?: number;
   time_of_day?: string;
   days_of_week?: string[];
+  group_id?: string | null;  // Assign task to routine group (null to unassign)
 }) {
   return apiService.makeRequest(`/routines/${routineId}/tasks/${taskId}`, {
     method: "PATCH",
@@ -1152,6 +1174,7 @@ export async function bulkUpdateRecurringTasks(routineId: string, update: {
     order_index?: number;
   }>;
   new_days_of_week: string[];
+  group_id?: string;  // ID of the routine group to assign tasks to (optional)
 }): Promise<{
   routine_id: string;
   recurring_template_id: string;

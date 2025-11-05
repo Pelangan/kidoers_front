@@ -8,10 +8,12 @@ import {
   CardContent,
 } from "../../../../../components/ui/card";
 import { FamilyMemberSelector } from "./FamilyMemberSelector";
-import { Save } from "lucide-react";
+import { RoutineFilter, type RoutineFilterValue } from "./RoutineFilter";
+import { Save, Plus } from "lucide-react";
 import type {
   FamilyMember,
   EnhancedFamilyMember,
+  TaskGroup,
 } from "../types/routineBuilderTypes";
 
 interface RoutineDetailsCardProps {
@@ -33,9 +35,18 @@ interface RoutineDetailsCardProps {
   viewMode: "calendar" | "group";
   setViewMode: (mode: "calendar" | "group") => void;
   
+  // Routine filter
+  routineGroups: TaskGroup[];
+  selectedRoutineFilter: RoutineFilterValue;
+  onSelectRoutineFilter: (filter: RoutineFilterValue) => void;
+  unassignedCount: number;
+  
   // Onboarding completion
   onComplete?: () => void;
   totalTasks?: number;
+  
+  // Create routine
+  onCreateRoutineClick?: () => void;
 }
 
 export default function RoutineDetailsCard({
@@ -51,8 +62,13 @@ export default function RoutineDetailsCard({
   getMemberColors,
   viewMode,
   setViewMode,
+  routineGroups,
+  selectedRoutineFilter,
+  onSelectRoutineFilter,
+  unassignedCount,
   onComplete,
   totalTasks,
+  onCreateRoutineClick,
 }: RoutineDetailsCardProps) {
   const handleRoutineNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newName = e.target.value;
@@ -90,8 +106,42 @@ export default function RoutineDetailsCard({
                   </p>
                 )}
               </div>
-            {/* Right: Visible members + actions */}
+            {/* Right: Routine filter + Visible members + actions */}
             <div className="flex items-end gap-4">
+              {/* Routine Filter + New Routine Button */}
+              <div className="flex items-center gap-2">
+                <RoutineFilter
+                  groups={routineGroups.map(g => {
+                    // Extract color name from color string (e.g., "blue" from "blue" or "bg-blue-100 border-blue-300")
+                    const colorName = typeof g.color === 'string' 
+                      ? (g.color.startsWith('bg-') 
+                          ? g.color.split('-')[1]?.split(' ')[0] || 'blue'
+                          : g.color.split(' ')[0] || 'blue')
+                      : 'blue';
+                    return {
+                      id: g.id,
+                      name: g.name,
+                      color: colorName,
+                      task_count: g.tasks?.length || 0,
+                    };
+                  })}
+                  selectedGroupId={selectedRoutineFilter}
+                  onSelectGroup={onSelectRoutineFilter}
+                  unassignedCount={unassignedCount}
+                />
+                {onCreateRoutineClick && (
+                  <Button
+                    onClick={onCreateRoutineClick}
+                    variant="outline"
+                    size="sm"
+                    className="h-9 text-sm"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    New Routine
+                  </Button>
+                )}
+              </div>
+
               {/* Family Member Selector */}
               <FamilyMemberSelector
                 enhancedFamilyMembers={enhancedFamilyMembers}

@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from "../../../../../components/ui/dialog";
 import { Plus, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { generateAvatarUrl } from "../../../ui/AvatarSelector";
 import type {
   Task,
@@ -547,38 +548,91 @@ export default function TaskCreationModal({
             <div className="space-y-2">
               <Select
                 value={selectedRoutineGroup || "none"}
-                onValueChange={onSelectedRoutineGroupChange}
+                onValueChange={(value) => {
+                  if (value === "create-new") {
+                    onCreateNewGroup();
+                  } else {
+                    onSelectedRoutineGroupChange(value);
+                  }
+                }}
               >
                 <SelectTrigger className="w-full bg-white">
-                  <SelectValue placeholder="Choose a routine or create new" />
+                  <SelectValue placeholder="Choose a routine or create new">
+                    {(() => {
+                      if (!selectedRoutineGroup || selectedRoutineGroup === "none") {
+                        return "No routine";
+                      }
+                      const group = routineGroups.find(g => g.id === selectedRoutineGroup);
+                      if (group) {
+                        const colorMap: Record<string, string> = {
+                          blue: 'bg-blue-500',
+                          orange: 'bg-orange-500',
+                          green: 'bg-green-500',
+                          red: 'bg-red-500',
+                          purple: 'bg-purple-500',
+                          pink: 'bg-pink-500',
+                          teal: 'bg-teal-500',
+                          indigo: 'bg-indigo-500',
+                        };
+                        const normalizedColor = (group.color || 'blue').toLowerCase();
+                        const dotColor = colorMap[normalizedColor] || colorMap.blue;
+                        return (
+                          <div className="flex items-center gap-2">
+                            <div className={cn("w-3 h-3 rounded-full", dotColor)} />
+                            <span>{group.name}</span>
+                          </div>
+                        );
+                      }
+                      return "Choose a routine";
+                    })()}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent className="bg-white">
                   <SelectItem value="none">
-                    No routine assignment
+                    <div className="flex items-center gap-2">
+                      <span>No routine</span>
+                    </div>
                   </SelectItem>
-                  {routineGroups.map((group) => (
-                    <SelectItem key={group.id} value={group.id}>
-                      {group.name}
+                  {routineGroups.length === 0 ? (
+                    <SelectItem value="empty" disabled>
+                      <div className="text-sm text-gray-500">
+                        No routines yet. Create your first routine.
+                      </div>
                     </SelectItem>
-                  ))}
+                  ) : (
+                    routineGroups.map((group) => {
+                      const colorMap: Record<string, string> = {
+                        blue: 'bg-blue-500',
+                        orange: 'bg-orange-500',
+                        green: 'bg-green-500',
+                        red: 'bg-red-500',
+                        purple: 'bg-purple-500',
+                        pink: 'bg-pink-500',
+                        teal: 'bg-teal-500',
+                        indigo: 'bg-indigo-500',
+                      };
+                      const normalizedColor = (group.color || 'blue').toLowerCase();
+                      const dotColor = colorMap[normalizedColor] || colorMap.blue;
+                      const taskCount = group.tasks?.length || 0;
+                      
+                      return (
+                        <SelectItem key={group.id} value={group.id}>
+                          <div className="flex items-center gap-2">
+                            <div className={cn("w-3 h-3 rounded-full", dotColor)} />
+                            <span>{group.name} ({taskCount})</span>
+                          </div>
+                        </SelectItem>
+                      );
+                    })
+                  )}
                   <SelectItem value="create-new">
-                    Create new routine
+                    <div className="flex items-center gap-2">
+                      <Plus className="w-4 h-4" />
+                      <span>Create new routine</span>
+                    </div>
                   </SelectItem>
                 </SelectContent>
               </Select>
-              {selectedRoutineGroup === "create-new" && (
-                <div className="flex items-center space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={onCreateNewGroup}
-                    className="flex items-center space-x-2"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Create new routine</span>
-                  </Button>
-                </div>
-              )}
             </div>
           </div>
 

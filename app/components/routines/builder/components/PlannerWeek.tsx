@@ -70,6 +70,7 @@ interface PlannerWeekProps {
   reorderingDay: string | null
   sourceDay: string | null
   recurringTemplates: RecurringTemplate[]
+  routineGroups?: TaskGroupType[] // Routine groups for displaying routine chips
   familyMembers: Array<{
     id: string
     name: string
@@ -98,6 +99,7 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
   reorderingDay,
   sourceDay,
   recurringTemplates,
+  routineGroups = [],
   familyMembers,
   getMemberColors,
   onColumnClick,
@@ -362,6 +364,7 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                                 memberId={memberId}
                                 isDragging={isAnyDragging || isDragged}
                                 recurringTemplates={recurringTemplates}
+                                routineGroups={routineGroups}
                                 familyMembers={familyMembers}
                                 getMemberColors={getMemberColors}
                                 onClick={onTaskClick}
