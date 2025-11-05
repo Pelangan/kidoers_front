@@ -179,7 +179,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           borderLeftStyle: 'solid',
         }),
       }}
-      className={`relative flex items-center space-x-1 p-3 rounded ${taskColor.bg} ${taskColor.border} border-t border-r border-b border-gray-200 ${
+      className={`relative flex items-center space-x-1 px-3 py-2 rounded ${taskColor.bg} ${taskColor.border} border-t border-r border-b border-gray-200 ${
         isDndDragging ? 'cursor-grabbing shadow-2xl scale-105' : pending ? 'cursor-progress pointer-events-none opacity-90' : 'cursor-pointer'
       } hover:shadow-lg hover:bg-opacity-90`}
       {...attributes}
