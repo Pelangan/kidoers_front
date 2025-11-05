@@ -150,8 +150,14 @@ export const useDndKitDragAndDrop = (
     } else {
       // Cross-day or cross-member reordering
       // Clear assignees for single-member move - this ensures the task only appears in target member's bucket
+      // Update task ID to match the target day format (remove source day suffix if present)
+      const baseTaskId = task.routine_task_id || task.id.split('_')[0] // Get base ID without day suffix
+      const updatedTaskId = sourceDay !== targetDay 
+        ? `${baseTaskId}_${targetDay}` // Update ID to include target day
+        : task.id // Keep same ID for same-day moves
       const updatedTask = { 
         ...task, 
+        id: updatedTaskId,
         memberId: targetMemberId,
         assignees: undefined // Clear assignees since we're doing a single-member assignment
       }
@@ -189,14 +195,19 @@ export const useDndKitDragAndDrop = (
         return taskMemberId === targetMemberId
       })
       
-      // Ensure all tasks in calculatedTaskOrder have the correct memberId, especially the moved task
+      // Ensure all tasks in calculatedTaskOrder have the correct memberId and ID, especially the moved task
       calculatedTaskOrder = calculatedTaskOrder.map((t: Task) => {
         const tRoutineTaskId = t.routine_task_id || extractRoutineTaskIdFromId(t.id)
         if (tRoutineTaskId === routineTaskIdToMove) {
-          // Clear assignees array and set memberId for single-member assignment
-          // This ensures the task only appears in the target member's bucket
+          // Update task ID to match target day format and clear assignees
+          const baseTaskId = t.routine_task_id || t.id.split('_')[0]
+          const newTaskId = sourceDay !== targetDay 
+            ? `${baseTaskId}_${targetDay}` // Update ID to include target day
+            : t.id // Keep same ID for same-day moves
+          
           return { 
             ...t, 
+            id: newTaskId,
             memberId: targetMemberId,
             assignees: undefined // Clear assignees since we're doing a single-member move
           }
@@ -241,46 +252,49 @@ export const useDndKitDragAndDrop = (
         const sourceTasksBefore = newCalendarTasks[sourceDay].individualTasks.length
         
         // Create a fresh array to avoid reference issues
+        // Remove the task from source day by matching routine_task_id (most reliable)
         const filteredSourceTasks = newCalendarTasks[sourceDay].individualTasks.filter((t: Task) => {
           // Check both memberId and assignees for matching
           const taskMemberId = t.memberId || extractRoutineTaskIdFromId(t.id)
           const taskAssignees = t.assignees?.map((a: any) => a.id) || []
           const isAssignedToSourceMember = taskMemberId === sourceMemberId || taskAssignees.includes(sourceMemberId)
           
-          // Use routine_task_id for matching since calendar tasks have day suffixes in their IDs
-          const matchingByRoutineTaskId = task.routine_task_id && t.routine_task_id && t.routine_task_id === task.routine_task_id
-          const matchingByBaseId = !task.routine_task_id && t.id.startsWith(task.id)
-          const taskMatches = isAssignedToSourceMember && (matchingByRoutineTaskId || matchingByBaseId)
-          
-          if (taskMatches) {
-            console.log('[DND-KIT] ✅ REMOVING task from source:', t.name, 'memberId:', taskMemberId)
+          // If not assigned to source member, keep the task
+          if (!isAssignedToSourceMember) {
+            return true
           }
           
-          // Debug log all tasks being checked
-          console.log('[DND-KIT] 🔍 Checking task:', {
-            taskId: t.id,
-            taskName: t.name,
-            taskMemberId,
-            taskMemberIdFromProp: t.memberId,
-            taskRoutineTaskId: t.routine_task_id,
-            sourceMemberId,
-            matchingByRoutineTaskId,
-            matchingByBaseId: matchingByBaseId,
-            taskMatches,
-            dragTaskId: task.id,
-            dragTaskRoutineTaskId: task.routine_task_id,
-            dragTaskMemberId: task.memberId,
-            comparison: {
-              task_routineId: t.routine_task_id,
-              drag_routineId: task.routine_task_id,
-              routineIdMatch: t.routine_task_id === task.routine_task_id,
-              task_idStartsWith: t.id.startsWith(task.id),
-              task_idFull: t.id,
-              drag_idFull: task.id
-            }
-          })
+          // Extract routine_task_id from both tasks for comparison
+          const tRoutineTaskId = t.routine_task_id || extractRoutineTaskIdFromId(t.id)
+          const dragRoutineTaskId = task.routine_task_id || extractRoutineTaskIdFromId(task.id)
           
-          return !taskMatches
+          // Primary matching: use routine_task_id - this is the most reliable way
+          // since calendar tasks have day suffixes in their IDs (e.g., taskId_wednesday)
+          if (tRoutineTaskId && dragRoutineTaskId && tRoutineTaskId === dragRoutineTaskId) {
+            console.log('[DND-KIT] ✅ REMOVING task from source (by routine_task_id):', t.name, 'taskId:', t.id, 'routineTaskId:', tRoutineTaskId)
+            return false // Remove this task
+          }
+          
+          // Fallback: if no routine_task_id, check if IDs match exactly or by base ID
+          if (!tRoutineTaskId || !dragRoutineTaskId) {
+            // Check exact ID match
+            if (t.id === task.id) {
+              console.log('[DND-KIT] ✅ REMOVING task from source (by exact ID):', t.name, 'taskId:', t.id)
+              return false // Remove this task
+            }
+            
+            // Check base ID match (remove day suffix)
+            const tBaseId = t.id.split('_').slice(0, -1).join('_') || t.id
+            const dragBaseId = task.id.split('_').slice(0, -1).join('_') || task.id
+            if (tBaseId === dragBaseId && tBaseId !== t.id) {
+              // Only match by base ID if both have day suffixes
+              console.log('[DND-KIT] ✅ REMOVING task from source (by base ID):', t.name, 'taskId:', t.id, 'baseId:', tBaseId)
+              return false // Remove this task
+            }
+          }
+          
+          // Keep this task (it doesn't match the moved task)
+          return true
         })
         
         const sourceTasksAfter = filteredSourceTasks.length
@@ -303,14 +317,20 @@ export const useDndKitDragAndDrop = (
             return taskMemberId !== targetMemberId // Exclude tasks for target member (they'll be replaced by calculatedTaskOrder)
           })
           
-          // Ensure all tasks in calculatedTaskOrder have explicit memberId set
+          // Ensure all tasks in calculatedTaskOrder have explicit memberId set and correct ID
           const calculatedTaskOrderWithMemberIds = calculatedTaskOrder.map((t: Task) => {
             const tRoutineTaskId = t.routine_task_id || extractRoutineTaskIdFromId(t.id)
             const isMovedTask = tRoutineTaskId === routineTaskIdToMove
             if (isMovedTask) {
-              // Ensure moved task has correct memberId and cleared assignees
+              // Update task ID to match target day format and ensure moved task has correct memberId
+              const baseTaskId = t.routine_task_id || t.id.split('_')[0]
+              const newTaskId = sourceDay !== targetDay 
+                ? `${baseTaskId}_${targetDay}` // Update ID to include target day
+                : t.id // Keep same ID for same-day moves
+              
               return { 
                 ...t, 
+                id: newTaskId,
                 memberId: targetMemberId,
                 assignees: undefined // Clear assignees for single-member move
               }
@@ -354,10 +374,36 @@ export const useDndKitDragAndDrop = (
           const mId = t.memberId || extractRoutineTaskIdFromId(t.id)
           return mId !== targetMemberId
         })
+        
+        // Also filter out any existing tasks for the target member with the same routine_task_id
+        // to prevent duplicates when moving a task to a day where it already exists
+        const existingTargetMemberTasks = existingTarget.filter((t: Task) => {
+          const mId = t.memberId || extractRoutineTaskIdFromId(t.id)
+          if (mId !== targetMemberId) return false
+          
+          const tRoutineTaskId = t.routine_task_id || extractRoutineTaskIdFromId(t.id)
+          const dragRoutineTaskId = task.routine_task_id || extractRoutineTaskIdFromId(task.id)
+          
+          // Keep tasks that don't match the moved task's routine_task_id
+          // Use both routineTaskIdToMove and dragRoutineTaskId for comparison
+          if (tRoutineTaskId && dragRoutineTaskId && tRoutineTaskId === dragRoutineTaskId) {
+            console.log('[DND-KIT] 🚫 Filtering duplicate from target day:', t.name, 'taskId:', t.id, 'routineTaskId:', tRoutineTaskId)
+            return false // Remove duplicate
+          }
+          if (tRoutineTaskId === routineTaskIdToMove) {
+            console.log('[DND-KIT] 🚫 Filtering duplicate from target day (by routineTaskIdToMove):', t.name, 'taskId:', t.id, 'routineTaskId:', tRoutineTaskId)
+            return false // Remove duplicate
+          }
+          
+          return true // Keep this task
+        })
+        
+        // Combine: other members' tasks + existing target member tasks (excluding moved task) + newly placed tasks
         newCalendarTasks[targetDay] = {
           ...newCalendarTasks[targetDay],
           individualTasks: [
             ...otherMembersOnTarget,
+            ...existingTargetMemberTasks,
             ...calculatedTaskOrder
           ]
         }
@@ -498,8 +544,6 @@ export const useDndKitDragAndDrop = (
                     return updated
                   })
                 }
-              } else if (reloadRoutineData) {
-                await reloadRoutineData()
               }
             }
           } catch (error) {
@@ -508,6 +552,13 @@ export const useDndKitDragAndDrop = (
         }
         
         await saveDaySpecificOrder(targetDay, targetMemberId, calculatedTaskOrder)
+        
+        // Reload data after all backend updates complete to ensure UI is in sync
+        // This ensures tasks are removed from source day and only appear in target day
+        if (reloadRoutineData && sourceDay !== targetDay) {
+          console.log('[DND-KIT] 🔄 Reloading data after cross-day move to ensure consistency')
+          await reloadRoutineData()
+        }
       } catch (error) {
         console.error('[DND-KIT] ❌ Failed to save day-specific order:', error)
       }

@@ -298,7 +298,7 @@ export const PlannerWeek: React.FC<PlannerWeekProps> = ({
                      >
                       <div className="flex flex-col min-h-full relative">
                         {/* Tasks Container */}
-                        <div className="space-y-2">
+                        <div className={`space-y-2 ${orderedTasks.length > 0 ? 'pb-[100px]' : 'pb-[40px]'}`}>
                         {/* Drop zone at the top when there are existing tasks - show when hovering this cell or any valid target */}
                         {draggedTask && orderedTasks.length > 0 && 
                          (hoveredDropZone?.day === day && hoveredDropZone?.memberId === bucket.bucket_member_id ||

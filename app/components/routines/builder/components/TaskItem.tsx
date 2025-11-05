@@ -88,6 +88,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       return
     }
     
+    // Stop propagation to prevent triggering parent cell's onClick
+    e.stopPropagation()
     onClick(e, task, day, memberId)
   }
   
